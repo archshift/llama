@@ -1,11 +1,11 @@
 use cpu;
 use cpu::{Cpu, ArmInstruction, ThumbInstruction};
 
-// #[inline]
-// fn sign_extend(data: u32, size: u32) -> i32 {
-//     assert!(size > 0 && size <= 32);
-//     ((data << (32 - size)) as i32) >> (32 - size)
-// }
+#[inline]
+fn sign_extend(data: u32, size: u32) -> i32 {
+    assert!(size > 0 && size <= 32);
+    ((data << (32 - size)) as i32) >> (32 - size)
+}
 
 // #[derive(Debug)]
 // enum MemAccessMode {
@@ -206,10 +206,72 @@ fn cond_passed(cond_opcode: u32, cpsr: &cpu::Psr::Type) -> bool {
     }
 }
 
+enum ProcessInstrBitOp {
+    AND,
+    AND_NOT,
+    OR,
+    XOR,
+}
+
 #[inline(always)]
-fn process_instr_mov(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, negate: bool) {
+fn process_instr_bbl(cpu: &mut Cpu, data: cpu::InstrDataBBL::Type) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataBBL::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let signed_imm_24 = data.get::<cpu::InstrDataBBL::signed_imm_24>();
+
+    if data.get::<cpu::InstrDataBBL::link_bit>() == 1 {
+        cpu.regs[14] = cpu.regs[15] - 4;
+    }
+
+    let pc = cpu.regs[15];
+    cpu.branch(((pc as i32) + (sign_extend(signed_imm_24, 24) << 2)) as u32);
+
+    0
+}
+
+#[inline(always)]
+fn process_instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInstrBitOp) -> u32 {
     if !cond_passed(data.get::<cpu::InstrDataDProc::cond>(), &cpu.cpsr) {
-        return
+        return 4;
+    }
+
+    let dst_reg = data.get::<cpu::InstrDataDProc::rd>();
+    let s_bit = data.get::<cpu::InstrDataDProc::s_bit>() == 1;
+    let (mut shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let rn = data.get::<cpu::InstrDataDProc::rn>();
+
+    let val = match op {
+        ProcessInstrBitOp::AND => cpu.regs[rn as usize] & shifter_val,
+        ProcessInstrBitOp::AND_NOT => cpu.regs[rn as usize] & !shifter_val,
+        ProcessInstrBitOp::OR => cpu.regs[rn as usize] | shifter_val,
+        ProcessInstrBitOp::XOR => cpu.regs[rn as usize] ^ shifter_val,
+    };
+
+    if s_bit {
+        if dst_reg == 15 {
+            cpu.spsr_make_current();
+        } else {
+            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
+            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
+            cpu.cpsr.set::<cpu::Psr::c_bit>(shifter_carry as u32);
+        }
+    }
+
+    if dst_reg == 15 {
+        cpu.branch(val);
+        return 0;
+    } else {
+        cpu.regs[dst_reg as usize] = val;
+        return 4;
+    }
+}
+
+#[inline(always)]
+fn process_instr_move(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, negate: bool) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataDProc::cond>(), &cpu.cpsr) {
+        return 4;
     }
 
     let dst_reg = data.get::<cpu::InstrDataDProc::rd>();
@@ -221,31 +283,81 @@ fn process_instr_mov(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, negate: boo
 
     if s_bit {
         if dst_reg == 15 {
-            cpu.select_saved_psr();
+            cpu.spsr_make_current();
         } else {
             cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(src_val, 31 => 31));
-            cpu.cpsr.set::<cpu::Psr::z_bit>((dst_reg == 0) as u32);
+            cpu.cpsr.set::<cpu::Psr::z_bit>((src_val == 0) as u32);
             cpu.cpsr.set::<cpu::Psr::c_bit>(shifter_carry as u32);
         }
     }
 
     if dst_reg == 15 {
         cpu.branch(src_val);
+        return 0;
     } else {
         cpu.regs[dst_reg as usize] = src_val;
+        return 4;
     }
 }
 
 #[inline(always)]
+fn process_instr_mrs(cpu: &mut Cpu, data: cpu::InstrDataMoveStatusReg::Type) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataMoveStatusReg::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let dst_reg = data.get::<cpu::InstrDataMoveStatusReg::rd>();
+    let r_bit = data.get::<cpu::InstrDataMoveStatusReg::r_bit>();
+
+    if r_bit == 1 {
+        cpu.regs[dst_reg as usize] = cpu.get_current_spsr().raw();
+    } else {
+        cpu.regs[dst_reg as usize] = cpu.cpsr.raw();
+    }
+
+    4
+}
+
+#[inline(always)]
+fn process_instr_test(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, equiv: bool) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataDProc::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let (mut shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let rn = data.get::<cpu::InstrDataDProc::rn>();
+    let val = if equiv {
+        cpu.regs[rn as usize] ^ shifter_val
+    } else {
+        cpu.regs[rn as usize] & shifter_val
+    };
+
+    cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
+    cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
+    cpu.cpsr.set::<cpu::Psr::c_bit>(shifter_carry as u32);
+
+    4
+}
+
+#[inline(always)]
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
-    match instr {
-        ArmInstruction::MOV(data) => process_instr_mov(cpu, data, false),
-        ArmInstruction::MVN(data) => process_instr_mov(cpu, data, true),
+    let bytes_advanced = match instr {
+        ArmInstruction::AND(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND),
+        ArmInstruction::BIC(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT),
+        ArmInstruction::B_BL(data) => process_instr_bbl(cpu, data),
+        ArmInstruction::EOR(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::XOR),
+        ArmInstruction::MOV(data) => process_instr_move(cpu, data, false),
+        ArmInstruction::MRS(data) => process_instr_mrs(cpu, data),
+        ArmInstruction::MVN(data) => process_instr_move(cpu, data, true),
+        ArmInstruction::ORR(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::OR),
+        ArmInstruction::TST(data) => process_instr_test(cpu, data, false),
+        ArmInstruction::TEQ(data) => process_instr_test(cpu, data, true),
         _ => {
             println!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+            4
         }
     };
-    cpu.regs[15] += 4;
+    cpu.regs[15] += bytes_advanced;
 }
 
 pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {

@@ -45,7 +45,7 @@ macro_rules! create_bitfield {
                     val: val
                 }
             }
-            
+
             impl Type {
                 pub fn raw(&self) -> $ty {
                     self.val

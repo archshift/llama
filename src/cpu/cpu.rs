@@ -34,6 +34,10 @@ impl Cpu {
 
     pub fn reset(&mut self, entry: u32) {
         self.regs[15] = entry + self.get_pc_offset();
+        self.cpsr.set::<Psr::mode>(0b10011);
+        self.cpsr.set::<Psr::thumb_bit>(0b0);
+        self.cpsr.set::<Psr::disable_fiq_bit>(0b1);
+        self.cpsr.set::<Psr::disable_irq_bit>(0b1);
     }
 
     pub fn get_pc_offset(&self) -> u32 {
@@ -44,12 +48,19 @@ impl Cpu {
         }
     }
 
-    pub fn select_saved_psr(&mut self) {
-
+    pub fn get_current_spsr(&mut self) -> &mut Psr::Type {
+        // TODO: Implement
+        &mut self.spsr[0]
     }
 
-    pub fn branch(&mut self, addr: u32) {
+    pub fn spsr_make_current(&mut self) {
+        // TODO: Implement
+    }
 
+    #[inline(always)]
+    pub fn branch(&mut self, addr: u32) {
+        self.regs[15] = addr + self.get_pc_offset();
+        // TODO: Invalidate pipeline once/if we have one
     }
 
     pub fn run(&mut self, mut ram: &mut ram::Ram) {

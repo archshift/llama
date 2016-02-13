@@ -12,7 +12,7 @@ fn main() {
     let mut cpu = cpu::Cpu::new();
     let mut ram = ram::Ram::new();
 
-    let mut file = std::fs::File::open("").unwrap();
+    let mut file = std::fs::File::open("/Users/gui/MEGA/Games/3DS Secrets/9.? NATIVE_FIRM/firm_2_08006800.bin").unwrap();
     let mut filebuf = Vec::<u8>::new();
 
     let size = file.read_to_end(&mut filebuf).unwrap();
