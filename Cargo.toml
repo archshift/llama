@@ -1,0 +1,7 @@
+[package]
+name = "arm9emu"
+version = "0.1.0"
+authors = ["archshift <gh@archshift.com>"]
+
+[dependencies]
+num = "0.1.30"

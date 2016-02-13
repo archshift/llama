@@ -1,7 +1,11 @@
-trait MemoryRegion {
+use num::PrimInt;
+use std;
+
+trait MemoryRegion: Send {
     fn read(&self, addr: u32) -> u8;
     fn write(&mut self, addr: u32, data: u8);
-    fn borrow(&mut self, addr: u32, size: u32) -> &mut [u8];
+    fn borrow(&self, addr: u32, size: u32) -> &[u8];
+    fn borrow_mut(&mut self, addr: u32, size: u32) -> &mut [u8];
 
     fn get_base_addr(&self) -> u32;
     fn get_size(&self) -> u32;
@@ -39,7 +43,13 @@ impl MemoryRegion for RamRegion {
         self.data[(addr - self.get_base_addr()) as usize] = data;
     }
 
-    fn borrow(&mut self, addr: u32, size: u32) -> &mut [u8] {
+    fn borrow(&self, addr: u32, size: u32) -> &[u8] {
+        assert!(self.check_bounds(addr, size));
+        let index = (addr - self.get_base_addr()) as usize;
+        &self.data[index .. index + size as usize]
+    }
+
+    fn borrow_mut(&mut self, addr: u32, size: u32) -> &mut [u8] {
         assert!(self.check_bounds(addr, size));
         let index = (addr - self.get_base_addr()) as usize;
         &mut self.data[index .. index + size as usize]
@@ -99,7 +109,13 @@ impl MemoryRegion for ItcmRegion {
         self.data[self.to_index(addr)] = data;
     }
 
-    fn borrow(&mut self, addr: u32, size: u32) -> &mut [u8] {
+    fn borrow(&self, addr: u32, size: u32) -> &[u8] {
+        assert!(self.check_bounds(addr, size));
+        let index = self.to_index(addr);
+        &self.data[index .. index + size as usize]
+    }
+
+    fn borrow_mut(&mut self, addr: u32, size: u32) -> &mut [u8] {
         assert!(self.check_bounds(addr, size));
         let index = self.to_index(addr);
         &mut self.data[index .. index + size as usize]
@@ -152,17 +168,43 @@ impl Ram {
         panic!("Invalid memory read! addr: {}, size: {}", addr, size);
     }
 
-    pub fn read(&self, addr: u32) -> u8 {
+    pub fn read8(&self, addr: u32) -> u8 {
         self.regions[self.get_region_index(addr, 0)].read(addr)
     }
 
-    pub fn write(&mut self, addr: u32, data: u8) {
+    pub fn read<T: PrimInt>(&self, addr: u32) -> T {
+        let size = std::mem::size_of::<T>() as u32;
+        let slice = self.regions[self.get_region_index(addr, size)].borrow(addr, size);
+        unsafe {
+            let ptr = &slice[0] as *const u8;
+            let ptrT = ptr as *const T;
+            *ptrT
+        }
+    }
+
+    pub fn write8(&mut self, addr: u32, data: u8) {
         let index = self.get_region_index(addr, 0);
         self.regions[index].write(addr, data);
     }
 
-    pub fn borrow(&mut self, addr: u32, size: u32) -> &mut [u8] {
+    pub fn write<T: PrimInt>(&mut self, addr: u32, data: T) {
+        let size = std::mem::size_of::<T>() as u32;
+        let index = self.get_region_index(addr, size);
+        let slice = self.regions[index].borrow_mut(addr, size);
+        unsafe {
+            let ptr = &mut slice[0] as *mut u8;
+            let ptrT = ptr as *mut T;
+            *ptrT = data;
+        };
+    }
+
+    pub fn borrow(&self, addr: u32, size: u32) -> &[u8] {
         let index = self.get_region_index(addr, size);
         self.regions[index].borrow(addr, size)
+    }
+
+    pub fn borrow_mut(&mut self, addr: u32, size: u32) -> &mut [u8] {
+        let index = self.get_region_index(addr, size);
+        self.regions[index].borrow_mut(addr, size)
     }
 }
