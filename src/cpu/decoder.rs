@@ -6,8 +6,8 @@ pub enum ArmInstruction {
     ADD(InstrDataDProc::Type),
     AND(InstrDataDProc::Type),
     B_BL(InstrDataBBL::Type),
-    BLX(InstrDataBLX::Type),
-    BX(InstrDataBX::Type),
+    BLX(InstrDataBranchExchange::Type),
+    BX(InstrDataBranchExchange::Type),
     CMN(InstrDataDProc::Type),
     CMP(InstrDataDProc::Type),
     BIC(InstrDataDProc::Type),
@@ -29,7 +29,9 @@ pub enum ArmInstruction {
     SUB(InstrDataDProc::Type),
     TEQ(InstrDataDProc::Type),
     TST(InstrDataDProc::Type),
-    UNIMPLEMENTED,
+
+    MOD_BLX(InstrDataModBLX::Type),
+
     UNKNOWN,
 }
 
@@ -54,12 +56,7 @@ create_bitfield!(InstrDataBBL: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataBLX: u32, {
-    rm: 0 => 3,
-    cond: 28 => 31
-});
-
-create_bitfield!(InstrDataBX: u32, {
+create_bitfield!(InstrDataBranchExchange: u32, {
     rm: 0 => 3,
     cond: 28 => 31
 });
@@ -107,16 +104,29 @@ create_bitfield!(InstrDataMoveStatusReg: u32, {
     cond: 28 => 31
 });
 
+create_bitfield!(InstrDataModBLX: u32, {
+    signed_imm_24: 0 => 23,
+    h_bit: 24 => 24
+});
+
 
 pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
-    if extract_bits!(encoding, 28 => 31) == 0b1111 {
-        return ArmInstruction::UNIMPLEMENTED;// panic!("Condition code 0b1111 not supported!")
-    }
-
     macro_rules! constrain {
         ($data:expr, $([$low:expr => $high:expr, $val:expr, $boolean:expr]),*) => {{
             $((extract_bits!($data, $low => $high) == $val) == $boolean)&&*
         }};
+    }
+
+    //
+    // Special (0b1111) instructions
+    //
+
+    if extract_bits!(encoding, 28 => 31) == 0b1111 {
+        if constrain!(encoding, [25 => 27, 0b101, true]) {
+            return ArmInstruction::MOD_BLX(InstrDataModBLX::new(encoding));
+        }
+
+        return ArmInstruction::UNKNOWN;
     }
 
     //
@@ -223,11 +233,11 @@ pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
     }
 
     if constrain!(encoding, [20 => 27, 0b00010010, true], [4 => 7, 0b0011, true]) {
-        return ArmInstruction::BLX(InstrDataBLX::new(encoding));
+        return ArmInstruction::BLX(InstrDataBranchExchange::new(encoding));
     }
 
     if constrain!(encoding, [20 => 27, 0b00010010, true], [4 => 7, 0b0001, true]) {
-        return ArmInstruction::BX(InstrDataBX::new(encoding));
+        return ArmInstruction::BX(InstrDataBranchExchange::new(encoding));
     }
 
     //
@@ -253,7 +263,7 @@ pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
     //
     // Coprocessor instructions
     //
-    
+
     if constrain!(encoding, [24 => 27, 0b1110, true], [20 => 20, 0b1, true], [4 => 4, 0b1, true]) {
         return ArmInstruction::MRC(InstrDataMoveCoproc::new(encoding));
     }

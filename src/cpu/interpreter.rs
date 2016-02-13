@@ -232,6 +232,24 @@ fn process_instr_bbl(cpu: &mut Cpu, data: cpu::InstrDataBBL::Type) -> u32 {
 }
 
 #[inline(always)]
+fn process_instr_branch_exchange(cpu: &mut Cpu, data: cpu::InstrDataBranchExchange::Type, link: bool) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataBranchExchange::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let addr = cpu.regs[data.get::<cpu::InstrDataBranchExchange::rm>() as usize];
+
+    if link {
+        cpu.regs[14] = cpu.regs[15] - 4;
+    }
+
+    cpu.cpsr.set::<cpu::Psr::thumb_bit>(extract_bits!(addr, 0 => 0));
+    cpu.branch(addr & 0xFFFFFFFE);
+
+    0
+}
+
+#[inline(always)]
 fn process_instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInstrBitOp) -> u32 {
     if !cond_passed(data.get::<cpu::InstrDataDProc::cond>(), &cpu.cpsr) {
         return 4;
@@ -340,11 +358,27 @@ fn process_instr_test(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, equiv: boo
 }
 
 #[inline(always)]
+fn process_instr_mod_blx(cpu: &mut Cpu, data: cpu::InstrDataModBLX::Type) -> u32 {
+    let signed_imm_24 = data.get::<cpu::InstrDataModBLX::signed_imm_24>();
+    let h_bit = data.get::<cpu::InstrDataModBLX::h_bit>();
+
+    cpu.regs[14] = cpu.regs[15] - 4;
+    cpu.cpsr.set::<cpu::Psr::thumb_bit>(1);
+
+    let pc = cpu.regs[15];
+    cpu.branch((pc as i32 + (sign_extend(signed_imm_24, 24) << 2)) as u32 + (h_bit << 1));
+
+    0
+}
+
+#[inline(always)]
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     let bytes_advanced = match instr {
         ArmInstruction::AND(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND),
         ArmInstruction::BIC(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT),
         ArmInstruction::B_BL(data) => process_instr_bbl(cpu, data),
+        ArmInstruction::BLX(data) => process_instr_branch_exchange(cpu, data, true),
+        ArmInstruction::BX(data) => process_instr_branch_exchange(cpu, data, false),
         ArmInstruction::EOR(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::XOR),
         ArmInstruction::MOV(data) => process_instr_move(cpu, data, false),
         ArmInstruction::MRS(data) => process_instr_mrs(cpu, data),
@@ -352,6 +386,9 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::ORR(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::OR),
         ArmInstruction::TST(data) => process_instr_test(cpu, data, false),
         ArmInstruction::TEQ(data) => process_instr_test(cpu, data, true),
+
+        ArmInstruction::MOD_BLX(data) => process_instr_mod_blx(cpu, data),
+
         _ => {
             println!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
             4
