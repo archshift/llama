@@ -150,6 +150,67 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInst
     }
 }
 
+enum ProcessInstrLogicalOp {
+    ADD,
+    REVERSE_SUB,
+    SUB,
+}
+
+#[inline(always)]
+fn instr_logical(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInstrLogicalOp) -> u32 {
+    use cpu::InstrDataDProc as InstrData;
+
+    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let dst_reg = data.get::<InstrData::rd>();
+    let s_bit = data.get::<InstrData::s_bit>() == 1;
+
+    let base_val = cpu.regs[data.get::<InstrData::rn>() as usize];
+    let (shifter_val, _) = get_shifter_val(&data, cpu);
+
+    let (val, carry_bit, overflow_bit) = match op {
+        ProcessInstrLogicalOp::ADD => {
+            let val = base_val + shifter_val;
+            let u_overflow = base_val.checked_add(shifter_val).is_none();
+            let s_overflow = (base_val as i32).checked_add(shifter_val as i32).is_none();
+            (val, u_overflow, s_overflow)
+        },
+        ProcessInstrLogicalOp::REVERSE_SUB => {
+            let val = shifter_val - base_val;
+            let u_overflow = shifter_val.checked_sub(base_val).is_none();
+            let s_overflow = (shifter_val as i32).checked_sub(base_val as i32).is_none();
+            (val, u_overflow, s_overflow)
+        }
+        ProcessInstrLogicalOp::SUB => {
+            let val = base_val - shifter_val;
+            let u_overflow = base_val.checked_sub(shifter_val).is_none();
+            let s_overflow = (base_val as i32).checked_sub(shifter_val as i32).is_none();
+            (val, u_overflow, s_overflow)
+        }
+    };
+
+    if s_bit {
+        if dst_reg == 15 {
+            cpu.spsr_make_current();
+        } else {
+            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
+            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
+            cpu.cpsr.set::<cpu::Psr::c_bit>(carry_bit as u32);
+            cpu.cpsr.set::<cpu::Psr::v_bit>(overflow_bit as u32);
+        }
+    }
+
+    if dst_reg == 15 {
+        cpu.branch(val);
+        return 0;
+    } else {
+        cpu.regs[dst_reg as usize] = val;
+        return 4;
+    }
+}
+
 #[inline(always)]
 fn instr_move(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, negate: bool) -> u32 {
     use cpu::InstrDataDProc as InstrData;
@@ -209,40 +270,7 @@ fn instr_test(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, equiv: bool) -> u3
 
 #[inline(always)]
 pub fn add(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
-    use cpu::InstrDataDProc as InstrData;
-
-    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
-        return 4;
-    }
-
-    let dst_reg = data.get::<InstrData::rd>();
-    let s_bit = data.get::<InstrData::s_bit>() == 1;
-    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
-    let rn = data.get::<InstrData::rn>();
-
-    let val = cpu.regs[rn as usize] + shifter_val;
-
-    if s_bit {
-        if dst_reg == 15 {
-            cpu.spsr_make_current();
-        } else {
-            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
-            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
-
-            let u_overflow = cpu.regs[rn as usize].checked_add(shifter_val).is_none();
-            let s_overflow = (cpu.regs[rn as usize] as i32).checked_add(shifter_val as i32).is_none();
-            cpu.cpsr.set::<cpu::Psr::c_bit>(u_overflow as u32);
-            cpu.cpsr.set::<cpu::Psr::v_bit>(s_overflow as u32);
-        }
-    }
-
-    if dst_reg == 15 {
-        cpu.branch(val);
-        return 0;
-    } else {
-        cpu.regs[dst_reg as usize] = val;
-        return 4;
-    }
+    instr_logical(cpu, data, ProcessInstrLogicalOp::ADD)
 }
 
 #[inline(always)]
@@ -277,78 +305,12 @@ pub fn mvn(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
 
 #[inline(always)]
 pub fn rsb(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
-    use cpu::InstrDataDProc as InstrData;
-
-    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
-        return 4;
-    }
-
-    let dst_reg = data.get::<InstrData::rd>();
-    let s_bit = data.get::<InstrData::s_bit>() == 1;
-    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
-    let rn = data.get::<InstrData::rn>();
-
-    let val = shifter_val - cpu.regs[rn as usize];
-
-    if s_bit {
-        if dst_reg == 15 {
-            cpu.spsr_make_current();
-        } else {
-            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
-            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
-
-            let u_underflow = !shifter_val.checked_sub(cpu.regs[rn as usize]).is_none();
-            let s_overflow = (shifter_val as i32).checked_sub(cpu.regs[rn as usize] as i32).is_none();
-            cpu.cpsr.set::<cpu::Psr::c_bit>(u_underflow as u32);
-            cpu.cpsr.set::<cpu::Psr::v_bit>(s_overflow as u32);
-        }
-    }
-
-    if dst_reg == 15 {
-        cpu.branch(val);
-        return 0;
-    } else {
-        cpu.regs[dst_reg as usize] = val;
-        return 4;
-    }
+    instr_logical(cpu, data, ProcessInstrLogicalOp::REVERSE_SUB)
 }
 
 #[inline(always)]
 pub fn sub(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
-    use cpu::InstrDataDProc as InstrData;
-
-    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
-        return 4;
-    }
-
-    let dst_reg = data.get::<InstrData::rd>();
-    let s_bit = data.get::<InstrData::s_bit>() == 1;
-    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
-    let rn = data.get::<InstrData::rn>();
-
-    let val = cpu.regs[rn as usize] - shifter_val;
-
-    if s_bit {
-        if dst_reg == 15 {
-            cpu.spsr_make_current();
-        } else {
-            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
-            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
-
-            let u_underflow = !cpu.regs[rn as usize].checked_sub(shifter_val).is_none();
-            let s_overflow = (cpu.regs[rn as usize] as i32).checked_sub(shifter_val as i32).is_none();
-            cpu.cpsr.set::<cpu::Psr::c_bit>(u_underflow as u32);
-            cpu.cpsr.set::<cpu::Psr::v_bit>(s_overflow as u32);
-        }
-    }
-
-    if dst_reg == 15 {
-        cpu.branch(val);
-        return 0;
-    } else {
-        cpu.regs[dst_reg as usize] = val;
-        return 4;
-    }
+    instr_logical(cpu, data, ProcessInstrLogicalOp::SUB)
 }
 
 #[inline(always)]
