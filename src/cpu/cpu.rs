@@ -70,7 +70,7 @@ impl Cpu {
 
             if self.cpsr.get::<Psr::thumb_bit>() == 0 {
                 let instr = cpu::decode_arm_instruction(encoding);
-                cpu::interpret_arm(self, instr);
+                cpu::interpret_arm(self, ram, instr);
             } else {
                 panic!("Thumb not supported!");
             }

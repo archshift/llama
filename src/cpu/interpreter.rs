@@ -1,5 +1,6 @@
 use cpu;
 use cpu::{Cpu, ArmInstruction, ThumbInstruction};
+use ram;
 
 #[inline]
 fn sign_extend(data: u32, size: u32) -> i32 {
@@ -27,11 +28,11 @@ fn sign_extend(data: u32, size: u32) -> i32 {
 // });
 
 // create_bitfield!(AddressDataSingleReg: u32, {
-    
+
 // });
 
 // create_bitfield!(AddressDataSingleScaled: u32, {
-    
+
 // });
 
 // fn decode_single_mem_address(instruction_encoding: u32) -> SingleMemAddress {
@@ -50,6 +51,67 @@ fn sign_extend(data: u32, size: u32) -> i32 {
 // fn decode_multi_mem_address(instruction_encoding: u32) -> MultiMemAddress {
 //     panic!("Unknown addressing mode!")
 // }
+
+#[inline(always)]
+fn get_load_store_addr(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu) -> u32 {
+    let c_bit = cpu.cpsr.get::<cpu::Psr::c_bit>() == 1;
+
+    let i_bit = instr_data.get::<cpu::InstrDataLoadStore::i_bit>();
+    let u_bit = instr_data.get::<cpu::InstrDataLoadStore::u_bit>();
+    let base_addr = cpu.regs[instr_data.get::<cpu::InstrDataLoadStore::rn>() as usize];
+
+    let offset = if i_bit == 0 {
+        extract_bits!(instr_data.raw(), 0 => 11)
+    } else {
+        let pre_shift = cpu.regs[extract_bits!(instr_data.raw(), 0 => 3) as usize];
+        let b_bit = instr_data.get::<cpu::InstrDataLoadStore::b_bit>();
+
+        let offset = if extract_bits!(instr_data.raw(), 4 => 11) == 0 {
+            pre_shift
+        } else {
+            let shift = extract_bits!(instr_data.raw(), 5 => 6);
+            let shift_imm = extract_bits!(instr_data.raw(), 7 => 11);
+
+            match shift {
+                0b00 => pre_shift << shift_imm,
+                0b01 => {
+                    let index = if shift_imm == 0 {
+                        0
+                    } else {
+                        pre_shift >> shift_imm
+                    }; index
+                },
+                0b10 => {
+                    let index = if shift_imm == 0 {
+                        let index = if extract_bits!(pre_shift, 31 => 31) == 1 {
+                            0xFFFFFFFF
+                        } else {
+                            0
+                        }; index
+                    } else {
+                        ((pre_shift as i32) >> shift_imm) as u32
+                    }; index
+                },
+                0b11 => {
+                    let index = if shift_imm == 0 {
+                        ((c_bit as u32) << 31) | (pre_shift >> 1)
+                    } else {
+                        pre_shift.rotate_right(shift_imm)
+                    }; index
+                }
+                _ => {
+                    panic!("Unhandled shifter operation!");
+                }
+            }
+        }; offset
+    };
+
+    if u_bit == 1 {
+        return base_addr + offset;
+    } else {
+        return base_addr - offset;
+    }
+}
 
 create_bitfield!(ShifterDataComputeImm: u32, {
     rd: 0 => 3,
@@ -176,11 +238,11 @@ fn cond_passed(cond_opcode: u32, cpsr: &cpu::Psr::Type) -> bool {
         0b0110 => return cpsr.get::<cpu::Psr::v_bit>() == 1, // VS
         0b0111 => return cpsr.get::<cpu::Psr::v_bit>() == 0, // VC
         0b1000 => { // HI
-            return (cpsr.get::<cpu::Psr::c_bit>() == 1) && 
+            return (cpsr.get::<cpu::Psr::c_bit>() == 1) &&
                 (cpsr.get::<cpu::Psr::z_bit>() == 0)
         },
         0b1001 => { // LS
-            return (cpsr.get::<cpu::Psr::c_bit>() == 0) || 
+            return (cpsr.get::<cpu::Psr::c_bit>() == 0) ||
                 (cpsr.get::<cpu::Psr::z_bit>() == 1)
         },
         0b1010 => { // GE
@@ -211,6 +273,42 @@ enum ProcessInstrBitOp {
     AND_NOT,
     OR,
     XOR,
+}
+
+#[inline(always)]
+fn process_instr_add(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataDProc::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let dst_reg = data.get::<cpu::InstrDataDProc::rd>();
+    let s_bit = data.get::<cpu::InstrDataDProc::s_bit>() == 1;
+    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let rn = data.get::<cpu::InstrDataDProc::rn>();
+
+    let val = cpu.regs[rn as usize] + shifter_val;
+
+    if s_bit {
+        if dst_reg == 15 {
+            cpu.spsr_make_current();
+        } else {
+            cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
+            cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
+
+            let u_overflow = cpu.regs[rn as usize].checked_add(shifter_val).is_none();
+            let s_overflow = (cpu.regs[rn as usize] as i32).checked_add(shifter_val as i32).is_none();
+            cpu.cpsr.set::<cpu::Psr::c_bit>(u_overflow as u32);
+            cpu.cpsr.set::<cpu::Psr::v_bit>(s_overflow as u32);
+        }
+    }
+
+    if dst_reg == 15 {
+        cpu.branch(val);
+        return 0;
+    } else {
+        cpu.regs[dst_reg as usize] = val;
+        return 4;
+    }
 }
 
 #[inline(always)]
@@ -284,6 +382,28 @@ fn process_instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: Pro
         cpu.regs[dst_reg as usize] = val;
         return 4;
     }
+}
+
+#[inline(always)]
+fn process_instr_load_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+    if !cond_passed(data.get::<cpu::InstrDataLoadStore::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let rd = data.get::<cpu::InstrDataLoadStore::rd>();
+    let addr = get_load_store_addr(&data, cpu);
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    let val = ram.read::<u32>(addr.rotate_right(8 * extract_bits!(addr, 0 => 1)));
+
+    if rd == 15 {
+        cpu.cpsr.set::<cpu::Psr::thumb_bit>(extract_bits!(val, 0 => 0));
+        cpu.branch(val & 0xFFFFFFFE);
+        return 0;
+    } else {
+        cpu.regs[rd as usize] = val;
+    }
+
+    4
 }
 
 #[inline(always)]
@@ -372,14 +492,16 @@ fn process_instr_mod_blx(cpu: &mut Cpu, data: cpu::InstrDataModBLX::Type) -> u32
 }
 
 #[inline(always)]
-pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
+pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstruction) {
     let bytes_advanced = match instr {
+        ArmInstruction::ADD(data) => process_instr_add(cpu, data),
         ArmInstruction::AND(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND),
         ArmInstruction::BIC(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT),
         ArmInstruction::B_BL(data) => process_instr_bbl(cpu, data),
         ArmInstruction::BLX(data) => process_instr_branch_exchange(cpu, data, true),
         ArmInstruction::BX(data) => process_instr_branch_exchange(cpu, data, false),
         ArmInstruction::EOR(data) => process_instr_bitwise(cpu, data, ProcessInstrBitOp::XOR),
+        ArmInstruction::LDR(data) => process_instr_load_store(cpu, ram, data),
         ArmInstruction::MOV(data) => process_instr_move(cpu, data, false),
         ArmInstruction::MRS(data) => process_instr_mrs(cpu, data),
         ArmInstruction::MVN(data) => process_instr_move(cpu, data, true),
