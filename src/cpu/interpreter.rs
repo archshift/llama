@@ -54,6 +54,8 @@ pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstructio
         ArmInstruction::B_BL(data) => instructions::bbl(cpu, data),
         ArmInstruction::BLX(data) => instructions::blx(cpu, data),
         ArmInstruction::BX(data) => instructions::bx(cpu, data),
+        ArmInstruction::CMN(data) => instructions::cmn(cpu, data),
+        ArmInstruction::CMP(data) => instructions::cmp(cpu, data),
         ArmInstruction::EOR(data) => instructions::eor(cpu, data),
         ArmInstruction::LDR(data) => instructions::ldr(cpu, ram, data),
         ArmInstruction::MOV(data) => instructions::mov(cpu, data),

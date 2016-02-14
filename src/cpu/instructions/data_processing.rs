@@ -150,6 +150,37 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInst
     }
 }
 
+#[inline(always)]
+fn instr_compare(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, negative: bool) -> u32 {
+    use cpu::InstrDataDProc as InstrData;
+
+    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let base_val = cpu.regs[data.get::<InstrData::rn>() as usize];
+    let (shifter_val, _) = get_shifter_val(&data, cpu);
+
+    let (val, carry_bit, overflow_bit) = if negative {
+        let val = base_val - shifter_val;
+        let u_overflow = base_val.checked_sub(shifter_val).is_none();
+        let s_overflow = (base_val as i32).checked_sub(shifter_val as i32).is_none();
+        (val, !u_overflow, s_overflow)
+    } else {
+        let val = base_val + shifter_val;
+        let u_overflow = base_val.checked_add(shifter_val).is_none();
+        let s_overflow = (base_val as i32).checked_add(shifter_val as i32).is_none();
+        (val, u_overflow, s_overflow)
+    };
+
+    cpu.cpsr.set::<cpu::Psr::n_bit>(extract_bits!(val, 31 => 31));
+    cpu.cpsr.set::<cpu::Psr::z_bit>((val == 0) as u32);
+    cpu.cpsr.set::<cpu::Psr::c_bit>(carry_bit as u32);
+    cpu.cpsr.set::<cpu::Psr::v_bit>(overflow_bit as u32);
+
+    4
+}
+
 enum ProcessInstrLogicalOp {
     ADD,
     REVERSE_SUB,
@@ -181,13 +212,13 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInst
             let val = shifter_val - base_val;
             let u_overflow = shifter_val.checked_sub(base_val).is_none();
             let s_overflow = (shifter_val as i32).checked_sub(base_val as i32).is_none();
-            (val, u_overflow, s_overflow)
+            (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::SUB => {
             let val = base_val - shifter_val;
             let u_overflow = base_val.checked_sub(shifter_val).is_none();
             let s_overflow = (base_val as i32).checked_sub(shifter_val as i32).is_none();
-            (val, u_overflow, s_overflow)
+            (val, !u_overflow, s_overflow)
         }
     };
 
@@ -281,6 +312,16 @@ pub fn and(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
 #[inline(always)]
 pub fn bic(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT)
+}
+
+#[inline(always)]
+pub fn cmn(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
+    instr_compare(cpu, data, true)
+}
+
+#[inline(always)]
+pub fn cmp(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type) -> u32 {
+    instr_compare(cpu, data, false)
 }
 
 #[inline(always)]
