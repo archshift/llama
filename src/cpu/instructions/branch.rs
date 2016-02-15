@@ -16,7 +16,7 @@ fn instr_branch_exchange(cpu: &mut Cpu, data: cpu::InstrDataBranchExchange::Type
         cpu.regs[14] = cpu.regs[15] - 4;
     }
 
-    cpu.cpsr.set::<cpu::Psr::thumb_bit>(extract_bits!(addr, 0 => 0));
+    cpu.cpsr.set::<cpu::Psr::thumb_bit>(bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
 
     0

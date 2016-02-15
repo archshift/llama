@@ -113,7 +113,7 @@ create_bitfield!(InstrDataModBLX: u32, {
 pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
     macro_rules! constrain {
         ($data:expr, $([$low:expr => $high:expr, $val:expr, $boolean:expr]),*) => {{
-            $((extract_bits!($data, $low => $high) == $val) == $boolean)&&*
+            $((bits!($data, $low => $high) == $val) == $boolean)&&*
         }};
     }
 
@@ -121,7 +121,7 @@ pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
     // Special (0b1111) instructions
     //
 
-    if extract_bits!(encoding, 28 => 31) == 0b1111 {
+    if bits!(encoding, 28 => 31) == 0b1111 {
         if constrain!(encoding, [25 => 27, 0b101, true]) {
             return ArmInstruction::MOD_BLX(InstrDataModBLX::new(encoding));
         }

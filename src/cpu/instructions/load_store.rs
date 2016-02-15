@@ -13,15 +13,15 @@ fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu)
     let base_addr = cpu.regs[instr_data.get::<InstrData::rn>() as usize];
 
     let offset = if i_bit == 0 {
-        extract_bits!(instr_data.raw(), 0 => 11)
+        bits!(instr_data.raw(), 0 => 11)
     } else {
-        let pre_shift = cpu.regs[extract_bits!(instr_data.raw(), 0 => 3) as usize];
+        let pre_shift = cpu.regs[bits!(instr_data.raw(), 0 => 3) as usize];
 
-        let offset = if extract_bits!(instr_data.raw(), 4 => 11) == 0 {
+        let offset = if bits!(instr_data.raw(), 4 => 11) == 0 {
             pre_shift
         } else {
-            let shift = extract_bits!(instr_data.raw(), 5 => 6);
-            let shift_imm = extract_bits!(instr_data.raw(), 7 => 11);
+            let shift = bits!(instr_data.raw(), 5 => 6);
+            let shift_imm = bits!(instr_data.raw(), 7 => 11);
 
             match shift {
                 0b00 => pre_shift << shift_imm,
@@ -34,7 +34,7 @@ fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu)
                 },
                 0b10 => {
                     let index = if shift_imm == 0 {
-                        let index = if extract_bits!(pre_shift, 31 => 31) == 1 {
+                        let index = if bit!(pre_shift, 31) == 1 {
                             0xFFFFFFFF
                         } else {
                             0
@@ -79,7 +79,7 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore::Type
     let val = if byte {
         ram.read::<u8>(addr) as u32
     } else {
-        ram.read::<u32>(addr.rotate_right(8 * extract_bits!(addr, 0 => 1)))
+        ram.read::<u32>(addr.rotate_right(8 * bits!(addr, 0 => 1)))
     };
 
     // TODO: Implement
@@ -87,7 +87,7 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore::Type
     assert!(data.get::<InstrData::w_bit>() == 0);
 
     if rd == 15 {
-        cpu.cpsr.set::<cpu::Psr::thumb_bit>(extract_bits!(val, 0 => 0));
+        cpu.cpsr.set::<cpu::Psr::thumb_bit>(bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return 0;
     } else {

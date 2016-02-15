@@ -45,7 +45,7 @@ pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti::Ty
     let mut mem_index = 0;
 
     for i in 0..14 {
-        if extract_bits!(register_list, i => i) == 1 {
+        if bit!(register_list, i) == 1 {
             cpu.regs[i] = memslice[mem_index];
             mem_index += 1;
         }
@@ -55,9 +55,9 @@ pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti::Ty
         cpu.regs[data.get::<InstrData::rn>() as usize] = writeback;
     }
 
-    if extract_bits!(register_list, 15 => 15) == 1 {
+    if bit!(register_list, 15) == 1 {
         let val = memslice[mem_index];
-        cpu.cpsr.set::<cpu::Psr::thumb_bit>(extract_bits!(val, 0 => 0));
+        cpu.cpsr.set::<cpu::Psr::thumb_bit>(bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return 0;
     } else {
@@ -80,7 +80,7 @@ pub fn stm(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStoreM
     let mut mem_index = 0;
 
     for i in 0..15 {
-        if extract_bits!(register_list, i => i) == 1 {
+        if bit!(register_list, i) == 1 {
             memslice[mem_index] = cpu.regs[i];
             mem_index += 1;
         }

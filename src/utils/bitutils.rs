@@ -5,11 +5,16 @@ pub fn sign_extend(data: u32, size: u32) -> i32 {
 }
 
 #[macro_export]
-macro_rules! extract_bits {
+macro_rules! bits {
     ($val:expr, $low:expr => $hi:expr) => {{
         let max_bit = ::std::mem::size_of_val(&$val) * 8 - 1;
         $val << (max_bit - $hi) >> (max_bit - $hi + $low)
     }};
+}
+
+#[macro_export]
+macro_rules! bit {
+    ($val:expr, $bit:expr) => { bits!($val, $bit => $bit) };
 }
 
 pub trait BitField<P, V> {
@@ -30,14 +35,14 @@ macro_rules! create_bitfield {
                     #[inline(always)]
                     #[allow(dead_code)]
                     fn get(parent: &Type) -> $ty {
-                        extract_bits!(parent.val, $var_low => $var_hi)
+                        bits!(parent.val, $var_low => $var_hi)
                     }
 
                     #[inline(always)]
                     #[allow(dead_code)]
                     fn set(parent: &mut Type, val: $ty) {
-                        parent.val ^= extract_bits!(parent.val, $var_low => $var_hi) << $var_low;
-                        parent.val |= extract_bits!(val, 0 => $var_hi - $var_low) << $var_low;
+                        parent.val ^= bits!(parent.val, $var_low => $var_hi) << $var_low;
+                        parent.val |= bits!(val, 0 => $var_hi - $var_low) << $var_low;
                     }
                 }
             )*

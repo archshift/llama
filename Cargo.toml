@@ -2,7 +2,3 @@
 name = "arm9emu"
 version = "0.1.0"
 authors = ["archshift <gh@archshift.com>"]
-
-[features]
-default = []
-noinline = []
