@@ -1,9 +1,13 @@
 mod cpu;
-mod decoder;
-mod interpreter;
+mod decoder_arm;
+mod decoder_thumb;
+mod interpreter_arm;
+mod interpreter_thumb;
 
 pub use self::cpu::*;
-pub use self::decoder::*;
-pub use self::interpreter::*;
+pub use self::decoder_arm::*;
+pub use self::decoder_thumb::*;
+pub use self::interpreter_arm::*;
+pub use self::interpreter_thumb::*;
 
-pub mod instructions;
+pub mod instructions_arm;

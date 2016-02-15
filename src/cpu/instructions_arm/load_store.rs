@@ -3,14 +3,14 @@ use cpu::Cpu;
 use ram;
 
 #[inline(always)]
-fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStore, cpu: &Cpu) -> u32 {
-    use cpu::InstrDataLoadStore as InstrData;
+fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32 {
+    use cpu::ArmInstrLoadStore as ArmInstr;
 
     let c_bit = cpu.cpsr.get(cpu::Psr::c_bit()) == 1;
 
-    let i_bit = instr_data.get(InstrData::i_bit());
-    let u_bit = instr_data.get(InstrData::u_bit());
-    let base_addr = cpu.regs[instr_data.get(InstrData::rn()) as usize];
+    let i_bit = instr_data.get(ArmInstr::i_bit());
+    let u_bit = instr_data.get(ArmInstr::u_bit());
+    let base_addr = cpu.regs[instr_data.get(ArmInstr::rn()) as usize];
 
     let offset = if i_bit == 0 {
         bits!(instr_data.raw(), 0 => 11)
@@ -65,14 +65,14 @@ fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStore, cpu: &Cpu) -> u3
 }
 
 #[inline(always)]
-fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore, byte: bool) -> u32 {
-    use cpu::InstrDataLoadStore as InstrData;
+fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+    use cpu::ArmInstrLoadStore as ArmInstr;
 
-    if !cpu::cond_passed(data.get(InstrData::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
         return 4;
     }
 
-    let rd = data.get(InstrData::rd());
+    let rd = data.get(ArmInstr::rd());
     let addr = decode_addressing_mode(&data, cpu);
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
@@ -83,8 +83,8 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore, byte
     };
 
     // TODO: Implement
-    assert!(data.get(InstrData::p_bit()) == 1);
-    assert!(data.get(InstrData::w_bit()) == 0);
+    assert!(data.get(ArmInstr::p_bit()) == 1);
+    assert!(data.get(ArmInstr::w_bit()) == 0);
 
     if rd == 15 {
         cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(val, 0));
@@ -98,19 +98,19 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore, byte
 }
 
 #[inline(always)]
-fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore, byte: bool) -> u32 {
-    use cpu::InstrDataLoadStore as InstrData;
+fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+    use cpu::ArmInstrLoadStore as ArmInstr;
 
-    if !cpu::cond_passed(data.get(InstrData::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
         return 4;
     }
 
     let addr = decode_addressing_mode(&data, cpu);
-    let val = cpu.regs[data.get(InstrData::rd()) as usize];
+    let val = cpu.regs[data.get(ArmInstr::rd()) as usize];
 
     // TODO: Implement
-    assert!(data.get(InstrData::p_bit()) == 1);
-    assert!(data.get(InstrData::w_bit()) == 0);
+    assert!(data.get(ArmInstr::p_bit()) == 1);
+    assert!(data.get(ArmInstr::w_bit()) == 0);
 
     if byte {
         ram.write::<u8>(addr, val as u8);
@@ -122,21 +122,21 @@ fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadSt
 }
 
 #[inline(always)]
-pub fn ldr(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore) -> u32 {
+pub fn ldr(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
     instr_load(cpu, ram, data, false)
 }
 
 #[inline(always)]
-pub fn ldrb(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore) -> u32 {
+pub fn ldrb(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
     instr_load(cpu, ram, data, true)
 }
 
 #[inline(always)]
-pub fn str(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore) -> u32 {
+pub fn str(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
     instr_store(cpu, ram, data, false)
 }
 
 #[inline(always)]
-pub fn strb(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore) -> u32 {
+pub fn strb(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
     instr_store(cpu, ram, data, true)
 }

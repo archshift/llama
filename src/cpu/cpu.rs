@@ -77,13 +77,13 @@ impl Cpu {
     pub fn run(&mut self, mut ram: &mut ram::Ram) {
         loop {
             let addr = self.regs[15] - self.get_pc_offset();
-            let encoding = ram.read::<u32>(addr);
 
             if self.cpsr.get(Psr::thumb_bit()) == 0 {
-                let instr = cpu::decode_arm_instruction(encoding);
+                let instr = cpu::decode_arm_instruction(ram.read::<u32>(addr));
                 cpu::interpret_arm(self, ram, instr);
             } else {
-                panic!("Thumb not supported!");
+                let instr = cpu::decode_thumb_instruction(ram.read::<u16>(addr));
+                cpu::interpret_thumb(self, ram, instr);
             }
         }
     }
