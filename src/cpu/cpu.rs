@@ -2,7 +2,7 @@ use cpu;
 use ram;
 
 // Program status register
-create_bitfield!(Psr: u32, {
+bitfield!(Psr: u32, {
     mode: 0 => 4,
     thumb_bit: 5 => 5,
     disable_fiq_bit: 6 => 6,
@@ -16,12 +16,12 @@ create_bitfield!(Psr: u32, {
 
 pub struct Cpu {
     pub regs: [u32; 16],
-    pub cpsr: Psr::Type,
-    pub spsr_fiq: Psr::Type,
-    pub spsr_irq: Psr::Type,
-    pub spsr_svc: Psr::Type,
-    pub spsr_abt: Psr::Type,
-    pub spsr_und: Psr::Type,
+    pub cpsr: Psr,
+    pub spsr_fiq: Psr,
+    pub spsr_irq: Psr,
+    pub spsr_svc: Psr,
+    pub spsr_abt: Psr,
+    pub spsr_und: Psr,
 }
 
 impl Cpu {
@@ -39,22 +39,22 @@ impl Cpu {
 
     pub fn reset(&mut self, entry: u32) {
         self.regs[15] = entry + self.get_pc_offset();
-        self.cpsr.set::<Psr::mode>(0b10011);
-        self.cpsr.set::<Psr::thumb_bit>(0b0);
-        self.cpsr.set::<Psr::disable_fiq_bit>(0b1);
-        self.cpsr.set::<Psr::disable_irq_bit>(0b1);
+        self.cpsr.set(Psr::mode(), 0b10011);
+        self.cpsr.set(Psr::thumb_bit(), 0b0);
+        self.cpsr.set(Psr::disable_fiq_bit(), 0b1);
+        self.cpsr.set(Psr::disable_irq_bit(), 0b1);
     }
 
     pub fn get_pc_offset(&self) -> u32 {
-        if self.cpsr.get::<Psr::thumb_bit>() == 1 {
+        if self.cpsr.get(Psr::thumb_bit()) == 1 {
             4
         } else {
             8
         }
     }
 
-    pub fn get_current_spsr(&mut self) -> &mut Psr::Type {
-        match self.cpsr.get::<Psr::mode>() {
+    pub fn get_current_spsr(&mut self) -> &mut Psr {
+        match self.cpsr.get(Psr::mode()) {
             0b10001 => &mut self.spsr_fiq,
             0b10010 => &mut self.spsr_irq,
             0b10011 => &mut self.spsr_svc,
@@ -79,7 +79,7 @@ impl Cpu {
             let addr = self.regs[15] - self.get_pc_offset();
             let encoding = ram.read::<u32>(addr);
 
-            if self.cpsr.get::<Psr::thumb_bit>() == 0 {
+            if self.cpsr.get(Psr::thumb_bit()) == 0 {
                 let instr = cpu::decode_arm_instruction(encoding);
                 cpu::interpret_arm(self, ram, instr);
             } else {

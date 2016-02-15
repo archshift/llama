@@ -17,73 +17,53 @@ macro_rules! bit {
     ($val:expr, $bit:expr) => { bits!($val, $bit => $bit) };
 }
 
-pub trait BitField<P, V> {
-    fn get(parent: &P) -> V;
-    fn set(parent: &mut P, val: V);
-}
-
 #[macro_export]
-macro_rules! create_bitfield {
+macro_rules! bitfield {
     ($name:ident: $ty:ty, { $($var_name:ident: $var_low:expr => $var_hi:expr),* }) => {
-        #[allow(non_snake_case)]
-        pub mod $name {
-            $(
-                #[allow(non_camel_case_types)]
-                pub struct $var_name;
+        #[derive(Clone, Copy)]
+        pub struct $name {
+            val: $ty
+        }
 
-                impl ::utils::BitField<Type, $ty> for $var_name {
-                    #[inline(always)]
-                    #[allow(dead_code)]
-                    fn get(parent: &Type) -> $ty {
-                        bits!(parent.val, $var_low => $var_hi)
-                    }
-
-                    #[inline(always)]
-                    #[allow(dead_code)]
-                    fn set(parent: &mut Type, val: $ty) {
-                        parent.val ^= bits!(parent.val, $var_low => $var_hi) << $var_low;
-                        parent.val |= bits!(val, 0 => $var_hi - $var_low) << $var_low;
-                    }
-                }
-            )*
-
-            #[derive(Clone)]
-            pub struct Type {
-                val: $ty
-            }
-
-            pub fn new(val: $ty) -> Type {
-                Type {
+        impl $name {
+            pub fn new(val: $ty) -> $name {
+                $name {
                     val: val
                 }
             }
 
-            impl Type {
-                #[inline(always)]
-                #[allow(dead_code)]
-                pub fn raw(&self) -> $ty {
-                    self.val
-                }
-
-                #[inline(always)]
-                #[allow(dead_code)]
-                pub fn get<T: ::utils::BitField<Type, $ty>>(&self) -> $ty {
-                    T::get(self)
-                }
-
-                #[inline(always)]
-                #[allow(dead_code)]
-                pub fn set<T: ::utils::BitField<Type, $ty>>(&mut self, val: $ty) {
-                    T::set(self, val);
-                }
+            #[inline(always)]
+            #[allow(dead_code)]
+            pub fn raw(&self) -> $ty {
+                self.val
             }
 
-            impl ::std::fmt::Debug for Type {
-                fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                    f.debug_struct(stringify!($name))
-                        $(.field(stringify!($var_name), &self.get::<$var_name>()))*
-                        .finish()
+            #[inline(always)]
+            #[allow(dead_code)]
+            pub fn get(&self, pos: (usize, usize)) -> $ty {
+                bits!(self.val, pos.0 => pos.1)
+            }
+
+            #[inline(always)]
+            #[allow(dead_code)]
+            pub fn set(&mut self, pos: (usize, usize), val: $ty) {
+                self.val ^= bits!(self.val, pos.0 => pos.1) << pos.0;
+                self.val |= bits!(val, 0 => pos.1 - pos.0) << pos.0;
+            }
+
+            $(
+                #[inline(always)]
+                pub fn $var_name() -> (usize, usize) {
+                    ($var_low, $var_hi)
                 }
+            )*
+        }
+
+        impl ::std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                f.debug_struct(stringify!($name))
+                    $(.field(stringify!($var_name), &self.get($name::$var_name())))*
+                    .finish()
             }
         }
     };

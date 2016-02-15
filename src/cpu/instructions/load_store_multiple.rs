@@ -3,15 +3,15 @@ use cpu::Cpu;
 use ram;
 
 #[inline(always)]
-fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStoreMulti::Type, cpu: &mut Cpu) -> (u32, u32) {
+fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStoreMulti, cpu: &mut Cpu) -> (u32, u32) {
     use cpu::InstrDataLoadStoreMulti as InstrData;
 
-    let register_list = instr_data.get::<InstrData::register_list>();
+    let register_list = instr_data.get(InstrData::register_list());
     let num_registers = register_list.count_ones();
 
-    let p_bit = instr_data.get::<InstrData::p_bit>() == 1;
-    let u_bit = instr_data.get::<InstrData::u_bit>() == 1;
-    let rn_val = cpu.regs[instr_data.get::<InstrData::rn>() as usize];
+    let p_bit = instr_data.get(InstrData::p_bit()) == 1;
+    let u_bit = instr_data.get(InstrData::u_bit()) == 1;
+    let rn_val = cpu.regs[instr_data.get(InstrData::rn()) as usize];
 
     if !p_bit && u_bit {
         // Increment after
@@ -31,15 +31,15 @@ fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStoreMulti::Type, cpu: 
 }
 
 #[inline(always)]
-pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti::Type) -> u32 {
+pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti) -> u32 {
     use cpu::InstrDataLoadStoreMulti as InstrData;
 
-    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
+    if !cpu::cond_passed(data.get(InstrData::cond()), &cpu.cpsr) {
         return 4;
     }
 
     let (addr, writeback) = decode_addressing_mode(&data, cpu);
-    let register_list = data.get::<InstrData::register_list>();
+    let register_list = data.get(InstrData::register_list());
 
     let memslice = ram.borrow::<u32>(addr, register_list.count_ones() as usize);
     let mut mem_index = 0;
@@ -51,13 +51,13 @@ pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti::Ty
         }
     }
 
-    if data.get::<InstrData::w_bit>() == 1 {
-        cpu.regs[data.get::<InstrData::rn>() as usize] = writeback;
+    if data.get(InstrData::w_bit()) == 1 {
+        cpu.regs[data.get(InstrData::rn()) as usize] = writeback;
     }
 
     if bit!(register_list, 15) == 1 {
         let val = memslice[mem_index];
-        cpu.cpsr.set::<cpu::Psr::thumb_bit>(bit!(val, 0));
+        cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return 0;
     } else {
@@ -66,15 +66,15 @@ pub fn ldm(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStoreMulti::Ty
 }
 
 #[inline(always)]
-pub fn stm(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStoreMulti::Type) -> u32 {
+pub fn stm(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStoreMulti) -> u32 {
     use cpu::InstrDataLoadStoreMulti as InstrData;
 
-    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
+    if !cpu::cond_passed(data.get(InstrData::cond()), &cpu.cpsr) {
         return 4;
     }
 
     let (addr, writeback) = decode_addressing_mode(&data, cpu);
-    let register_list = data.get::<InstrData::register_list>();
+    let register_list = data.get(InstrData::register_list());
 
     let memslice = ram.borrow_mut::<u32>(addr, register_list.count_ones() as usize);
     let mut mem_index = 0;
@@ -86,8 +86,8 @@ pub fn stm(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStoreM
         }
     }
 
-    if data.get::<InstrData::w_bit>() == 1 {
-        cpu.regs[data.get::<InstrData::rn>() as usize] = writeback;
+    if data.get(InstrData::w_bit()) == 1 {
+        cpu.regs[data.get(InstrData::rn()) as usize] = writeback;
     }
 
     4

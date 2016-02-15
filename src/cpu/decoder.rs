@@ -1,46 +1,41 @@
 #[derive(Debug)]
 pub enum ArmInstruction {
-    ADC(InstrDataDProc::Type),
-    ADD(InstrDataDProc::Type),
-    AND(InstrDataDProc::Type),
-    B_BL(InstrDataBBL::Type),
-    BLX(InstrDataBranchExchange::Type),
-    BX(InstrDataBranchExchange::Type),
-    CMN(InstrDataDProc::Type),
-    CMP(InstrDataDProc::Type),
-    BIC(InstrDataDProc::Type),
-    EOR(InstrDataDProc::Type),
-    LDM(InstrDataLoadStoreMulti::Type),
-    LDR(InstrDataLoadStore::Type),
-    LDRB(InstrDataLoadStore::Type),
-    MCR(InstrDataMoveCoproc::Type),
-    MRC(InstrDataMoveCoproc::Type),
-    MRS(InstrDataMoveStatusReg::Type),
-    MSR(InstrDataMoveStatusReg::Type),
-    MOV(InstrDataDProc::Type),
-    MVN(InstrDataDProc::Type),
-    ORR(InstrDataDProc::Type),
-    RSB(InstrDataDProc::Type),
-    RSC(InstrDataDProc::Type),
-    SBC(InstrDataDProc::Type),
-    STM(InstrDataLoadStoreMulti::Type),
-    STR(InstrDataLoadStore::Type),
-    STRB(InstrDataLoadStore::Type),
-    SUB(InstrDataDProc::Type),
-    TEQ(InstrDataDProc::Type),
-    TST(InstrDataDProc::Type),
+    ADC(InstrDataDProc),
+    ADD(InstrDataDProc),
+    AND(InstrDataDProc),
+    B_BL(InstrDataBBL),
+    BLX(InstrDataBranchExchange),
+    BX(InstrDataBranchExchange),
+    CMN(InstrDataDProc),
+    CMP(InstrDataDProc),
+    BIC(InstrDataDProc),
+    EOR(InstrDataDProc),
+    LDM(InstrDataLoadStoreMulti),
+    LDR(InstrDataLoadStore),
+    LDRB(InstrDataLoadStore),
+    MCR(InstrDataMoveCoproc),
+    MRC(InstrDataMoveCoproc),
+    MRS(InstrDataMoveStatusReg),
+    MSR(InstrDataMoveStatusReg),
+    MOV(InstrDataDProc),
+    MVN(InstrDataDProc),
+    ORR(InstrDataDProc),
+    RSB(InstrDataDProc),
+    RSC(InstrDataDProc),
+    SBC(InstrDataDProc),
+    STM(InstrDataLoadStoreMulti),
+    STR(InstrDataLoadStore),
+    STRB(InstrDataLoadStore),
+    SUB(InstrDataDProc),
+    TEQ(InstrDataDProc),
+    TST(InstrDataDProc),
 
-    MOD_BLX(InstrDataModBLX::Type),
+    MOD_BLX(InstrDataModBLX),
 
     UNKNOWN,
 }
 
-#[derive(Debug)]
-pub enum ThumbInstruction {
-
-}
-
-create_bitfield!(InstrDataDProc: u32, {
+bitfield!(InstrDataDProc: u32, {
     shifter_operand: 0 => 11,
     rd: 12 => 15,
     rn: 16 => 19,
@@ -50,18 +45,18 @@ create_bitfield!(InstrDataDProc: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataBBL: u32, {
+bitfield!(InstrDataBBL: u32, {
     signed_imm_24: 0 => 23,
     link_bit: 24 => 24,
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataBranchExchange: u32, {
+bitfield!(InstrDataBranchExchange: u32, {
     rm: 0 => 3,
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataLoadStore: u32, {
+bitfield!(InstrDataLoadStore: u32, {
     addressing_mode_specific: 0 => 11,
     rd: 12 => 15,
     rn: 16 => 19,
@@ -74,7 +69,7 @@ create_bitfield!(InstrDataLoadStore: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataLoadStoreMulti: u32, {
+bitfield!(InstrDataLoadStoreMulti: u32, {
     register_list: 0 => 15,
     rn: 16 => 19,
     l_bit: 20 => 20,
@@ -85,7 +80,7 @@ create_bitfield!(InstrDataLoadStoreMulti: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataMoveCoproc: u32, {
+bitfield!(InstrDataMoveCoproc: u32, {
     crm: 0 => 3,
     opcode_2: 5 => 7,
     cp_num: 8 => 11,
@@ -95,7 +90,7 @@ create_bitfield!(InstrDataMoveCoproc: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataMoveStatusReg: u32, {
+bitfield!(InstrDataMoveStatusReg: u32, {
     shifter_operand: 0 => 11,
     rd: 12 => 15,
     field_mask: 16 => 19,
@@ -104,7 +99,7 @@ create_bitfield!(InstrDataMoveStatusReg: u32, {
     cond: 28 => 31
 });
 
-create_bitfield!(InstrDataModBLX: u32, {
+bitfield!(InstrDataModBLX: u32, {
     signed_imm_24: 0 => 23,
     h_bit: 24 => 24
 });
