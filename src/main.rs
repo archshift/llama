@@ -1,5 +1,3 @@
-extern crate num;
-
 use std::env;
 use std::io::{Read, Write};
 

@@ -1,4 +1,3 @@
-use num::PrimInt;
 use std;
 use std::slice;
 
@@ -169,7 +168,7 @@ impl Ram {
         panic!("Invalid memory read! addr: {}, size: {}", addr, size);
     }
 
-    pub fn read<T: PrimInt>(&self, addr: u32) -> T {
+    pub fn read<T: Copy>(&self, addr: u32) -> T {
         let size = std::mem::size_of::<T>() as u32;
         let slice = self.regions[self.get_region_index(addr, size)].borrow(addr, size);
         unsafe {
@@ -179,7 +178,7 @@ impl Ram {
         }
     }
 
-    pub fn write<T: PrimInt>(&mut self, addr: u32, data: T) {
+    pub fn write<T: Copy>(&mut self, addr: u32, data: T) {
         let size = std::mem::size_of::<T>() as u32;
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow_mut(addr, size);
@@ -190,25 +189,23 @@ impl Ram {
         };
     }
 
-    pub fn borrow<T: PrimInt>(&self, addr: u32, qty: usize) -> &[T] {
+    pub fn borrow<T: Copy>(&self, addr: u32, qty: usize) -> &[T] {
         let size = (std::mem::size_of::<T>() * qty) as u32;
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow(addr, size);
         unsafe {
             let ptr = &slice[0] as *const u8;
-            let ptr = ptr as *const T;
-            slice::from_raw_parts(ptr, qty)
+            slice::from_raw_parts(ptr as *const T, qty)
         }
     }
 
-    pub fn borrow_mut<T: PrimInt>(&mut self, addr: u32, qty: usize) -> &mut [T] {
+    pub fn borrow_mut<T: Copy>(&mut self, addr: u32, qty: usize) -> &mut [T] {
         let size = (std::mem::size_of::<T>() * qty) as u32;
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow_mut(addr, size);
         unsafe {
             let ptr = &mut slice[0] as *mut u8;
-            let ptr = ptr as *mut T;
-            slice::from_raw_parts_mut(ptr, qty)
+            slice::from_raw_parts_mut(ptr as *mut T, qty)
         }
     }
 }
