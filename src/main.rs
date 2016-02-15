@@ -1,24 +1,38 @@
 extern crate num;
 
+use std::env;
+use std::io::{Read, Write};
+
 #[macro_use]
 mod utils;
 
 mod cpu;
 mod ram;
 
-use std::io::{Read, Write};
+fn from_hex(string: String) -> Result<u32, std::num::ParseIntError> {
+    let slice = if string.starts_with("0x") {
+        &string[2..]
+    } else {
+        &string[..]
+    };
+    u32::from_str_radix(slice, 16)
+}
 
 fn main() {
+    let filename = env::args().nth(1).unwrap();
+    let load_offset = from_hex(env::args().nth(2).unwrap()).unwrap();
+    let entrypoint = from_hex(env::args().nth(3).unwrap()).unwrap();
+
     let mut cpu = cpu::Cpu::new();
     let mut ram = ram::Ram::new();
 
-    let mut file = std::fs::File::open("/Users/gui/MEGA/Games/3DS Secrets/9.? NATIVE_FIRM/firm_2_08006800.bin").unwrap();
+    let mut file = std::fs::File::open(filename).unwrap();
     let mut filebuf = Vec::<u8>::new();
 
     let size = file.read_to_end(&mut filebuf).unwrap();
     println!("Reading {} bytes from input file", size);
     {
-        let mut memslice = ram.borrow_mut::<u8>(0x08006800, size);
+        let mut memslice = ram.borrow_mut::<u8>(load_offset, size);
         {
             use std::borrow::Borrow;
             let copied_size = memslice.write(filebuf.borrow()).unwrap();
@@ -26,6 +40,6 @@ fn main() {
         }
     }
 
-    cpu.reset(0x0801B01C);
+    cpu.reset(entrypoint);
     cpu.run(&mut ram);
 }
