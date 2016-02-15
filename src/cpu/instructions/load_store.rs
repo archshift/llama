@@ -3,7 +3,7 @@ use cpu::Cpu;
 use ram;
 
 #[inline(always)]
-fn get_load_store_addr(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu) -> u32 {
+fn decode_addressing_mode(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu) -> u32 {
     use cpu::InstrDataLoadStore as InstrData;
 
     let c_bit = cpu.cpsr.get::<cpu::Psr::c_bit>() == 1;
@@ -16,7 +16,6 @@ fn get_load_store_addr(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu) ->
         extract_bits!(instr_data.raw(), 0 => 11)
     } else {
         let pre_shift = cpu.regs[extract_bits!(instr_data.raw(), 0 => 3) as usize];
-        let b_bit = instr_data.get::<InstrData::b_bit>();
 
         let offset = if extract_bits!(instr_data.raw(), 4 => 11) == 0 {
             pre_shift
@@ -66,7 +65,7 @@ fn get_load_store_addr(instr_data: &cpu::InstrDataLoadStore::Type, cpu: &Cpu) ->
 }
 
 #[inline(always)]
-pub fn ldr(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore::Type, byte: bool) -> u32 {
     use cpu::InstrDataLoadStore as InstrData;
 
     if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
@@ -74,9 +73,14 @@ pub fn ldr(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore:
     }
 
     let rd = data.get::<InstrData::rd>();
-    let addr = get_load_store_addr(&data, cpu);
+    let addr = decode_addressing_mode(&data, cpu);
+
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    let val = ram.read::<u32>(addr.rotate_right(8 * extract_bits!(addr, 0 => 1)));
+    let val = if byte {
+        ram.read::<u8>(addr) as u32
+    } else {
+        ram.read::<u32>(addr.rotate_right(8 * extract_bits!(addr, 0 => 1)))
+    };
 
     // TODO: Implement
     assert!(data.get::<InstrData::p_bit>() == 1);
@@ -91,4 +95,48 @@ pub fn ldr(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore:
     }
 
     4
+}
+
+#[inline(always)]
+fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore::Type, byte: bool) -> u32 {
+    use cpu::InstrDataLoadStore as InstrData;
+
+    if !cpu::cond_passed(data.get::<InstrData::cond>(), &cpu.cpsr) {
+        return 4;
+    }
+
+    let addr = decode_addressing_mode(&data, cpu);
+    let val = cpu.regs[data.get::<InstrData::rd>() as usize];
+
+    // TODO: Implement
+    assert!(data.get::<InstrData::p_bit>() == 1);
+    assert!(data.get::<InstrData::w_bit>() == 0);
+
+    if byte {
+        ram.write::<u8>(addr, val as u8);
+    } else {
+        ram.write::<u32>(addr, val);
+    };
+
+    4
+}
+
+#[inline(always)]
+pub fn ldr(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+    instr_load(cpu, ram, data, false)
+}
+
+#[inline(always)]
+pub fn ldrb(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+    instr_load(cpu, ram, data, true)
+}
+
+#[inline(always)]
+pub fn str(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+    instr_store(cpu, ram, data, false)
+}
+
+#[inline(always)]
+pub fn strb(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::InstrDataLoadStore::Type) -> u32 {
+    instr_store(cpu, ram, data, true)
 }

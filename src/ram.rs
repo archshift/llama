@@ -1,5 +1,6 @@
 use num::PrimInt;
 use std;
+use std::slice;
 
 trait MemoryRegion: Send {
     fn read(&self, addr: u32) -> u8;
@@ -168,23 +169,14 @@ impl Ram {
         panic!("Invalid memory read! addr: {}, size: {}", addr, size);
     }
 
-    pub fn read8(&self, addr: u32) -> u8 {
-        self.regions[self.get_region_index(addr, 0)].read(addr)
-    }
-
     pub fn read<T: PrimInt>(&self, addr: u32) -> T {
         let size = std::mem::size_of::<T>() as u32;
         let slice = self.regions[self.get_region_index(addr, size)].borrow(addr, size);
         unsafe {
             let ptr = &slice[0] as *const u8;
-            let ptrT = ptr as *const T;
-            *ptrT
+            let ptr = ptr as *const T;
+            *ptr
         }
-    }
-
-    pub fn write8(&mut self, addr: u32, data: u8) {
-        let index = self.get_region_index(addr, 0);
-        self.regions[index].write(addr, data);
     }
 
     pub fn write<T: PrimInt>(&mut self, addr: u32, data: T) {
@@ -193,18 +185,30 @@ impl Ram {
         let slice = self.regions[index].borrow_mut(addr, size);
         unsafe {
             let ptr = &mut slice[0] as *mut u8;
-            let ptrT = ptr as *mut T;
-            *ptrT = data;
+            let ptr = ptr as *mut T;
+            *ptr = data;
         };
     }
 
-    pub fn borrow(&self, addr: u32, size: u32) -> &[u8] {
+    pub fn borrow<T: PrimInt>(&self, addr: u32, qty: usize) -> &[T] {
+        let size = (std::mem::size_of::<T>() * qty) as u32;
         let index = self.get_region_index(addr, size);
-        self.regions[index].borrow(addr, size)
+        let slice = self.regions[index].borrow(addr, size);
+        unsafe {
+            let ptr = &slice[0] as *const u8;
+            let ptr = ptr as *const T;
+            slice::from_raw_parts(ptr, qty)
+        }
     }
 
-    pub fn borrow_mut(&mut self, addr: u32, size: u32) -> &mut [u8] {
+    pub fn borrow_mut<T: PrimInt>(&mut self, addr: u32, qty: usize) -> &mut [T] {
+        let size = (std::mem::size_of::<T>() * qty) as u32;
         let index = self.get_region_index(addr, size);
-        self.regions[index].borrow_mut(addr, size)
+        let slice = self.regions[index].borrow_mut(addr, size);
+        unsafe {
+            let ptr = &mut slice[0] as *mut u8;
+            let ptr = ptr as *mut T;
+            slice::from_raw_parts_mut(ptr, qty)
+        }
     }
 }

@@ -18,7 +18,7 @@ fn main() {
     let size = file.read_to_end(&mut filebuf).unwrap();
     println!("Reading {} bytes from input file", size);
     {
-        let mut memslice = ram.borrow_mut(0x08006800, size as u32);
+        let mut memslice = ram.borrow_mut::<u8>(0x08006800, size);
         {
             use std::borrow::Borrow;
             let copied_size = memslice.write(filebuf.borrow()).unwrap();

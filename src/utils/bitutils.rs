@@ -42,6 +42,7 @@ macro_rules! create_bitfield {
                 }
             )*
 
+            #[derive(Clone)]
             pub struct Type {
                 val: $ty
             }
@@ -53,6 +54,8 @@ macro_rules! create_bitfield {
             }
 
             impl Type {
+                #[inline(always)]
+                #[allow(dead_code)]
                 pub fn raw(&self) -> $ty {
                     self.val
                 }

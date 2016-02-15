@@ -1,5 +1,3 @@
-use utils;
-
 #[derive(Debug)]
 pub enum ArmInstruction {
     ADC(InstrDataDProc::Type),
@@ -12,6 +10,7 @@ pub enum ArmInstruction {
     CMP(InstrDataDProc::Type),
     BIC(InstrDataDProc::Type),
     EOR(InstrDataDProc::Type),
+    LDM(InstrDataLoadStoreMulti::Type),
     LDR(InstrDataLoadStore::Type),
     LDRB(InstrDataLoadStore::Type),
     MCR(InstrDataMoveCoproc::Type),
@@ -24,6 +23,7 @@ pub enum ArmInstruction {
     RSB(InstrDataDProc::Type),
     RSC(InstrDataDProc::Type),
     SBC(InstrDataDProc::Type),
+    STM(InstrDataLoadStoreMulti::Type),
     STR(InstrDataLoadStore::Type),
     STRB(InstrDataLoadStore::Type),
     SUB(InstrDataDProc::Type),
@@ -258,6 +258,21 @@ pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
 
     if constrain!(encoding, [26 => 27, 0b01, true], [22 => 22, 0b1, true], [20 => 20, 0b0, true]) {
         return ArmInstruction::STRB(InstrDataLoadStore::new(encoding));
+    }
+
+    //
+    // Load/store multiple instructions
+    //
+
+    if constrain!(encoding, [25 => 27, 0b100, true], [22 => 22, 0b0, true], [20 => 20, 0b0, true]) ||
+        constrain!(encoding, [25 => 27, 0b100, true], [20 => 22, 0b100, true]) {
+        return ArmInstruction::STM(InstrDataLoadStoreMulti::new(encoding));
+    }
+
+    if constrain!(encoding, [25 => 27, 0b100, true], [22 => 22, 0b0, true], [20 => 20, 0b1, true]) ||
+        constrain!(encoding, [25 => 27, 0b100, true], [20 => 22, 0b101, true], [15 => 15, 0b0, true]) ||
+        constrain!(encoding, [25 => 25, 0b100, true], [22 => 22, 0b1, true], [20 => 20, 0b1, true], [15 => 15, 0b1, true]) {
+        return ArmInstruction::LDM(InstrDataLoadStoreMulti::new(encoding));
     }
 
     //

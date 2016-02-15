@@ -17,7 +17,11 @@ create_bitfield!(Psr: u32, {
 pub struct Cpu {
     pub regs: [u32; 16],
     pub cpsr: Psr::Type,
-    pub spsr: [Psr::Type; 5],
+    pub spsr_fiq: Psr::Type,
+    pub spsr_irq: Psr::Type,
+    pub spsr_svc: Psr::Type,
+    pub spsr_abt: Psr::Type,
+    pub spsr_und: Psr::Type,
 }
 
 impl Cpu {
@@ -25,10 +29,11 @@ impl Cpu {
         Cpu {
             regs: [0; 16],
             cpsr: Psr::new(0),
-            spsr: [
-                Psr::new(0), Psr::new(0), Psr::new(0),
-                Psr::new(0), Psr::new(0)
-            ],
+            spsr_fiq: Psr::new(0),
+            spsr_irq: Psr::new(0),
+            spsr_svc: Psr::new(0),
+            spsr_abt: Psr::new(0),
+            spsr_und: Psr::new(0),
         }
     }
 
@@ -49,12 +54,18 @@ impl Cpu {
     }
 
     pub fn get_current_spsr(&mut self) -> &mut Psr::Type {
-        // TODO: Implement
-        &mut self.spsr[0]
+        match self.cpsr.get::<Psr::mode>() {
+            0b10001 => &mut self.spsr_fiq,
+            0b10010 => &mut self.spsr_irq,
+            0b10011 => &mut self.spsr_svc,
+            0b10111 => &mut self.spsr_abt,
+            0b11011 => &mut self.spsr_und,
+            _ => panic!("Attempted to access non-existent SPSR!"),
+        }
     }
 
     pub fn spsr_make_current(&mut self) {
-        // TODO: Implement
+        self.cpsr = self.get_current_spsr().clone();
     }
 
     #[inline(always)]

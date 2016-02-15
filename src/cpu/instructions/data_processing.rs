@@ -121,7 +121,7 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, op: ProcessInst
 
     let dst_reg = data.get::<InstrData::rd>();
     let s_bit = data.get::<InstrData::s_bit>() == 1;
-    let (mut shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
     let rn = data.get::<InstrData::rn>();
 
     let val = match op {
@@ -284,7 +284,7 @@ fn instr_test(cpu: &mut Cpu, data: cpu::InstrDataDProc::Type, equiv: bool) -> u3
         return 4;
     }
 
-    let (mut shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
     let rn = data.get::<InstrData::rn>();
     let val = if equiv {
         cpu.regs[rn as usize] ^ shifter_val
