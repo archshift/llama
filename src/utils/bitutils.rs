@@ -37,7 +37,7 @@ macro_rules! create_bitfield {
                     #[allow(dead_code)]
                     fn set(parent: &mut Type, val: $ty) {
                         parent.val ^= extract_bits!(parent.val, $var_low => $var_hi) << $var_low;
-                        parent.val |= extract_bits!(val, $var_low => $var_hi) << $var_low;
+                        parent.val |= extract_bits!(val, 0 => $var_hi - $var_low) << $var_low;
                     }
                 }
             )*
