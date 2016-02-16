@@ -25,10 +25,15 @@ fn main() {
     let mut ram = ram::Ram::new();
 
     let mut file = std::fs::File::open(filename).unwrap();
-    let mut filebuf = Vec::<u8>::new();
+    let file_data = file.metadata().unwrap();
+    let file_size = file_data.len();
+
+    let mut filebuf = Vec::<u8>::with_capacity(file_size as usize);
 
     let size = file.read_to_end(&mut filebuf).unwrap();
     println!("Reading {} bytes from input file", size);
+    assert!(size == file_size as usize);
+
     {
         let mut memslice = ram.borrow_mut::<u8>(load_offset, size);
         {

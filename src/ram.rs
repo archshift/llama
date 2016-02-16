@@ -1,6 +1,15 @@
 use std;
 use std::slice;
 
+fn fast_zeroed_mem(size: usize) -> Box<[u8]> {
+    let mut vec = Vec::<u8>::with_capacity(size);
+    unsafe {
+        std::ptr::write_bytes(vec.as_mut_ptr(), 0, size);
+        vec.set_len(size);
+    }
+    vec.into_boxed_slice()
+}
+
 trait MemoryRegion: Send {
     fn read(&self, addr: u32) -> u8;
     fn write(&mut self, addr: u32, data: u8);
@@ -27,7 +36,7 @@ impl RamRegion {
     fn new(base_addr: u32, size: u32) -> RamRegion {
         RamRegion {
             base_addr: base_addr,
-            data: vec![0; size as usize].into_boxed_slice(),
+            data: fast_zeroed_mem(size as usize),
         }
     }
 }
@@ -89,7 +98,7 @@ impl ItcmRegion {
             base_addr: base_addr,
             region_size: region_size,
             repeat_size: repeat_size,
-            data: vec![0; repeat_size as usize].into_boxed_slice(),
+            data: fast_zeroed_mem(repeat_size as usize),
         }
     }
 
@@ -172,9 +181,7 @@ impl Ram {
         let size = std::mem::size_of::<T>() as u32;
         let slice = self.regions[self.get_region_index(addr, size)].borrow(addr, size);
         unsafe {
-            let ptr = &slice[0] as *const u8;
-            let ptr = ptr as *const T;
-            *ptr
+            *(slice.as_ptr() as *const T)
         }
     }
 
@@ -183,9 +190,7 @@ impl Ram {
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow_mut(addr, size);
         unsafe {
-            let ptr = &mut slice[0] as *mut u8;
-            let ptr = ptr as *mut T;
-            *ptr = data;
+            *(slice.as_mut_ptr() as *mut T) = data;
         };
     }
 
@@ -194,8 +199,7 @@ impl Ram {
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow(addr, size);
         unsafe {
-            let ptr = &slice[0] as *const u8;
-            slice::from_raw_parts(ptr as *const T, qty)
+            slice::from_raw_parts(slice.as_ptr() as *const T, qty)
         }
     }
 
@@ -204,8 +208,7 @@ impl Ram {
         let index = self.get_region_index(addr, size);
         let slice = self.regions[index].borrow_mut(addr, size);
         unsafe {
-            let ptr = &mut slice[0] as *mut u8;
-            slice::from_raw_parts_mut(ptr as *mut T, qty)
+            slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut T, qty)
         }
     }
 }
