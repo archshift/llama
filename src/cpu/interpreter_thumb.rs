@@ -4,7 +4,7 @@ use ram;
 
 #[inline(always)]
 pub fn interpret_thumb(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ThumbInstruction) {
-    println!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+    trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let bytes_advanced = match instr {
         ThumbInstruction::LDR_1(data) => instructions_thumb::ldr_1(cpu, ram, data),
@@ -13,7 +13,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ThumbInstru
         ThumbInstruction::MOV_1(data) => instructions_thumb::mov_1(cpu, data),
         ThumbInstruction::MOV_2(data) => instructions_thumb::mov_2(cpu, data),
         _ => {
-            // println!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+            warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
             2
         }
     };

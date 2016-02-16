@@ -46,7 +46,7 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
 
 #[inline(always)]
 pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstruction) {
-    println!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+    trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let bytes_advanced = match instr {
         ArmInstruction::ADD(data) => instructions_arm::add(cpu, data),
@@ -76,7 +76,7 @@ pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstructio
         ArmInstruction::MOD_BLX(data) => instructions_arm::mod_blx(cpu, data),
 
         _ => {
-            // println!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+            warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
             4
         }
     };

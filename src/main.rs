@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+
 use std::env;
 use std::io::{Read, Write};
 
@@ -17,6 +21,8 @@ fn from_hex(string: String) -> Result<u32, std::num::ParseIntError> {
 }
 
 fn main() {
+    env_logger::init().unwrap();
+
     let filename = env::args().nth(1).unwrap();
     let load_offset = from_hex(env::args().nth(2).unwrap()).unwrap();
     let entrypoint = from_hex(env::args().nth(3).unwrap()).unwrap();
@@ -31,7 +37,7 @@ fn main() {
     let mut filebuf = Vec::<u8>::with_capacity(file_size as usize);
 
     let size = file.read_to_end(&mut filebuf).unwrap();
-    println!("Reading {} bytes from input file", size);
+    info!("Reading {} bytes from input file", size);
     assert!(size == file_size as usize);
 
     {
