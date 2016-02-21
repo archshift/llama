@@ -40,6 +40,12 @@ macro_rules! bitfield {
 
             #[inline(always)]
             #[allow(dead_code)]
+            pub fn set_raw(&mut self, val: $ty) {
+                self.val = val;
+            }
+
+            #[inline(always)]
+            #[allow(dead_code)]
             pub fn get(&self, pos: (usize, usize)) -> $ty {
                 bits!(self.val, pos.0 => pos.1)
             }

@@ -62,6 +62,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::LDRB(data) => instructions_arm::ldrb(cpu, data),
         ArmInstruction::MOV(data) => instructions_arm::mov(cpu, data),
         ArmInstruction::MRS(data) => instructions_arm::mrs(cpu, data),
+        ArmInstruction::MSR(data) => instructions_arm::msr(cpu, data),
         ArmInstruction::MVN(data) => instructions_arm::mvn(cpu, data),
         ArmInstruction::ORR(data) => instructions_arm::orr(cpu, data),
         ArmInstruction::RSB(data) => instructions_arm::rsb(cpu, data),
