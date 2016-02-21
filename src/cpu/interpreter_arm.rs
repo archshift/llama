@@ -1,6 +1,5 @@
 use cpu::{Cpu, ArmInstruction, Psr};
 use cpu::instructions_arm;
-use ram;
 
 #[inline(always)]
 pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
@@ -45,7 +44,7 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
 }
 
 #[inline(always)]
-pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstruction) {
+pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let bytes_advanced = match instr {
@@ -58,17 +57,17 @@ pub fn interpret_arm(cpu: &mut Cpu, mut ram: &mut ram::Ram, instr: ArmInstructio
         ArmInstruction::CMN(data) => instructions_arm::cmn(cpu, data),
         ArmInstruction::CMP(data) => instructions_arm::cmp(cpu, data),
         ArmInstruction::EOR(data) => instructions_arm::eor(cpu, data),
-        ArmInstruction::LDM(data) => instructions_arm::ldm(cpu, ram, data),
-        ArmInstruction::LDR(data) => instructions_arm::ldr(cpu, ram, data),
-        ArmInstruction::LDRB(data) => instructions_arm::ldrb(cpu, ram, data),
+        ArmInstruction::LDM(data) => instructions_arm::ldm(cpu, data),
+        ArmInstruction::LDR(data) => instructions_arm::ldr(cpu, data),
+        ArmInstruction::LDRB(data) => instructions_arm::ldrb(cpu, data),
         ArmInstruction::MOV(data) => instructions_arm::mov(cpu, data),
         ArmInstruction::MRS(data) => instructions_arm::mrs(cpu, data),
         ArmInstruction::MVN(data) => instructions_arm::mvn(cpu, data),
         ArmInstruction::ORR(data) => instructions_arm::orr(cpu, data),
         ArmInstruction::RSB(data) => instructions_arm::rsb(cpu, data),
-        ArmInstruction::STM(data) => instructions_arm::stm(cpu, ram, data),
-        ArmInstruction::STR(data) => instructions_arm::str(cpu, ram, data),
-        ArmInstruction::STRB(data) => instructions_arm::strb(cpu, ram, data),
+        ArmInstruction::STM(data) => instructions_arm::stm(cpu, data),
+        ArmInstruction::STR(data) => instructions_arm::str(cpu, data),
+        ArmInstruction::STRB(data) => instructions_arm::strb(cpu, data),
         ArmInstruction::SUB(data) => instructions_arm::sub(cpu, data),
         ArmInstruction::TEQ(data) => instructions_arm::teq(cpu, data),
         ArmInstruction::TST(data) => instructions_arm::tst(cpu, data),

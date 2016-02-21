@@ -1,5 +1,5 @@
 use cpu;
-use ram;
+use mem;
 
 // Program status register
 bitfield!(Psr: u32, {
@@ -22,10 +22,12 @@ pub struct Cpu {
     pub spsr_svc: Psr,
     pub spsr_abt: Psr,
     pub spsr_und: Psr,
+
+    pub memory: mem::MemController,
 }
 
 impl Cpu {
-    pub fn new() -> Cpu {
+    pub fn new(memory: mem::MemController) -> Cpu {
         Cpu {
             regs: [0; 16],
             cpsr: Psr::new(0),
@@ -34,6 +36,8 @@ impl Cpu {
             spsr_svc: Psr::new(0),
             spsr_abt: Psr::new(0),
             spsr_und: Psr::new(0),
+
+            memory: memory,
         }
     }
 
@@ -74,16 +78,16 @@ impl Cpu {
         // TODO: Invalidate pipeline once/if we have one
     }
 
-    pub fn run(&mut self, mut ram: &mut ram::Ram) {
+    pub fn run(&mut self) {
         loop {
             let addr = self.regs[15] - self.get_pc_offset();
 
             if self.cpsr.get(Psr::thumb_bit()) == 0 {
-                let instr = cpu::decode_arm_instruction(ram.read::<u32>(addr));
-                cpu::interpret_arm(self, ram, instr);
+                let instr = cpu::decode_arm_instruction(self.memory.read::<u32>(addr));
+                cpu::interpret_arm(self, instr);
             } else {
-                let instr = cpu::decode_thumb_instruction(ram.read::<u16>(addr));
-                cpu::interpret_thumb(self, ram, instr);
+                let instr = cpu::decode_thumb_instruction(self.memory.read::<u16>(addr));
+                cpu::interpret_thumb(self, instr);
             }
         }
     }

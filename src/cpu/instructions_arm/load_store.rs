@@ -1,6 +1,5 @@
 use cpu;
 use cpu::Cpu;
-use ram;
 
 #[inline(always)]
 fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32 {
@@ -65,7 +64,7 @@ fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32
 }
 
 #[inline(always)]
-fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
     use cpu::ArmInstrLoadStore as ArmInstr;
 
     if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
@@ -77,9 +76,9 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore, byte:
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     let val = if byte {
-        ram.read::<u8>(addr) as u32
+        cpu.memory.read::<u8>(addr) as u32
     } else {
-        ram.read::<u32>(addr.rotate_right(8 * bits!(addr, 0 => 1)))
+        cpu.memory.read::<u32>(addr.rotate_right(8 * bits!(addr, 0 => 1)))
     };
 
     // TODO: Implement
@@ -98,7 +97,7 @@ fn instr_load(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore, byte:
 }
 
 #[inline(always)]
-fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
     use cpu::ArmInstrLoadStore as ArmInstr;
 
     if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
@@ -113,30 +112,30 @@ fn instr_store(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadSto
     assert!(data.get(ArmInstr::w_bit()) == 0);
 
     if byte {
-        ram.write::<u8>(addr, val as u8);
+        cpu.memory.write::<u8>(addr, val as u8);
     } else {
-        ram.write::<u32>(addr, val);
+        cpu.memory.write::<u32>(addr, val);
     };
 
     4
 }
 
 #[inline(always)]
-pub fn ldr(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
-    instr_load(cpu, ram, data, false)
+pub fn ldr(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+    instr_load(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn ldrb(cpu: &mut Cpu, ram: &ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
-    instr_load(cpu, ram, data, true)
+pub fn ldrb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+    instr_load(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn str(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
-    instr_store(cpu, ram, data, false)
+pub fn str(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+    instr_store(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn strb(cpu: &mut Cpu, mut ram: &mut ram::Ram, data: cpu::ArmInstrLoadStore) -> u32 {
-    instr_store(cpu, ram, data, true)
+pub fn strb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+    instr_store(cpu, data, true)
 }
