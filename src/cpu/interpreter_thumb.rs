@@ -6,6 +6,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let bytes_advanced = match instr {
+        ThumbInstruction::BRANCH(data) => instructions_thumb::branch(cpu, data),
         ThumbInstruction::LDR_1(data) => instructions_thumb::ldr_1(cpu, data),
         ThumbInstruction::LDR_3(data) => instructions_thumb::ldr_3(cpu, data),
         ThumbInstruction::LSL_1(data) => instructions_thumb::lsl_1(cpu, data),

@@ -1,8 +1,8 @@
 use cpu;
 use cpu::Cpu;
 
-pub fn ldr_1(cpu: &mut Cpu, data: cpu::ThumbInstrLDR_1) -> u32 {
-    use cpu::ThumbInstrLDR_1 as ThumbInstr;
+pub fn ldr_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
+    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
 
     let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
     let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
@@ -14,8 +14,8 @@ pub fn ldr_1(cpu: &mut Cpu, data: cpu::ThumbInstrLDR_1) -> u32 {
     2
 }
 
-pub fn ldr_3(cpu: &mut Cpu, data: cpu::ThumbInstrLDR_3) -> u32 {
-    use cpu::ThumbInstrLDR_3 as ThumbInstr;
+pub fn ldr_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> u32 {
+    use cpu::ThumbInstrLoadStore_3 as ThumbInstr;
 
     let immed_8 = data.get(ThumbInstr::immed_8()) as u32;
     let addr = (cpu.regs[15] & 0xFFFFFFFC) + immed_8 * 4;

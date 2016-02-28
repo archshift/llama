@@ -2,8 +2,8 @@ use cpu;
 use cpu::Cpu;
 
 #[inline(always)]
-pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrLSL_1) -> u32 {
-    use cpu::ThumbInstrLSL_1 as ThumbInstr;
+pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> u32 {
+    use cpu::ThumbInstrShift_1 as ThumbInstr;
 
     let base_val = cpu.regs[data.get(ThumbInstr::rm()) as usize];
     let amount = data.get(ThumbInstr::immed_5()) as u32;
