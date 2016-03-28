@@ -10,6 +10,7 @@ mod utils;
 
 mod cpu;
 mod mem;
+mod system;
 
 fn from_hex(string: String) -> Result<u32, std::num::ParseIntError> {
     let slice = if string.starts_with("0x") {
@@ -53,7 +54,7 @@ fn main() {
 
     mem.write_buf(load_offset, filebuf.as_slice());
 
-    let mut cpu = cpu::Cpu::new(mem);
-    cpu.reset(entrypoint);
-    cpu.run();
+    let mut system = system::System::new(entrypoint, mem);
+    system.start();
+    system.wait();
 }

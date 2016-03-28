@@ -1,5 +1,9 @@
 use cpu;
 use mem;
+use system;
+
+use std::sync;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Program status register
 bitfield!(Psr: u32, {
@@ -78,8 +82,8 @@ impl Cpu {
         // TODO: Invalidate pipeline once/if we have one
     }
 
-    pub fn run(&mut self) {
-        loop {
+    pub fn run(&mut self, should_run: system::Runner) {
+        while should_run.load(Ordering::Relaxed) {
             let addr = self.regs[15] - self.get_pc_offset();
 
             if self.cpsr.get(Psr::thumb_bit()) == 0 {
