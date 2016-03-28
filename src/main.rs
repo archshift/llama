@@ -38,31 +38,22 @@ fn main() {
     assert!(size == file_size as usize);
 
     let mut mem = mem::MemController::new();
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::ItcmRegion::new()))); // ITCM
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x08000000, 0x00100000)))); // A9 Internal
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x10000000, 0x08000000)))); // IO
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x18000000, 0x00600000)))); // VRAM
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x1FF00000, 0x00080000)))); // DSP
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x1FF80000, 0x00080000)))); // AXI WRAM
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0x20000000, 0x08000000)))); // FCRAM
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0xFFF00000, 0x00004000)))); // DTCM
-    mem.add_region(sync::Arc::new(sync::RwLock::new(mem::RamRegion::new(0xFFFF0000, 0x00010000)))); // Bootrom
-
-    for i in 0..size {
-        mem.write::<u8>(load_offset + i as u32, filebuf[i]);
+    let mem_itcm = mem::MemoryBlock::new(0x20);
+    for i in 0..0x1000 {
+        mem.map_region(i * 0x8000, mem_itcm.clone()); // ITCM
     }
+    mem.map_region(0x08000000, mem::MemoryBlock::new(0x400)); // ARM9 RAM
+    mem.map_region(0x10000000, mem::MemoryBlock::new(0x20000)); // IO
+    mem.map_region(0x18000000, mem::MemoryBlock::new(0x1800)); // VRAM
+    mem.map_region(0x1FF00000, mem::MemoryBlock::new(0x200)); // DSP
+    mem.map_region(0x1FF80000, mem::MemoryBlock::new(0x200)); // AXI WRAM
+    mem.map_region(0x20000000, mem::MemoryBlock::new(0x20000)); // FCRAM
+    mem.map_region(0xFFF00000, mem::MemoryBlock::new(0x10)); // DTCM
+    mem.map_region(0xFFFF0000, mem::MemoryBlock::new(0x40)); // Bootrom
 
-    // {
-    //     let mut memslice = mem.borrow_mut::<u8>(load_offset, size);
-    //     {
-    //         use std::borrow::Borrow;
-    //         let copied_size = memslice.write(filebuf.borrow()).unwrap();
-    //         assert!(copied_size == size);
-    //     }
-    // }
+    mem.write_buf(load_offset, filebuf.as_slice());
 
     let mut cpu = cpu::Cpu::new(mem);
-
     cpu.reset(entrypoint);
     cpu.run();
 }
