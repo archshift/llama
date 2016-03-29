@@ -24,6 +24,19 @@ pub fn ldr_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> u32 {
     2
 }
 
+pub fn ldrh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
+    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
+
+    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
+    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+
+    let addr = base_val + immed_5 * 2;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    cpu.regs[data.get(ThumbInstr::rd()) as usize] = cpu.memory.read::<u16>(addr) as u32;
+
+    2
+}
+
 pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> u32 {
     use cpu::ThumbInstrPUSH as ThumbInstr;
 
@@ -88,6 +101,19 @@ pub fn str_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
     let addr = base_val + immed_5 * 4;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     cpu.memory.write::<u32>(addr, cpu.regs[data.get(ThumbInstr::rd()) as usize]);
+
+    2
+}
+
+pub fn strh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
+    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
+
+    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
+    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+
+    let addr = base_val + immed_5 * 2;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    cpu.memory.write::<u16>(addr, cpu.regs[data.get(ThumbInstr::rd()) as usize] as u16);
 
     2
 }

@@ -1,9 +1,13 @@
 #[derive(Debug)]
 pub enum ThumbInstruction {
+    ADD_1(ThumbInstrAddSub_1),
+    ADD_2(ThumbInstrAddSub_2),
+    ADD_3(ThumbInstrAddSub_3),
     AND(ThumbInstrBitwise),
     ASR_1(ThumbInstrShift_1),
-    BLX_2(ThumbInstrBLX_2),
+    B_1(ThumbInstrB_1),
     BIC(ThumbInstrBitwise),
+    BLX_2(ThumbInstrBLX_2),
     BRANCH(ThumbInstrBRANCH),
     EOR(ThumbInstrBitwise),
     LDR_1(ThumbInstrLoadStore_1),
@@ -28,9 +32,34 @@ pub enum ThumbInstruction {
     STRB_2(ThumbInstrLoadStore_2),
     STRH_1(ThumbInstrLoadStore_1),
     STRH_2(ThumbInstrLoadStore_2),
+    SUB_1(ThumbInstrAddSub_1),
+    SUB_2(ThumbInstrAddSub_2),
+    SUB_3(ThumbInstrAddSub_3),
 
     UNKNOWN,
 }
+
+bitfield!(ThumbInstrAddSub_1: u16, {
+    rd: 0 => 2,
+    rn: 3 => 5,
+    immed_3: 6 => 8
+});
+
+bitfield!(ThumbInstrAddSub_2: u16, {
+    immed_8: 0 => 7,
+    rd: 8 => 10
+});
+
+bitfield!(ThumbInstrAddSub_3: u16, {
+    rd: 0 => 2,
+    rn: 3 => 5,
+    rm: 6 => 8
+});
+
+bitfield!(ThumbInstrB_1: u16, {
+    signed_imm_8: 0 => 7,
+    cond: 8 => 11
+});
 
 bitfield!(ThumbInstrBitwise: u16, {
     rd: 0 => 2,
@@ -103,6 +132,9 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     // Data Processing instructions
     //
 
+    handle!(ADD_1: ThumbInstrAddSub_1, 0xFE00, 0x1C00);
+    handle!(ADD_2: ThumbInstrAddSub_2, 0xF800, 0x3000);
+    handle!(ADD_3: ThumbInstrAddSub_3, 0xFE00, 0x1800);
     handle!(AND: ThumbInstrBitwise, 0xFFC0, 0x4000);
     handle!(ASR_1: ThumbInstrShift_1, 0xF800, 0x1000);
     handle!(BIC: ThumbInstrBitwise, 0xFFC0, 0x4380);
@@ -112,11 +144,15 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     handle!(MOV_1: ThumbInstrMOV_1, 0xF800, 0x2000);
     handle!(MOV_2: ThumbInstrMOV_2, 0xFFC0, 0x1C00);
     handle!(ORR: ThumbInstrBitwise, 0xFFC0, 0x4300);
+    handle!(SUB_1: ThumbInstrAddSub_1, 0xFE00, 0x1E00);
+    handle!(SUB_2: ThumbInstrAddSub_2, 0xF800, 0x3800);
+    handle!(SUB_3: ThumbInstrAddSub_3, 0xFE00, 0x1A00);
 
     //
     // Branch instructions
     //
 
+    handle!(B_1: ThumbInstrB_1, 0xF000, 0xD000);
     handle!(BRANCH: ThumbInstrBRANCH, 0xE000, 0xE000);
     handle!(BLX_2: ThumbInstrBLX_2, 0xFF80, 0x4780);
 

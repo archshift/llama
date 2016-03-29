@@ -14,7 +14,7 @@ pub struct MemoryBlock {
 impl MemoryBlock {
     pub fn new(kbs: usize) -> MemoryBlock {
         let mut inner: Vec<MemoryNode> = Vec::new();
-        for i in 0..kbs {
+        for _ in 0..kbs {
             inner.push(sync::RwLock::new([0; KB_SIZE]))
         }
 

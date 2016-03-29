@@ -2,8 +2,7 @@ use cpu;
 use mem;
 use system;
 
-use std::sync;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 // Program status register
 bitfield!(Psr: u32, {
@@ -83,6 +82,8 @@ impl Cpu {
     }
 
     pub fn run(&mut self, should_run: system::Runner) {
+        // Only deref the Arc once per `run` call
+        let should_run = &*should_run;
         while should_run.load(Ordering::Relaxed) {
             let addr = self.regs[15] - self.get_pc_offset();
 
