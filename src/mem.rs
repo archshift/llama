@@ -3,69 +3,93 @@ use std::cmp;
 use std::ptr;
 use std::sync;
 
+use io;
+
 const KB_SIZE: usize = 1024;
-type MemoryNode = sync::RwLock<[u8; KB_SIZE]>;
+pub type MemoryNode = sync::RwLock<[u8; KB_SIZE]>;
 
 #[derive(Clone)]
-pub struct MemoryBlock {
-    nodes: sync::Arc<Vec<MemoryNode>>
+pub enum MemoryBlock {
+    Ram(sync::Arc<Vec<MemoryNode>>),
+    Rom(sync::Arc<Vec<MemoryNode>>),
+    Io(sync::Arc<(usize, sync::RwLock<io::IoRegion>)>),
 }
 
 impl MemoryBlock {
-    pub fn new(kbs: usize) -> MemoryBlock {
+    pub fn make_ram(kbs: usize) -> MemoryBlock {
         let mut inner: Vec<MemoryNode> = Vec::new();
         for _ in 0..kbs {
             inner.push(sync::RwLock::new([0; KB_SIZE]))
         }
 
-        MemoryBlock {
-            nodes: sync::Arc::new(inner)
-        }
+        MemoryBlock::Ram(sync::Arc::new(inner))
     }
 
-    pub fn get_kbs(&self) -> usize {
-        self.nodes.len()
+    pub fn make_io(variant: io::IoRegion, kbs: usize) -> MemoryBlock {
+        MemoryBlock::Io(sync::Arc::new((kbs, sync::RwLock::new(variant))))
     }
 
     pub fn get_bytes(&self) -> u32 {
-        (self.get_kbs() * KB_SIZE) as u32
+        match *self {
+            MemoryBlock::Ram(ref nodes) | MemoryBlock::Rom(ref nodes) => {
+                (nodes.len() * KB_SIZE) as u32
+            },
+            MemoryBlock::Io(ref region) => (region.0 * KB_SIZE) as u32,
+        }
     }
 
     pub unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        let mut buf_remaining = buf_size;
-        let mut node_index = offset / KB_SIZE;
-        let mut node_pos = offset % KB_SIZE;
+        match *self {
+            MemoryBlock::Ram(ref nodes) | MemoryBlock::Rom(ref nodes) => {
+                let mut buf_remaining = buf_size;
+                let mut node_index = offset / KB_SIZE;
+                let mut node_pos = offset % KB_SIZE;
 
-        while buf_remaining > 0 {
-            assert!(node_index < self.nodes.len());
-            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-            {
-                let node_ptr = self.nodes[node_index].read().unwrap().as_ptr();
-                let buf_pos = buf_size - buf_remaining;
-                ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
-            }
-            buf_remaining -= copy_amount;
-            node_index += 1;
-            node_pos = 0;
+                while buf_remaining > 0 {
+                    assert!(node_index < nodes.len());
+                    let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
+                    {
+                        let node_ptr = nodes[node_index].read().unwrap().as_ptr();
+                        let buf_pos = buf_size - buf_remaining;
+                        ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
+                    }
+                    buf_remaining -= copy_amount;
+                    node_index += 1;
+                    node_pos = 0;
+                }
+            },
+            MemoryBlock::Io(ref region) => match *region.1.read().unwrap() {
+                io::IoRegion::Arm9(ref x) => x.read_reg(offset, buf, buf_size),
+                _ => unimplemented!(),
+            },
         }
     }
 
     pub unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
-        let mut buf_remaining = buf_size;
-        let mut node_index = offset / KB_SIZE;
-        let mut node_pos = offset % KB_SIZE;
+        match *self {
+            MemoryBlock::Ram(ref nodes) => {
+                let mut buf_remaining = buf_size;
+                let mut node_index = offset / KB_SIZE;
+                let mut node_pos = offset % KB_SIZE;
 
-        while buf_remaining > 0 {
-            assert!(node_index < self.nodes.len());
-            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-            {
-                let node_ptr = self.nodes[node_index].write().unwrap().as_mut_ptr();
-                let buf_pos = buf_size - buf_remaining;
-                ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
-            }
-            buf_remaining -= copy_amount;
-            node_index += 1;
-            node_pos = 0;
+                while buf_remaining > 0 {
+                    assert!(node_index < nodes.len());
+                    let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
+                    {
+                        let node_ptr = nodes[node_index].write().unwrap().as_mut_ptr();
+                        let buf_pos = buf_size - buf_remaining;
+                        ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
+                    }
+                    buf_remaining -= copy_amount;
+                    node_index += 1;
+                    node_pos = 0;
+                }
+            },
+            MemoryBlock::Rom(_) => panic!("Attempted to write to ROM!"),
+            MemoryBlock::Io(ref region) => match *region.1.write().unwrap() {
+                io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
+                _ => unimplemented!(),
+            },
         }
     }
 }
