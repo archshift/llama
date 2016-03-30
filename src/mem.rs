@@ -172,8 +172,12 @@ mod test {
 
     #[test]
     fn write_intra_block() {
-        let block = MemoryBlock::new(1);
+        let block = MemoryBlock::make_ram(1);
         assert_eq!(block.get_bytes(), 0x400);
+        let nodes = match block {
+            MemoryBlock::Ram(ref n) => n,
+            _ => panic!("make_ram() did not make a Ram block!"),
+        };
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
@@ -182,18 +186,22 @@ mod test {
         }
 
         // Compare memory with data
-        let block_mem = block.nodes[0].read().unwrap();
+        let block_mem = nodes[0].read().unwrap();
         assert_eq!(block_mem[0x2C8..0x2CC], bytes[..]);
     }
 
     #[test]
     fn read_intra_block() {
-        let block = MemoryBlock::new(1);
+        let block = MemoryBlock::make_ram(1);
         assert_eq!(block.get_bytes(), 0x400);
+        let nodes = match block {
+            MemoryBlock::Ram(ref n) => n,
+            _ => panic!("make_ram() did not make a Ram block!"),
+        };
 
         // Write data directly to memory
         {
-            let mut block_mem = block.nodes[0].write().unwrap();
+            let mut block_mem = nodes[0].write().unwrap();
             (&mut block_mem[0x2C8..0x2CC]).write_all(&[0xFFu8, 0x53u8, 0x28u8, 0xC6u8]);
         }
 
@@ -204,14 +212,18 @@ mod test {
         }
 
         // Compare memory and buffer
-        let block_mem = block.nodes[0].read().unwrap();
+        let block_mem = nodes[0].read().unwrap();
         assert_eq!(block_mem[0x2C8..0x2CC], buf[..]);
     }
 
     #[test]
     fn write_inter_block() {
-        let block = MemoryBlock::new(2);
+        let block = MemoryBlock::make_ram(2);
         assert_eq!(block.get_bytes(), 0x800);
+        let nodes = match block {
+            MemoryBlock::Ram(ref n) => n,
+            _ => panic!("make_ram() did not make a Ram block!"),
+        };
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
@@ -220,21 +232,25 @@ mod test {
         }
 
         // Compare memory with data
-        let block_mem0 = block.nodes[0].read().unwrap();
-        let block_mem1 = block.nodes[1].read().unwrap();
+        let block_mem0 = nodes[0].read().unwrap();
+        let block_mem1 = nodes[1].read().unwrap();
         assert_eq!(block_mem0[0x3FE..0x400], bytes[0..2]);
         assert_eq!(block_mem1[0x0..0x2], bytes[2..4]);
     }
 
     #[test]
     fn read_inter_block() {
-        let block = MemoryBlock::new(2);
+        let block = MemoryBlock::make_ram(2);
         assert_eq!(block.get_bytes(), 0x800);
+        let nodes = match block {
+            MemoryBlock::Ram(ref n) => n,
+            _ => panic!("make_ram() did not make a Ram block!"),
+        };
 
         // Write data directly to memory
         {
-            let mut block_mem0 = block.nodes[0].write().unwrap();
-            let mut block_mem1 = block.nodes[1].write().unwrap();
+            let mut block_mem0 = nodes[0].write().unwrap();
+            let mut block_mem1 = nodes[1].write().unwrap();
             (&mut block_mem0[0x3FE..0x400]).write_all(&[0xFFu8, 0x53u8]);
             (&mut block_mem1[0x0..0x2]).write_all(&[0x28u8, 0xC6u8]);
         }
@@ -246,8 +262,8 @@ mod test {
         }
 
         // Compare memory and buffer
-        let block_mem0 = block.nodes[0].read().unwrap();
-        let block_mem1 = block.nodes[1].read().unwrap();
+        let block_mem0 = nodes[0].read().unwrap();
+        let block_mem1 = nodes[1].read().unwrap();
         assert_eq!(block_mem0[0x3FE..0x400], buf[0..2]);
         assert_eq!(block_mem1[0x0..0x2], buf[2..4]);
     }
