@@ -57,7 +57,7 @@ pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> u32 {
         addr += 4;
 
         cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(val, 0));
-        cpu.branch(val & 0xFFFFFFFC);
+        cpu.branch(val & 0xFFFFFFFE);
 
         0
     } else {

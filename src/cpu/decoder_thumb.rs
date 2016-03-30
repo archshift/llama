@@ -7,8 +7,9 @@ pub enum ThumbInstruction {
     ASR_1(ThumbInstrShift_1),
     B_1(ThumbInstrB_1),
     BIC(ThumbInstrBitwise),
-    BLX_2(ThumbInstrBLX_2),
+    BLX_2(ThumbInstrBranchReg),
     BRANCH(ThumbInstrBRANCH),
+    BX(ThumbInstrBranchReg),
     EOR(ThumbInstrBitwise),
     LDR_1(ThumbInstrLoadStore_1),
     LDR_2(ThumbInstrLoadStore_2),
@@ -66,14 +67,13 @@ bitfield!(ThumbInstrBitwise: u16, {
     rm: 3 => 5
 });
 
-bitfield!(ThumbInstrBLX_2: u16, {
-    rm: 3 => 5,
-    h2: 6 => 6
-});
-
 bitfield!(ThumbInstrBRANCH: u16, {
     offset_11: 0 => 10,
     h_bits: 11 => 12
+});
+
+bitfield!(ThumbInstrBranchReg: u16, {
+    rm: 3 => 6
 });
 
 bitfield!(ThumbInstrLoadStore_1: u16, {
@@ -153,8 +153,9 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     //
 
     handle!(B_1: ThumbInstrB_1, 0xF000, 0xD000);
+    handle!(BLX_2: ThumbInstrBranchReg, 0xFF80, 0x4780);
     handle!(BRANCH: ThumbInstrBRANCH, 0xE000, 0xE000);
-    handle!(BLX_2: ThumbInstrBLX_2, 0xFF80, 0x4780);
+    handle!(BX: ThumbInstrBranchReg, 0xFF80, 0x4700);
 
     //
     // Load/store instructions

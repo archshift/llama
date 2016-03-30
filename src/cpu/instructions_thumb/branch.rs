@@ -50,3 +50,13 @@ pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> u32 {
         _ => unreachable!(),
     }
 }
+
+#[inline(always)]
+pub fn bx(cpu: &mut Cpu, data: cpu::ThumbInstrBranchReg) -> u32 {
+    use cpu::ThumbInstrBranchReg as ThumbInstr;
+
+    let addr = cpu.regs[data.get(ThumbInstr::rm()) as usize];
+    cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(addr, 0));
+    cpu.branch(addr & 0xFFFFFFFE);
+    0
+}
