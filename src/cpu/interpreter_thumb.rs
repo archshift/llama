@@ -18,11 +18,13 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::LSL_1(data) => instructions_thumb::lsl_1(cpu, data),
         ThumbInstruction::MOV_1(data) => instructions_thumb::mov_1(cpu, data),
         ThumbInstruction::MOV_2(data) => instructions_thumb::mov_2(cpu, data),
+        ThumbInstruction::MOV_3(data) => instructions_thumb::mov_3(cpu, data),
         ThumbInstruction::ORR(data) => instructions_thumb::orr(cpu, data),
         ThumbInstruction::POP(data) => instructions_thumb::pop(cpu, data),
         ThumbInstruction::PUSH(data) => instructions_thumb::push(cpu, data),
         ThumbInstruction::STR_1(data) => instructions_thumb::str_1(cpu, data),
         ThumbInstruction::STRH_1(data) => instructions_thumb::strh_1(cpu, data),
+        ThumbInstruction::TST(data) => instructions_thumb::tst(cpu, data),
         _ => {
             warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
             2

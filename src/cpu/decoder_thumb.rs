@@ -23,6 +23,7 @@ pub enum ThumbInstruction {
     LSR_1(ThumbInstrShift_1),
     MOV_1(ThumbInstrMOV_1),
     MOV_2(ThumbInstrMOV_2),
+    MOV_3(ThumbInstrMOV_3),
     ORR(ThumbInstrBitwise),
     PUSH(ThumbInstrPUSH),
     POP(ThumbInstrPOP),
@@ -36,6 +37,7 @@ pub enum ThumbInstruction {
     SUB_1(ThumbInstrAddSub_1),
     SUB_2(ThumbInstrAddSub_2),
     SUB_3(ThumbInstrAddSub_3),
+    TST(ThumbInstrBitwise),
 
     UNKNOWN,
 }
@@ -109,6 +111,13 @@ bitfield!(ThumbInstrMOV_2: u16, {
     rn: 3 => 5
 });
 
+bitfield!(ThumbInstrMOV_3: u16, {
+    rd: 0 => 2,
+    rm: 3 => 5,
+    h2: 6 => 6,
+    h1: 7 => 7
+});
+
 bitfield!(ThumbInstrPUSH: u16, {
     register_list: 0 => 7,
     r_bit: 8 => 8
@@ -143,10 +152,12 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     handle!(LSR_1: ThumbInstrShift_1, 0xF800, 0x0800);
     handle!(MOV_1: ThumbInstrMOV_1, 0xF800, 0x2000);
     handle!(MOV_2: ThumbInstrMOV_2, 0xFFC0, 0x1C00);
+    handle!(MOV_3: ThumbInstrMOV_3, 0xFF00, 0x4600);
     handle!(ORR: ThumbInstrBitwise, 0xFFC0, 0x4300);
     handle!(SUB_1: ThumbInstrAddSub_1, 0xFE00, 0x1E00);
     handle!(SUB_2: ThumbInstrAddSub_2, 0xF800, 0x3800);
     handle!(SUB_3: ThumbInstrAddSub_3, 0xFE00, 0x1A00);
+    handle!(TST: ThumbInstrBitwise, 0xFFC0, 0x4200);
 
     //
     // Branch instructions

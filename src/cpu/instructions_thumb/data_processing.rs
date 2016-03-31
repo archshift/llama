@@ -11,7 +11,7 @@ enum ProcessInstrBitOp {
 #[inline(always)]
 fn instr_bitwise(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise, op: ProcessInstrBitOp) -> u32 {
     use cpu::ThumbInstrBitwise as ThumbInstr;
-    let base_val = cpu.regs[data.get(ThumbInstr::rm()) as usize];
+    let base_val = cpu.regs[data.get(ThumbInstr::rd()) as usize];
     let rm = cpu.regs[data.get(ThumbInstr::rm()) as usize];
 
     let val = match op {
@@ -88,6 +88,35 @@ pub fn mov_2(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_2) -> u32 {
 }
 
 #[inline(always)]
+pub fn mov_3(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_3) -> u32 {
+    use cpu::ThumbInstrMOV_3 as ThumbInstr;
+
+    let rd = data.get(ThumbInstr::rd()) | (data.get(ThumbInstr::h1()) << 3);
+    let rm = data.get(ThumbInstr::rm()) | (data.get(ThumbInstr::h2()) << 3);
+    let base_val = cpu.regs[rm as usize];
+
+    if rd == 15 {
+        cpu.branch(base_val);
+        return 0
+    }
+
+    cpu.regs[rd as usize] = base_val;
+    2
+}
+
+#[inline(always)]
 pub fn orr(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
     instr_bitwise(cpu, data, ProcessInstrBitOp::OR)
+}
+
+#[inline(always)]
+pub fn tst(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+    use cpu::ThumbInstrBitwise as ThumbInstr;
+    let base_val = cpu.regs[data.get(ThumbInstr::rd()) as usize];
+    let val = base_val & cpu.regs[data.get(ThumbInstr::rm()) as usize];
+
+    cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
+    cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
+
+    2
 }
