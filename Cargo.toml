@@ -1,5 +1,5 @@
 [package]
-name = "arm9emu"
+name = "llama"
 version = "0.1.0"
 authors = ["archshift <gh@archshift.com>"]
 
