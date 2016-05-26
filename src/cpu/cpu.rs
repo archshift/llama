@@ -29,6 +29,11 @@ pub struct Cpu {
     pub memory: mem::MemController,
 }
 
+pub enum BreakReason {
+    LimitReached,
+    Breakpoint
+}
+
 impl Cpu {
     pub fn new(memory: mem::MemController) -> Cpu {
         Cpu {
@@ -81,10 +86,8 @@ impl Cpu {
         // TODO: Invalidate pipeline once/if we have one
     }
 
-    pub fn run(&mut self, should_run: system::Runner) {
-        // Only deref the Arc once per `run` call
-        let should_run = &*should_run;
-        while should_run.load(Ordering::Relaxed) {
+    pub fn run(&mut self, num_instrs: u32) -> BreakReason {
+        for _ in num_instrs..0 {
             let addr = self.regs[15] - self.get_pc_offset();
 
             if self.cpsr.get(Psr::thumb_bit()) == 0 {
@@ -95,5 +98,7 @@ impl Cpu {
                 cpu::interpret_thumb(self, instr);
             }
         }
+        
+        BreakReason::LimitReached
     }
 }

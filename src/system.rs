@@ -4,10 +4,8 @@ use std::thread;
 use cpu;
 use mem;
 
-pub type Runner = sync::Arc<atomic::AtomicBool>;
-
 pub struct System {
-    runner: Runner,
+    running: sync::Arc<atomic::AtomicBool>,
     join_handles: Vec<thread::JoinHandle<()>>,
 
     arm9: sync::Arc<sync::RwLock<cpu::Cpu>>,
@@ -19,24 +17,29 @@ impl System {
         cpu.reset(entrypoint);
 
         System {
-            runner: sync::Arc::new(atomic::AtomicBool::new(true)),
+            running: sync::Arc::new(atomic::AtomicBool::new(true)),
             join_handles: Vec::new(),
             arm9: sync::Arc::new(sync::RwLock::new(cpu)),
         }
     }
 
     pub fn start(&mut self) {
-        self.runner.store(true, atomic::Ordering::Relaxed);
+        self.running.store(true, atomic::Ordering::Relaxed);
 
         self.join_handles.push({
             let arm9 = self.arm9.clone();
-            let runner = self.runner.clone();
-            thread::spawn(move || { arm9.write().unwrap().run(runner); })
+            let running = self.running.clone();
+            
+            thread::spawn(move || {
+                while running.load(atomic::Ordering::Relaxed) {
+                    arm9.write().unwrap().run(1000);
+                }
+            })
         })
     }
 
     pub fn stop(&self) {
-        self.runner.store(false, atomic::Ordering::Relaxed);
+        self.running.store(false, atomic::Ordering::Relaxed);
     }
 
     pub fn wait(&mut self) {
