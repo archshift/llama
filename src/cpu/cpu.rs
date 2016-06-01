@@ -87,7 +87,7 @@ impl Cpu {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
-        for _ in num_instrs..0 {
+        for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
 
             if self.cpsr.get(Psr::thumb_bit()) == 0 {
@@ -98,7 +98,7 @@ impl Cpu {
                 cpu::interpret_thumb(self, instr);
             }
         }
-        
+
         BreakReason::LimitReached
     }
 }
