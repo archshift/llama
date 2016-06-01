@@ -10,7 +10,7 @@ impl IoDeviceRegion for IrqDevice {
         }
     }
 
-    unsafe fn write_reg(&self, offset: usize, buf: *const u8, buf_size: usize) {
+    unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
         match offset {
             x @ _ => error!("Unimplemented IRQ write at +0x{:X}", x),
         }
