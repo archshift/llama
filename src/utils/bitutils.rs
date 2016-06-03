@@ -20,7 +20,7 @@ macro_rules! bit {
 #[macro_export]
 macro_rules! bitfield {
     ($name:ident: $ty:ty, { $($var_name:ident: $var_low:expr => $var_hi:expr),* }) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Default)]
         pub struct $name {
             val: $ty
         }
