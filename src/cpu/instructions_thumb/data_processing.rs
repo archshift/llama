@@ -39,6 +39,24 @@ pub fn bic(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
 }
 
 #[inline(always)]
+pub fn cmp_1(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_1) -> u32 {
+    use cpu::ThumbInstrCMP_1 as ThumbInstr;
+    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
+    let immed = data.get(ThumbInstr::immed_8()) as u32;
+
+    let val = base_val - immed;
+    let carry_bit = !base_val.checked_sub(immed).is_none();
+    let overflow_bit = (base_val as i32).checked_sub(immed as i32).is_none();
+
+    cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
+    cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
+    cpu.cpsr.set(cpu::Psr::c_bit(), carry_bit as u32);
+    cpu.cpsr.set(cpu::Psr::v_bit(), overflow_bit as u32);
+
+    2
+}
+
+#[inline(always)]
 pub fn eor(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
     instr_bitwise(cpu, data, ProcessInstrBitOp::XOR)
 }

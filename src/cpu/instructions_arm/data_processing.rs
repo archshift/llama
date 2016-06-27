@@ -161,7 +161,7 @@ fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> u32
     let base_val = cpu.regs[data.get(ArmInstr::rn()) as usize];
     let (shifter_val, _) = get_shifter_val(&data, cpu);
 
-    let (val, carry_bit, overflow_bit) = if negative {
+    let (val, carry_bit, overflow_bit) = if !negative {
         let val = base_val - shifter_val;
         let u_overflow = base_val.checked_sub(shifter_val).is_none();
         let s_overflow = (base_val as i32).checked_sub(shifter_val as i32).is_none();
