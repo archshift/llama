@@ -1,8 +1,5 @@
 use cpu;
 use mem;
-use system;
-
-use std::sync::atomic::Ordering;
 
 // Program status register
 bitfield!(Psr: u32, {
