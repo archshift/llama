@@ -4,7 +4,7 @@ extern crate ctrlc;
 extern crate env_logger;
 
 use std::env;
-use std::io::{Read, stdin};
+use std::io::{Read, stdin, stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -55,12 +55,28 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
         };
 
         if is_paused {
-            // Handle pause commands
+            // Print prompt text
+            print!(" > ");
+            stdout().flush();
+
+            // Read pause command
             let mut input = String::new();
             stdin().read_line(&mut input).unwrap();
+
+            // Handle pause command
             match input.as_str().trim_right() {
-                "r" => { debugger.resume(); is_paused = false; },
-                _ => {},
+                "run" => { debugger.resume(); is_paused = false; },
+                "regs" => {
+                    let ctx = debugger.get_ctx();
+                    for i in 0..16 {
+                        println!("R{} = 0x{:08X}", i, ctx.read_reg(i));
+                    }
+                }
+                "quit" => {
+                    debugger.hwcore_mut().stop();
+                    std::process::exit(0);
+                }
+                unk_cmd @ _ => println!("Error: Unrecognized command `{}`", unk_cmd),
             }
         } else {
             std::thread::sleep(Duration::from_millis(100));
