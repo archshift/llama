@@ -1,9 +1,13 @@
 #[macro_use]
 extern crate log;
+extern crate ctrlc;
 extern crate env_logger;
 
 use std::env;
-use std::io::Read;
+use std::io::{Read, stdin};
+use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[macro_use]
 mod utils;
@@ -23,6 +27,49 @@ fn from_hex(string: String) -> Result<u32, std::num::ParseIntError> {
     u32::from_str_radix(slice, 16)
 }
 
+static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
+
+fn sigint_trap() {
+    ctrlc::set_handler(|| SIGINT_REQUESTED.store(true, Ordering::SeqCst));
+}
+
+fn sigint_triggered() -> bool {
+    SIGINT_REQUESTED.compare_and_swap(true, false, Ordering::SeqCst)
+}
+
+fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
+    let mem = hwcore::map_memory_regions();
+    mem.write_buf(load_offset, code.as_slice());
+
+    let mut hwcore = hwcore::HwCore::new(entrypoint, mem);
+    let mut debugger = dbgcore::DbgCore::bind(hwcore);
+    debugger.hwcore_mut().start();
+
+    sigint_trap();
+    let mut is_paused = false;
+    loop {
+        is_paused = {
+            let triggered = sigint_triggered();
+            if triggered { debugger.pause(); }
+            is_paused | triggered
+        };
+
+        if is_paused {
+            // Handle pause commands
+            let mut input = String::new();
+            stdin().read_line(&mut input).unwrap();
+            match input.as_str().trim_right() {
+                "r" => { debugger.resume(); is_paused = false; },
+                _ => {},
+            }
+        } else {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    debugger.hwcore_mut().stop();
+}
+
 fn main() {
     env_logger::init().unwrap();
 
@@ -40,11 +87,5 @@ fn main() {
     info!("Reading {} bytes from input file", size);
     assert!(size == file_size as usize);
 
-    let mem = hwcore::map_memory_regions();
-    mem.write_buf(load_offset, filebuf.as_slice());
-
-    let mut hwcore = hwcore::HwCore::new(entrypoint, mem);
-    hwcore.start();
-    let mut debugger = dbgcore::DbgCore::new(hwcore);
-    let hw = debugger.pause();
+    run_emulator(&filebuf, load_offset, entrypoint);
 }

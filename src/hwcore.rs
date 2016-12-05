@@ -26,7 +26,7 @@ pub fn map_memory_regions() -> mem::MemController {
 }
 
 pub struct Hardware {
-    arm9: cpu::Cpu
+    pub arm9: cpu::Cpu
 }
 
 
@@ -42,7 +42,7 @@ impl HwCore {
         cpu.reset(entrypoint);
 
         HwCore {
-            running: sync::Arc::new(atomic::AtomicBool::new(true)),
+            running: sync::Arc::new(atomic::AtomicBool::new(false)),
             hardware: sync::Arc::new(sync::RwLock::new(Hardware {
                 arm9: cpu
             })),
@@ -52,7 +52,10 @@ impl HwCore {
 
     // Spin up the hardware thread, take ownership of hardware
     pub fn start(&mut self) {
-        self.running.store(true, atomic::Ordering::Relaxed);
+        // Signals that we're currently running, returns if we were already running before
+        if self.running.swap(true, atomic::Ordering::Relaxed) {
+            return
+        }
 
         let hardware = self.hardware.clone();
         let running = self.running.clone();
@@ -75,10 +78,12 @@ impl HwCore {
     }
 
     pub fn hardware(&self) -> sync::RwLockReadGuard<Hardware> {
-        self.hardware.read().unwrap()
+        // Will panic if already running
+        self.hardware.try_read().unwrap()
     }
 
     pub fn hardware_mut(&mut self) -> sync::RwLockWriteGuard<Hardware> {
-        self.hardware.write().unwrap()
+        // Will panic if already running
+        self.hardware.try_write().unwrap()
     }
 }
