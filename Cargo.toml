@@ -3,7 +3,12 @@ name = "llama"
 version = "0.1.0"
 authors = ["archshift <gh@archshift.com>"]
 
+[[bin]]
+name = "llama-cli"
+path = "llama-cli/main.rs"
+
 [dependencies]
 env_logger = "0.3"
+libllama = { path = "libllama" }
 log = "0.3"
 ctrlc = "2.0"

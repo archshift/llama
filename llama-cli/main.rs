@@ -2,6 +2,7 @@
 extern crate log;
 extern crate ctrlc;
 extern crate env_logger;
+extern crate libllama;
 
 use std::env;
 use std::io::{Read, stdin, stdout, Write};
@@ -9,14 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-#[macro_use]
-mod utils;
-
-mod cpu;
-mod dbgcore;
-mod io;
-mod mem;
-mod hwcore;
+use libllama::{dbgcore, hwcore};
 
 fn from_hex(string: &str) -> Result<u32, std::num::ParseIntError> {
     let slice = if string.starts_with("0x") {
