@@ -23,10 +23,17 @@ fn from_hex(string: &str) -> Result<u32, std::num::ParseIntError> {
 
 static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
 
+#[inline(always)]
 fn sigint_trap() {
     ctrlc::set_handler(|| SIGINT_REQUESTED.store(true, Ordering::SeqCst));
 }
 
+#[inline(always)]
+fn sigint_reset() {
+    ctrlc::set_handler(|| std::process::exit(0));
+}
+
+#[inline(always)]
 fn sigint_triggered() -> bool {
     SIGINT_REQUESTED.compare_and_swap(true, false, Ordering::SeqCst)
 }
@@ -100,7 +107,7 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
     let mut is_paused = false;
     loop {
         if sigint_triggered() {
-            if is_paused { std::process::exit(0) }
+            sigint_reset();
             debugger.pause();
             is_paused = true;
         }
