@@ -46,11 +46,11 @@ pub struct DbgContext<'a> {
 }
 
 impl<'a> DbgContext<'a> {
-    pub fn read_mem(&self, address: u32) -> u32 {
+    pub fn read_mem(&self, address: u32) -> u8 {
         self.hw.arm9.memory.read(address)
     }
 
-    pub fn write_mem(&mut self, address: u32, value: u32) {
+    pub fn write_mem(&mut self, address: u32, value: u8) {
         self.hw.arm9.memory.write(address, value)
     }
 
