@@ -37,14 +37,14 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
 
     let mut hwcore = hwcore::HwCore::new(entrypoint, mem);
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
-    debugger.hwcore_mut().start();
+    debugger.ctx().hwcore_mut().start();
 
     sigint_trap();
     let mut is_paused = false;
     loop {
         if sigint_triggered() {
             sigint_reset();
-            debugger.pause();
+            debugger.ctx().pause();
             is_paused = true;
         }
 
@@ -62,7 +62,7 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
         }
     }
 
-    debugger.hwcore_mut().stop();
+    debugger.ctx().hwcore_mut().stop();
 }
 
 fn main() {

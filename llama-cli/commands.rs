@@ -24,10 +24,11 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     trace!("Printing {} bytes of RAM starting at 0x{:08X}", num, start);
 
-    let ctx = debugger.get_ctx();
-    print!("{:02X}", ctx.read_mem(start));
-    for addr in start+1 .. (start + num) {
-        print!(" {:02X}", ctx.read_mem(addr));
+    let mut ctx = debugger.ctx();
+    let hw = ctx.hw();
+    print!("{:02X}", hw.read_mem(start));
+    for addr in (start + 1) .. (start + num + 1) {
+        print!(" {:02X}", hw.read_mem(addr));
     }
     println!("");
 }
@@ -38,9 +39,10 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// `args`: Iterator over &str items
 fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
-    let ctx = debugger.get_ctx();
+    let mut ctx = debugger.ctx();
+    let hw = ctx.hw();
 
-    let print_reg = |reg_num| println!("R{} = 0x{:08X}", reg_num, ctx.read_reg(reg_num));
+    let print_reg = |reg_num| println!("R{} = 0x{:08X}", reg_num, hw.read_reg(reg_num));
 
     let reg_str = match args.next() {
         Some(arg) => arg.to_owned().to_lowercase(),
@@ -81,11 +83,11 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It) -> bool
     let mut is_paused = true;
 
     match command.next() {
-        Some("run") => { debugger.resume(); is_paused = false; },
+        Some("run") => { debugger.ctx().resume(); is_paused = false; },
         Some("mem") => cmd_mem(debugger, command),
         Some("reg") => cmd_reg(debugger, command),
         Some("quit") | Some("exit") => {
-            debugger.hwcore_mut().stop();
+            debugger.ctx().hwcore_mut().stop();
             // TODO: Cleaner exit?
             exit(0);
         }

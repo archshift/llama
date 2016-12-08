@@ -73,7 +73,7 @@ impl HwCore {
     pub fn stop(&mut self) {
         self.running.store(false, atomic::Ordering::Relaxed);
         if let Some(handle) = self.hardware_thread.take() {
-            let _ = handle.join();
+            handle.join().unwrap();
         }
     }
 
