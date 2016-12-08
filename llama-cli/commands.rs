@@ -10,13 +10,15 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
     use common::from_hex;
 
-    let (start_str, num_str) = match (args.next(), args.next()) {
-        (Some(ss), Some(ns)) => (ss, ns),
-        (Some(ss), None) => (ss, ss),
+    // Tuple: (u32: start, u32: num)
+    let arg_res = match (args.next(), args.next()) {
+        (Some(ss), Some(ns)) => from_hex(ss).and_then(|s| Ok((s, from_hex(ns)?))),
+        (Some(ss), None) => from_hex(ss).and_then(|s| Ok((s, 1))),
         (None, _) => { println!("Usage: `mem <start> [num]"); return }
     };
 
-    let (start, num) = match from_hex(start_str).and_then(|s| Ok((s, from_hex(num_str)?))) {
+    // Check for from_hex errors, validate `num` input
+    let (start, num) = match arg_res {
         Ok((s, n)) if n > 0 => (s, n),
         Ok((s, _)) => (s, 1),
         _ => { println!("Error: could not parse hex value!"); return }
@@ -27,7 +29,7 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let mut ctx = debugger.ctx();
     let hw = ctx.hw();
     print!("{:02X}", hw.read_mem(start));
-    for addr in (start + 1) .. (start + num + 1) {
+    for addr in (start + 1) .. (start + num) {
         print!(" {:02X}", hw.read_mem(addr));
     }
     println!("");
