@@ -10,6 +10,7 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
     use capstone::{Capstone, CsArch, CsMode};
+    let _ = args;
 
     let mut ctx = debugger.ctx();
     let hw = ctx.hw();
@@ -45,7 +46,7 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// `args`: Iterator over &str items
 fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
-    use common::from_hex;
+    use libllama::utils::from_hex;
 
     // Tuple: (u32: start, u32: num)
     let arg_res = match (args.next(), args.next()) {
@@ -124,6 +125,7 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// `args`: Unused
 fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
+    let _ = args;
     let mut ctx = debugger.ctx();
     let mut hw = ctx.hw();
 

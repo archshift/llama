@@ -156,7 +156,7 @@ impl MemController {
         }
     }
 
-    pub fn write_buf(&self, addr: u32, buf: &[u8]) {
+    pub fn write_buf(&mut self, addr: u32, buf: &[u8]) {
         let (block_addr, block) = self.match_address(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
         unsafe {

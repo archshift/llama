@@ -6,14 +6,13 @@ extern crate env_logger;
 extern crate libllama;
 
 mod commands;
-mod common;
 
 use std::env;
-use std::io::{Read, stdin, stdout, Write};
+use std::io::{stdin, stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::time::Duration;
 
-use libllama::{dbgcore, hwcore};
+use libllama::{dbgcore, hwcore, ldr};
 
 static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
 
@@ -32,11 +31,11 @@ fn sigint_triggered() -> bool {
     SIGINT_REQUESTED.compare_and_swap(true, false, Ordering::SeqCst)
 }
 
-fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
-    let mem = hwcore::map_memory_regions();
-    mem.write_buf(load_offset, code.as_slice());
+fn run_emulator<L: ldr::Loader>(loader: L) {
+    let mut mem = hwcore::map_memory_regions();
+    loader.load(&mut mem);
 
-    let mut hwcore = hwcore::HwCore::new(entrypoint, mem);
+    let mut hwcore = hwcore::HwCore::new(loader.entrypoint(), mem);
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
     debugger.ctx().hwcore_mut().start();
 
@@ -52,7 +51,7 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
         if is_paused {
             // Print prompt text
             print!(" > ");
-            stdout().flush();
+            stdout().flush().unwrap();
 
             // Handle pause command
             let mut input = String::new();
@@ -75,23 +74,9 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
 }
 
 fn main() {
-    use common::from_hex;
-
     env_logger::init().unwrap();
 
-    let filename = env::args().nth(1).unwrap();
-    let load_offset = from_hex(&env::args().nth(2).unwrap()).unwrap();
-    let entrypoint = from_hex(&env::args().nth(3).unwrap()).unwrap();
-
-    let mut file = std::fs::File::open(filename).unwrap();
-    let file_data = file.metadata().unwrap();
-    let file_size = file_data.len();
-
-    let mut filebuf = Vec::<u8>::with_capacity(file_size as usize);
-
-    let size = file.read_to_end(&mut filebuf).unwrap();
-    info!("Reading {} bytes from input file", size);
-    assert!(size == file_size as usize);
-
-    run_emulator(&filebuf, load_offset, entrypoint);
+    let path = env::args().nth(1).unwrap();
+    let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();
+    run_emulator(loader);
 }
