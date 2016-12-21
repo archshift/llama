@@ -2,6 +2,43 @@ use std::process::exit;
 
 use libllama::dbgcore;
 
+/// Prints disassembly for the next instruction
+/// Command format: "asm"
+///
+/// `args`: Unused
+fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+
+    use capstone::{Capstone, CsArch, CsMode};
+
+    let mut ctx = debugger.ctx();
+    let hw = ctx.hw();
+
+    let pause_addr = hw.pause_addr();
+    let cpu_mode = if hw.is_thumb() {
+        CsMode::MODE_THUMB
+    } else {
+        CsMode::MODE_LITTLE_ENDIAN
+    };
+
+    if let Some(cs) = Capstone::new(CsArch::ARCH_ARM, cpu_mode) {
+        let mut inst_bytes = [0u8; 4];
+        hw.read_mem(pause_addr, &mut inst_bytes);
+
+        match cs.disasm(&inst_bytes, pause_addr as u64, 1) {
+            Some(insts) => {
+                let inst = insts.iter().next().unwrap();
+                println!("{:X}: {} {}", pause_addr,
+                                        inst.mnemonic().unwrap(),
+                                        inst.op_str().unwrap())
+            }
+            None => println!("Error: failed to disassemble instruction at 0x{:X}", pause_addr),
+        }
+    } else {
+        println!("Error: could not initialize capstone!");
+    }
+}
+
 /// Prints memory to the screen based on provided address, number of bytes
 /// Command format: "mem <start address hex> [# bytes hex]"
 ///
@@ -28,9 +65,13 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     let mut ctx = debugger.ctx();
     let hw = ctx.hw();
-    print!("{:02X}", hw.read_mem(start));
-    for addr in (start + 1) .. (start + num) {
-        print!(" {:02X}", hw.read_mem(addr));
+
+    let mut mem_bytes = vec![0u8; num as usize];
+    hw.read_mem(start, &mut mem_bytes);
+
+    print!("{:02X}", mem_bytes[0]);
+    for i in 1 .. num as usize {
+        print!(" {:02X}", mem_bytes[i]);
     }
     println!("");
 }
@@ -77,6 +118,18 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     }
 }
 
+/// Runs one instruction on the CPU
+/// Command format: "step"
+///
+/// `args`: Unused
+fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+    let mut ctx = debugger.ctx();
+    let mut hw = ctx.hw();
+
+    hw.step();
+}
+
 /// Controls debugger behavior based on user-provided commands
 ///
 /// `command`: Iterator over &str items
@@ -86,14 +139,16 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It) -> bool
 
     match command.next() {
         Some("run") => { debugger.ctx().resume(); is_paused = false; },
+        Some("asm") => cmd_asm(debugger, command),
         Some("mem") => cmd_mem(debugger, command),
         Some("reg") => cmd_reg(debugger, command),
+        Some("step") => cmd_step(debugger, command),
         Some("quit") | Some("exit") => {
             debugger.ctx().hwcore_mut().stop();
             // TODO: Cleaner exit?
             exit(0);
         }
-        None => println!("Error: No command"),
+        None => {},
         Some(unk_cmd @ _) => println!("Error: Unrecognized command `{}`", unk_cmd),
     }
 

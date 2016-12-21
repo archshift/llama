@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+extern crate capstone;
 extern crate ctrlc;
 extern crate env_logger;
 extern crate libllama;
@@ -56,7 +57,15 @@ fn run_emulator(code: &Vec<u8>, load_offset: u32, entrypoint: u32) {
             // Handle pause command
             let mut input = String::new();
             stdin().read_line(&mut input).unwrap();
-            is_paused = commands::handle(&mut debugger, input.trim_right().split_whitespace());
+
+            // Allow handling multiple commands delimited by a semicolon
+            for cmd in input.split(';') {
+                // Keep processing commands until unpaused
+                if !commands::handle(&mut debugger, cmd.split_whitespace()) {
+                    is_paused = false;
+                    break
+                }
+            }
         } else {
             std::thread::sleep(Duration::from_millis(100));
         }

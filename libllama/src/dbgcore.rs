@@ -1,6 +1,7 @@
 use std::sync::{self, atomic};
 
 use hwcore;
+use cpu::Psr;
 
 #[derive(Clone)]
 pub struct DbgCore {
@@ -55,12 +56,12 @@ pub struct DbgHwContext<'a> {
 }
 
 impl<'a> DbgHwContext<'a> {
-    pub fn read_mem(&self, address: u32) -> u8 {
-        self.hw.arm9.memory.read(address)
+    pub fn read_mem(&self, address: u32, bytes: &mut [u8]) {
+        self.hw.arm9.memory.read_buf(address, bytes)
     }
 
-    pub fn write_mem(&mut self, address: u32, value: u8) {
-        self.hw.arm9.memory.write(address, value)
+    pub fn write_mem(&mut self, address: u32, bytes: &[u8]) {
+        self.hw.arm9.memory.write_buf(address, bytes)
     }
 
     pub fn read_reg(&self, reg: usize) -> u32 {
@@ -69,6 +70,18 @@ impl<'a> DbgHwContext<'a> {
 
     pub fn write_reg(&mut self, reg: usize, value: u32) {
 
+    }
+
+    pub fn pause_addr(&self) -> u32 {
+        self.hw.arm9.regs[15] - self.hw.arm9.get_pc_offset()
+    }
+
+    pub fn is_thumb(&self) -> bool {
+        self.hw.arm9.cpsr.get(Psr::thumb_bit()) == 1
+    }
+
+    pub fn step(&mut self) {
+        self.hw.arm9.run(1);
     }
 
     fn set_breakpoint(&mut self) {
