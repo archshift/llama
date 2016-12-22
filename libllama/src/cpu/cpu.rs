@@ -48,14 +48,14 @@ impl Cpu {
 
     pub fn reset(&mut self, entry: u32) {
         self.regs[15] = entry + self.get_pc_offset();
-        self.cpsr.set(Psr::mode(), 0b10011);
-        self.cpsr.set(Psr::thumb_bit(), 0b0);
-        self.cpsr.set(Psr::disable_fiq_bit(), 0b1);
-        self.cpsr.set(Psr::disable_irq_bit(), 0b1);
+        bf!((self.cpsr).mode = 0b10011);
+        bf!((self.cpsr).thumb_bit = 0b0);
+        bf!((self.cpsr).disable_fiq_bit = 0b1);
+        bf!((self.cpsr).disable_irq_bit = 0b1);
     }
 
     pub fn get_pc_offset(&self) -> u32 {
-        if self.cpsr.get(Psr::thumb_bit()) == 1 {
+        if bf!((self.cpsr).thumb_bit) == 1 {
             4
         } else {
             8
@@ -63,7 +63,7 @@ impl Cpu {
     }
 
     pub fn get_current_spsr(&mut self) -> &mut Psr {
-        match self.cpsr.get(Psr::mode()) {
+        match bf!((self.cpsr).mode) {
             0b10001 => &mut self.spsr_fiq,
             0b10010 => &mut self.spsr_irq,
             0b10011 => &mut self.spsr_svc,
@@ -87,7 +87,7 @@ impl Cpu {
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
 
-            if self.cpsr.get(Psr::thumb_bit()) == 0 {
+            if bf!((self.cpsr).thumb_bit) == 0 {
                 let instr = cpu::decode_arm_instruction(self.memory.read::<u32>(addr));
                 cpu::interpret_arm(self, instr);
             } else {

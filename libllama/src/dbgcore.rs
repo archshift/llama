@@ -77,7 +77,7 @@ impl<'a> DbgHwContext<'a> {
     }
 
     pub fn is_thumb(&self) -> bool {
-        self.hw.arm9.cpsr.get(Psr::thumb_bit()) == 1
+        bf!((self.hw.arm9.cpsr).thumb_bit) == 1
     }
 
     pub fn step(&mut self) {

@@ -4,39 +4,33 @@ use cpu::instructions_arm;
 #[inline(always)]
 pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     match cond_opcode {
-        0b0000 => return cpsr.get(Psr::z_bit()) == 1, // EQ
-        0b0001 => return cpsr.get(Psr::z_bit()) == 0, // NE
-        0b0010 => return cpsr.get(Psr::c_bit()) == 1, // CS
-        0b0011 => return cpsr.get(Psr::c_bit()) == 0, // CC
-        0b0100 => return cpsr.get(Psr::n_bit()) == 1, // MI
-        0b0101 => return cpsr.get(Psr::n_bit()) == 0, // PL
-        0b0110 => return cpsr.get(Psr::v_bit()) == 1, // VS
-        0b0111 => return cpsr.get(Psr::v_bit()) == 0, // VC
+        0b0000 => return bf!(cpsr.z_bit) == 1, // EQ
+        0b0001 => return bf!(cpsr.z_bit) == 0, // NE
+        0b0010 => return bf!(cpsr.c_bit) == 1, // CS
+        0b0011 => return bf!(cpsr.c_bit) == 0, // CC
+        0b0100 => return bf!(cpsr.n_bit) == 1, // MI
+        0b0101 => return bf!(cpsr.n_bit) == 0, // PL
+        0b0110 => return bf!(cpsr.v_bit) == 1, // VS
+        0b0111 => return bf!(cpsr.v_bit) == 0, // VC
         0b1000 => { // HI
-            return (cpsr.get(Psr::c_bit()) == 1) &&
-                (cpsr.get(Psr::z_bit()) == 0)
+            return (bf!(cpsr.c_bit) == 1) && (bf!(cpsr.z_bit) == 0)
         },
         0b1001 => { // LS
-            return (cpsr.get(Psr::c_bit()) == 0) ||
-                (cpsr.get(Psr::z_bit()) == 1)
+            return (bf!(cpsr.c_bit) == 0) || (bf!(cpsr.z_bit) == 1)
         },
         0b1010 => { // GE
-            return cpsr.get(Psr::n_bit()) ==
-                cpsr.get(Psr::v_bit())
+            return bf!(cpsr.n_bit) == bf!(cpsr.v_bit)
         },
         0b1011 => { // LT
-            return cpsr.get(Psr::n_bit()) !=
-                cpsr.get(Psr::v_bit())
+            return bf!(cpsr.n_bit) != bf!(cpsr.v_bit)
         },
         0b1100 => { // GT
-            return (cpsr.get(Psr::z_bit()) == 0) &&
-                (cpsr.get(Psr::n_bit()) ==
-                 cpsr.get(Psr::v_bit()))
+            return (bf!(cpsr.z_bit) == 0) &&
+                (bf!(cpsr.n_bit) == bf!(cpsr.v_bit))
         },
         0b1101 => { // LE
-            return (cpsr.get(Psr::z_bit()) == 1) ||
-                (cpsr.get(Psr::n_bit()) !=
-                cpsr.get(Psr::v_bit()))
+            return (bf!(cpsr.z_bit) == 1) ||
+                (bf!(cpsr.n_bit) != bf!(cpsr.v_bit))
         },
         0b1110 => return true, // AL
         _ => panic!("Unhandled condition code {:#b}!", cond_opcode),

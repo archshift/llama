@@ -3,13 +3,11 @@ use cpu::Cpu;
 
 #[inline(always)]
 fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32 {
-    use cpu::ArmInstrLoadStore as ArmInstr;
+    let c_bit = bf!((cpu.cpsr).c_bit) == 1;
 
-    let c_bit = cpu.cpsr.get(cpu::Psr::c_bit()) == 1;
-
-    let i_bit = instr_data.get(ArmInstr::i_bit());
-    let u_bit = instr_data.get(ArmInstr::u_bit());
-    let base_addr = cpu.regs[instr_data.get(ArmInstr::rn()) as usize];
+    let i_bit = bf!(instr_data.i_bit);
+    let u_bit = bf!(instr_data.u_bit);
+    let base_addr = cpu.regs[bf!(instr_data.rn) as usize];
 
     let offset = if i_bit == 0 {
         bits!(instr_data.raw(), 0 => 11)
@@ -65,13 +63,11 @@ fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32
 
 #[inline(always)]
 fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
-    use cpu::ArmInstrLoadStore as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
-    let rd = data.get(ArmInstr::rd());
+    let rd = bf!(data.rd);
     let addr = decode_addressing_mode(&data, cpu);
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
@@ -82,11 +78,11 @@ fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
     };
 
     // TODO: Implement
-    assert!(data.get(ArmInstr::p_bit()) == 1);
-    assert!(data.get(ArmInstr::w_bit()) == 0);
+    assert!(bf!(data.p_bit) == 1);
+    assert!(bf!(data.w_bit) == 0);
 
     if rd == 15 {
-        cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(val, 0));
+        bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return 0;
     } else {
@@ -98,18 +94,16 @@ fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
 
 #[inline(always)]
 fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
-    use cpu::ArmInstrLoadStore as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
     let addr = decode_addressing_mode(&data, cpu);
-    let val = cpu.regs[data.get(ArmInstr::rd()) as usize];
+    let val = cpu.regs[bf!(data.rd) as usize];
 
     // TODO: Implement
-    assert!(data.get(ArmInstr::p_bit()) == 1);
-    assert!(data.get(ArmInstr::w_bit()) == 0);
+    assert!(bf!(data.p_bit) == 1);
+    assert!(bf!(data.w_bit) == 0);
 
     if byte {
         cpu.memory.write::<u8>(addr, val as u8);

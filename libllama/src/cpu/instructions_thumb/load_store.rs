@@ -2,46 +2,38 @@ use cpu;
 use cpu::Cpu;
 
 pub fn ldr_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
-    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
-
-    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
-    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let immed_5 = bf!(data.immed_5) as u32;
 
     let addr = base_val + immed_5 * 4;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.regs[data.get(ThumbInstr::rd()) as usize] = cpu.memory.read::<u32>(addr);
+    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u32>(addr);
 
     2
 }
 
 pub fn ldr_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> u32 {
-    use cpu::ThumbInstrLoadStore_3 as ThumbInstr;
-
-    let immed_8 = data.get(ThumbInstr::immed_8()) as u32;
+    let immed_8 = bf!(data.immed_8) as u32;
     let addr = (cpu.regs[15] & 0xFFFFFFFC) + immed_8 * 4;
-    cpu.regs[data.get(ThumbInstr::rd()) as usize] = cpu.memory.read::<u32>(addr);
+    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u32>(addr);
 
     2
 }
 
 pub fn ldrh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
-    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
-
-    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
-    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let immed_5 = bf!(data.immed_5) as u32;
 
     let addr = base_val + immed_5 * 2;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.regs[data.get(ThumbInstr::rd()) as usize] = cpu.memory.read::<u16>(addr) as u32;
+    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u16>(addr) as u32;
 
     2
 }
 
 pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> u32 {
-    use cpu::ThumbInstrPUSH as ThumbInstr;
-
-    let register_list = data.get(ThumbInstr::register_list());
-    let r_bit = data.get(ThumbInstr::r_bit());
+    let register_list = bf!(data.register_list);
+    let r_bit = bf!(data.r_bit);
 
     let mut addr = cpu.regs[13];
 
@@ -56,7 +48,7 @@ pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> u32 {
         let val = cpu.memory.read::<u32>(addr);
         addr += 4;
 
-        cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(val, 0));
+        bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
 
         0
@@ -69,10 +61,8 @@ pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> u32 {
 }
 
 pub fn push(cpu: &mut Cpu, data: cpu::ThumbInstrPUSH) -> u32 {
-    use cpu::ThumbInstrPUSH as ThumbInstr;
-
-    let register_list = data.get(ThumbInstr::register_list());
-    let r_bit = data.get(ThumbInstr::r_bit());
+    let register_list = bf!(data.register_list);
+    let r_bit = bf!(data.r_bit);
 
     let num_registers = register_list.count_ones() + r_bit as u32;
     cpu.regs[13] -= num_registers * 4;
@@ -93,27 +83,23 @@ pub fn push(cpu: &mut Cpu, data: cpu::ThumbInstrPUSH) -> u32 {
 }
 
 pub fn str_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
-    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
-
-    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
-    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let immed_5 = bf!(data.immed_5) as u32;
 
     let addr = base_val + immed_5 * 4;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u32>(addr, cpu.regs[data.get(ThumbInstr::rd()) as usize]);
+    cpu.memory.write::<u32>(addr, cpu.regs[bf!(data.rd) as usize]);
 
     2
 }
 
 pub fn strh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> u32 {
-    use cpu::ThumbInstrLoadStore_1 as ThumbInstr;
-
-    let base_val = cpu.regs[data.get(ThumbInstr::rn()) as usize];
-    let immed_5 = data.get(ThumbInstr::immed_5()) as u32;
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let immed_5 = bf!(data.immed_5) as u32;
 
     let addr = base_val + immed_5 * 2;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u16>(addr, cpu.regs[data.get(ThumbInstr::rd()) as usize] as u16);
+    cpu.memory.write::<u16>(addr, cpu.regs[bf!(data.rd) as usize] as u16);
 
     2
 }

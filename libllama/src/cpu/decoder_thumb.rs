@@ -3,6 +3,8 @@ pub enum ThumbInstruction {
     ADD_1(ThumbInstrAddSub_1),
     ADD_2(ThumbInstrAddSub_2),
     ADD_3(ThumbInstrAddSub_3),
+    ADD_5(ThumbInstrAddSub_2),
+    ADD_6(ThumbInstrAddSub_2),
     AND(ThumbInstrBitwise),
     ASR_1(ThumbInstrShift_1),
     B_1(ThumbInstrB_1),
@@ -150,6 +152,8 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     handle!(ADD_1: ThumbInstrAddSub_1, 0xFE00, 0x1C00);
     handle!(ADD_2: ThumbInstrAddSub_2, 0xF800, 0x3000);
     handle!(ADD_3: ThumbInstrAddSub_3, 0xFE00, 0x1800);
+    handle!(ADD_5: ThumbInstrAddSub_2, 0xF800, 0xA000);
+    handle!(ADD_6: ThumbInstrAddSub_2, 0xF800, 0xA800);
     handle!(AND: ThumbInstrBitwise, 0xFFC0, 0x4000);
     handle!(ASR_1: ThumbInstrShift_1, 0xF800, 0x1000);
     handle!(BIC: ThumbInstrBitwise, 0xFFC0, 0x4380);

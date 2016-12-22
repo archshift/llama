@@ -18,6 +18,15 @@ macro_rules! bit {
 }
 
 #[macro_export]
+macro_rules! bf {
+    {$var:tt.$item:ident} => ($var.get($var.$item()));
+    {$var:tt.$item:ident=$val:expr} => (
+        let item = $var.$item();
+        $var.set(item, $val)
+    );
+}
+
+#[macro_export]
 macro_rules! bitfield {
     ($name:ident: $ty:ty, { $($var_name:ident: $var_low:expr => $var_hi:expr),* }) => {
         #[derive(Clone, Copy, Default)]
@@ -59,7 +68,7 @@ macro_rules! bitfield {
 
             $(
                 #[inline(always)]
-                pub fn $var_name() -> (usize, usize) {
+                pub fn $var_name(&self) -> (usize, usize) {
                     ($var_low, $var_hi)
                 }
             )*
@@ -68,9 +77,44 @@ macro_rules! bitfield {
         impl ::std::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 f.debug_struct(stringify!($name))
-                    $(.field(stringify!($var_name), &self.get($name::$var_name())))*
+                    $(.field(stringify!($var_name), &bf!(self.$var_name)))*
                     .finish()
             }
         }
     };
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    bitfield!(TestField: u8, {
+        bottom: 0 => 5,
+        top: 6 => 7
+    });
+
+    #[test]
+    fn bitfield_get() {
+        let mut test_field = TestField::new(0b10100000);
+        assert_eq!(bf!(test_field.top), 0b10);
+    }
+
+    #[test]
+    fn bitfield_set() {
+        let mut test_field = TestField::new(0);
+        bf!(test_field.top = 0b11);
+        assert_eq!(test_field.raw(), 0b11000000);
+    }
+
+    #[test]
+    fn bitfield_mod_recursive() {
+        struct TFParent {
+            tf: TestField
+        }
+
+        let mut tf_parent = TFParent { tf: TestField::new(0) };
+        // Complex bitfield accesses must be surrounded by parentheses
+        bf!((tf_parent.tf).top = 0b11);
+        assert_eq!(tf_parent.tf.raw(), 0b11000000);
+    }
 }

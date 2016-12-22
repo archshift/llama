@@ -3,12 +3,10 @@ use cpu::Cpu;
 
 #[inline(always)]
 fn get_shifter_val(instr_data: &cpu::ArmInstrDProc, cpu: &Cpu) -> (u32, bool) {
-    use cpu::ArmInstrDProc as ArmInstr;
+    let shifter_bits = bf!(instr_data.shifter_operand);
+    let c_bit = bf!((cpu.cpsr).c_bit) == 1;
 
-    let shifter_bits = instr_data.get(ArmInstr::shifter_operand());
-    let c_bit = cpu.cpsr.get(cpu::Psr::c_bit()) == 1;
-
-    if instr_data.get(ArmInstr::i_bit()) == 1 {
+    if bf!(instr_data.i_bit) == 1 {
         let immed_8 = bits!(shifter_bits, 0 => 7);
         let rotate_imm = bits!(shifter_bits, 8 => 11);
 
@@ -113,16 +111,14 @@ enum ProcessInstrBitOp {
 
 #[inline(always)]
 fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp) -> u32 {
-    use cpu::ArmInstrDProc as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
-    let dst_reg = data.get(ArmInstr::rd());
-    let s_bit = data.get(ArmInstr::s_bit()) == 1;
+    let dst_reg = bf!(data.rd);
+    let s_bit = bf!(data.s_bit) == 1;
     let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
-    let rn = data.get(ArmInstr::rn());
+    let rn = bf!(data.rn);
 
     let val = match op {
         ProcessInstrBitOp::AND => cpu.regs[rn as usize] & shifter_val,
@@ -135,9 +131,9 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp)
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
-            cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
-            cpu.cpsr.set(cpu::Psr::c_bit(), shifter_carry as u32);
+            bf!((cpu.cpsr).n_bit = bit!(val, 31));
+            bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+            bf!((cpu.cpsr).c_bit = shifter_carry as u32);
         }
     }
 
@@ -152,13 +148,11 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp)
 
 #[inline(always)]
 fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> u32 {
-    use cpu::ArmInstrDProc as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
-    let base_val = cpu.regs[data.get(ArmInstr::rn()) as usize];
+    let base_val = cpu.regs[bf!(data.rn) as usize];
     let (shifter_val, _) = get_shifter_val(&data, cpu);
 
     let (val, carry_bit, overflow_bit) = if !negative {
@@ -173,10 +167,10 @@ fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> u32
         (val, u_overflow, s_overflow)
     };
 
-    cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
-    cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
-    cpu.cpsr.set(cpu::Psr::c_bit(), carry_bit as u32);
-    cpu.cpsr.set(cpu::Psr::v_bit(), overflow_bit as u32);
+    bf!((cpu.cpsr).n_bit = bit!(val, 31));
+    bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    bf!((cpu.cpsr).c_bit = carry_bit as u32);
+    bf!((cpu.cpsr).v_bit = overflow_bit as u32);
 
     4
 }
@@ -189,16 +183,14 @@ enum ProcessInstrLogicalOp {
 
 #[inline(always)]
 fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogicalOp) -> u32 {
-    use cpu::ArmInstrDProc as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
-    let dst_reg = data.get(ArmInstr::rd());
-    let s_bit = data.get(ArmInstr::s_bit()) == 1;
+    let dst_reg = bf!(data.rd);
+    let s_bit = bf!(data.s_bit) == 1;
 
-    let base_val = cpu.regs[data.get(ArmInstr::rn()) as usize];
+    let base_val = cpu.regs[bf!(data.rn) as usize];
     let (shifter_val, _) = get_shifter_val(&data, cpu);
 
     let (val, carry_bit, overflow_bit) = match op {
@@ -226,10 +218,10 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
-            cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
-            cpu.cpsr.set(cpu::Psr::c_bit(), carry_bit as u32);
-            cpu.cpsr.set(cpu::Psr::v_bit(), overflow_bit as u32);
+            bf!((cpu.cpsr).n_bit = bit!(val, 31));
+            bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+            bf!((cpu.cpsr).c_bit = carry_bit as u32);
+            bf!((cpu.cpsr).v_bit = overflow_bit as u32);
         }
     }
 
@@ -244,14 +236,12 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
 
 #[inline(always)]
 fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> u32 {
-    use cpu::ArmInstrDProc as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
-    let dst_reg = data.get(ArmInstr::rd());
-    let s_bit = data.get(ArmInstr::s_bit()) == 1;
+    let dst_reg = bf!(data.rd);
+    let s_bit = bf!(data.s_bit) == 1;
     let (mut src_val, shifter_carry) = get_shifter_val(&data, cpu);
     if negate {
         src_val = !src_val;
@@ -261,9 +251,9 @@ fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> u32 {
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            cpu.cpsr.set(cpu::Psr::n_bit(), bit!(src_val, 31));
-            cpu.cpsr.set(cpu::Psr::z_bit(), (src_val == 0) as u32);
-            cpu.cpsr.set(cpu::Psr::c_bit(), shifter_carry as u32);
+            bf!((cpu.cpsr).n_bit = bit!(src_val, 31));
+            bf!((cpu.cpsr).z_bit = (src_val == 0) as u32);
+            bf!((cpu.cpsr).c_bit = shifter_carry as u32);
         }
     }
 
@@ -278,23 +268,21 @@ fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> u32 {
 
 #[inline(always)]
 fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> u32 {
-    use cpu::ArmInstrDProc as ArmInstr;
-
-    if !cpu::cond_passed(data.get(ArmInstr::cond()), &cpu.cpsr) {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return 4;
     }
 
     let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
-    let rn = data.get(ArmInstr::rn());
+    let rn = bf!(data.rn);
     let val = if equiv {
         cpu.regs[rn as usize] ^ shifter_val
     } else {
         cpu.regs[rn as usize] & shifter_val
     };
 
-    cpu.cpsr.set(cpu::Psr::n_bit(), bit!(val, 31));
-    cpu.cpsr.set(cpu::Psr::z_bit(), (val == 0) as u32);
-    cpu.cpsr.set(cpu::Psr::c_bit(), shifter_carry as u32);
+    bf!((cpu.cpsr).n_bit = bit!(val, 31));
+    bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    bf!((cpu.cpsr).c_bit = shifter_carry as u32);
 
     4
 }

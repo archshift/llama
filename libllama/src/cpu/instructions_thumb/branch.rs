@@ -4,10 +4,8 @@ use utils::sign_extend;
 
 #[inline(always)]
 pub fn b_1(cpu: &mut Cpu, data: cpu::ThumbInstrB_1) -> u32 {
-    use cpu::ThumbInstrB_1 as ThumbInstr;
-
-    let offset_8 = data.get(ThumbInstr::signed_imm_8());
-    let cond = data.get(ThumbInstr::cond());
+    let offset_8 = bf!(data.signed_imm_8);
+    let cond = bf!(data.cond);
 
     if !cpu::cond_passed(cond as u32, &cpu.cpsr) {
         return 2;
@@ -20,11 +18,9 @@ pub fn b_1(cpu: &mut Cpu, data: cpu::ThumbInstrB_1) -> u32 {
 
 #[inline(always)]
 pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> u32 {
-    use cpu::ThumbInstrBRANCH as ThumbInstr;
+    let offset_11 = bf!(data.offset_11);
 
-    let offset_11 = data.get(ThumbInstr::offset_11());
-
-    match data.get(ThumbInstr::h_bits()) {
+    match bf!(data.h_bits) {
         0b00 => {
             let addr = (cpu.regs[15] as i32 + (sign_extend(offset_11 as u32, 11) << 1)) as u32;
             cpu.branch(addr);
@@ -33,7 +29,7 @@ pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> u32 {
         0b01 => {
             let addr = (cpu.regs[14] + (offset_11 << 1) as u32) & 0xFFFFFFFC;
             cpu.regs[14] = (cpu.regs[15] - 2) as u32 | 1;
-            cpu.cpsr.set(cpu::Psr::thumb_bit(), 0);
+            bf!((cpu.cpsr).thumb_bit = 0);
             cpu.branch(addr);
             0
         },
@@ -53,10 +49,8 @@ pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> u32 {
 
 #[inline(always)]
 pub fn bx(cpu: &mut Cpu, data: cpu::ThumbInstrBranchReg) -> u32 {
-    use cpu::ThumbInstrBranchReg as ThumbInstr;
-
-    let addr = cpu.regs[data.get(ThumbInstr::rm()) as usize];
-    cpu.cpsr.set(cpu::Psr::thumb_bit(), bit!(addr, 0));
+    let addr = cpu.regs[bf!(data.rm) as usize];
+    bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
     0
 }
