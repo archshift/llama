@@ -1,6 +1,6 @@
 use cpu;
 use cpu::Cpu;
-use utils::sign_extend;
+use bitutils::sign_extend;
 
 #[inline(always)]
 pub fn b_1(cpu: &mut Cpu, data: cpu::ThumbInstrB_1) -> u32 {

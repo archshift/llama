@@ -1,6 +1,6 @@
 use cpu;
 use cpu::Cpu;
-use utils::sign_extend;
+use bitutils::sign_extend;
 
 #[inline(always)]
 fn instr_branch_exchange(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange, link: bool) -> u32 {
