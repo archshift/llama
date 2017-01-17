@@ -32,10 +32,7 @@ fn sigint_triggered() -> bool {
 }
 
 fn run_emulator<L: ldr::Loader>(loader: L) {
-    let mut mem = hwcore::map_memory_regions();
-    loader.load(&mut mem);
-
-    let mut hwcore = hwcore::HwCore::new(loader.entrypoint(), mem);
+    let mut hwcore = hwcore::HwCore::new(loader);
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
     debugger.ctx().hwcore_mut().start();
 

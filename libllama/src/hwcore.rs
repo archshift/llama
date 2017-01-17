@@ -2,10 +2,11 @@ use std::sync::{self, atomic};
 use std::thread;
 
 use cpu;
+use ldr;
 use mem;
 use io;
 
-pub fn map_memory_regions() -> mem::MemController {
+fn map_memory_regions() -> mem::MemController {
     let mut controller9 = mem::MemController::new();
 
     let mem_itcm = mem::MemoryBlock::make_ram(0x20);
@@ -37,9 +38,12 @@ pub struct HwCore {
 }
 
 impl HwCore {
-    pub fn new(entrypoint: u32, mem_controller: mem::MemController) -> HwCore {
-        let mut cpu = cpu::Cpu::new(mem_controller);
-        cpu.reset(entrypoint);
+    pub fn new<L: ldr::Loader>(loader: L) -> HwCore {
+        let mut mem = map_memory_regions();
+        loader.load(&mut mem);
+
+        let mut cpu = cpu::Cpu::new(mem);
+        cpu.reset(loader.entrypoint());
 
         HwCore {
             running: sync::Arc::new(atomic::AtomicBool::new(false)),
@@ -53,7 +57,7 @@ impl HwCore {
     // Spin up the hardware thread, take ownership of hardware
     pub fn start(&mut self) {
         // Signals that we're currently running, returns if we were already running before
-        if self.running.swap(true, atomic::Ordering::Relaxed) {
+        if self.running.swap(true, atomic::Ordering::SeqCst) {
             return
         }
 
@@ -64,15 +68,15 @@ impl HwCore {
             // Nobody else can access the hardware while the thread runs
             let mut hardware = hardware.write().unwrap();
 
-            while running.load(atomic::Ordering::Relaxed) {
+            while running.load(atomic::Ordering::SeqCst) {
                 hardware.arm9.run(1000);
             }
         }));
     }
 
     pub fn stop(&mut self) {
-        self.running.store(false, atomic::Ordering::Relaxed);
         if let Some(handle) = self.hardware_thread.take() {
+        self.running.store(false, atomic::Ordering::SeqCst);
             handle.join().unwrap();
         }
     }
