@@ -7,3 +7,12 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+
+sudo: required
+
+install:
+  - wget https://github.com/aquynh/capstone/archive/3.0.4.tar.gz -O /tmp/capstone.tar.gz
+  - tar -xvf /tmp/capstone.tar.gz
+  - pushd capstone-3.0.4
+  - ./make.sh && sudo ./make.sh install
+  - popd
