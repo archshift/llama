@@ -106,64 +106,194 @@ bitfield!(ArmInstrModBLX: u32, {
 
 
 pub fn decode_arm_instruction(encoding: u32) -> ArmInstruction {
-    macro_rules! handle {
-        ($instr:ident: $data:ident, $mask:expr, $val:expr) => {
-            if encoding & $mask == $val {
-                return ArmInstruction::$instr($data::new(encoding));
-            }
-        };
+    macro_rules! constrain {
+        ($data:expr, $([$low:expr => $high:expr, $val:expr, $boolean:expr]),*) => {{
+            $((bits!($data, $low => $high) == $val) == $boolean)&&*
+        }};
     }
 
+    //
     // Special (0b1111) instructions
+    //
+
     if bits!(encoding, 28 => 31) == 0b1111 {
-        handle!(MOD_BLX: ArmInstrModBLX, 0xFE000000, 0xFA000000);
+        if constrain!(encoding, [25 => 27, 0b101, true]) {
+            return ArmInstruction::MOD_BLX(ArmInstrModBLX::new(encoding));
+        }
+
         return ArmInstruction::UNKNOWN;
     }
 
+    //
     // Data Processing instructions
-    handle!(AND: ArmInstrDProc, 0x0FE00090, 0x00000090);
-    handle!(EOR: ArmInstrDProc, 0x0FE00090, 0x00200090);
-    handle!(SUB: ArmInstrDProc, 0x0FE00090, 0x00400090);
-    handle!(RSB: ArmInstrDProc, 0x0FE00090, 0x00600090);
-    handle!(ADD: ArmInstrDProc, 0x0FE00090, 0x00800090);
-    handle!(ADC: ArmInstrDProc, 0x0FE00090, 0x00A00090);
-    handle!(SBC: ArmInstrDProc, 0x0FE00090, 0x00C00090);
-    handle!(RSC: ArmInstrDProc, 0x0FE00090, 0x00E00090);
-    handle!(TST: ArmInstrDProc, 0x0FF00090, 0x01100090);
-    handle!(TEQ: ArmInstrDProc, 0x0FF00090, 0x01300090);
-    handle!(CMP: ArmInstrDProc, 0x0FF00090, 0x01500090);
-    handle!(CMN: ArmInstrDProc, 0x0FF00090, 0x01700090);
-    handle!(ORR: ArmInstrDProc, 0x0FE00090, 0x01800090);
-    handle!(MOV: ArmInstrDProc, 0x0FE00090, 0x01A00090);
-    handle!(BIC: ArmInstrDProc, 0x0FE00090, 0x01C00090);
-    handle!(MVN: ArmInstrDProc, 0x0FE00090, 0x01E00090);
+    //
 
+    macro_rules! constrain_data_proc {
+        ($encoding:expr, $opcode:expr, $condition:expr) => {{
+            !constrain!($encoding, [25 => 25, 0b0, true], [7 => 7, 0b1, true], [4 => 4, 0b1, true])
+        }};
+    }
+
+    macro_rules! constrain_move_proc {
+        ($encoding:expr, $opcode:expr, $condition:expr) => {{
+            constrain!($encoding, [26 => 27, 0b00, true], [21 => 24, $opcode, true]) &&
+                constrain_data_proc!($encoding, $opcode, $condition)
+        }};
+    }
+
+    macro_rules! constrain_compare_proc {
+        ($encoding:expr, $opcode:expr, $condition:expr) => {{
+            constrain!($encoding, [26 => 27, 0b00, true], [21 => 24, $opcode, true], [20 => 20, 0b1, true]) &&
+                constrain_data_proc!($encoding, $opcode, $condition)
+        }};
+    }
+
+    macro_rules! constrain_compute_proc {
+        ($encoding:expr, $opcode:expr, $condition:expr) => {{
+            constrain!($encoding, [26 => 27, 0b00, true], [21 => 24, $opcode, true]) &&
+                constrain_data_proc!($encoding, $opcode, $condition)
+        }};
+    }
+
+    if constrain_compute_proc!(encoding, 0b0000, condition) {
+        return ArmInstruction::AND(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0001, condition) {
+        return ArmInstruction::EOR(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0010, condition) {
+        return ArmInstruction::SUB(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0011, condition) {
+        return ArmInstruction::RSB(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0100, condition) {
+        return ArmInstruction::ADD(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0101, condition) {
+        return ArmInstruction::ADC(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0110, condition) {
+        return ArmInstruction::SBC(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b0111, condition) {
+        return ArmInstruction::RSC(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compare_proc!(encoding, 0b1000, condition) {
+        return ArmInstruction::TST(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compare_proc!(encoding, 0b1001, condition) {
+        return ArmInstruction::TEQ(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compare_proc!(encoding, 0b1010, condition) {
+        return ArmInstruction::CMP(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compare_proc!(encoding, 0b1011, condition) {
+        return ArmInstruction::CMN(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b1100, condition) {
+        return ArmInstruction::ORR(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_move_proc!(encoding, 0b1101, condition) {
+        return ArmInstruction::MOV(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_compute_proc!(encoding, 0b1110, condition) {
+        return ArmInstruction::BIC(ArmInstrDProc::new(encoding));
+    }
+
+    if constrain_move_proc!(encoding, 0b1111, condition) {
+        return ArmInstruction::MVN(ArmInstrDProc::new(encoding));
+    }
+
+    //
     // Branch instructions
-    handle!(B_BL: ArmInstrBBL, 0x0E000000, 0x0A000000);
-    handle!(BLX: ArmInstrBranchExchange, 0x0FF000F0, 0x01200030);
-    handle!(BX: ArmInstrBranchExchange, 0x0FF000F0, 0x01200010);
+    //
 
+    if constrain!(encoding, [25 => 27, 0b101, true]) {
+        return ArmInstruction::B_BL(ArmInstrBBL::new(encoding));
+    }
+
+    if constrain!(encoding, [20 => 27, 0b00010010, true], [4 => 7, 0b0011, true]) {
+        return ArmInstruction::BLX(ArmInstrBranchExchange::new(encoding));
+    }
+
+    if constrain!(encoding, [20 => 27, 0b00010010, true], [4 => 7, 0b0001, true]) {
+        return ArmInstruction::BX(ArmInstrBranchExchange::new(encoding));
+    }
+
+    //
     // Load/store instructions
-    handle!(LDR: ArmInstrLoadStore, 0x0C500000, 0x04100000);
-    handle!(LDRB: ArmInstrLoadStore, 0x0C500000, 0x04500000);
-    handle!(STR: ArmInstrLoadStore, 0x0C500000, 0x04000000);
-    handle!(STRB: ArmInstrLoadStore, 0x0C500000, 0x04400000);
+    //
 
+    if constrain!(encoding, [26 => 27, 0b01, true], [22 => 22, 0b0, true], [20 => 20, 0b1, true]) {
+        return ArmInstruction::LDR(ArmInstrLoadStore::new(encoding));
+    }
+
+    if constrain!(encoding, [26 => 27, 0b01, true], [22 => 22, 0b1, true], [20 => 20, 0b1, true]) {
+        return ArmInstruction::LDRB(ArmInstrLoadStore::new(encoding));
+    }
+
+    if constrain!(encoding, [26 => 27, 0b01, true], [22 => 22, 0b0, true], [20 => 20, 0b0, true]) {
+        return ArmInstruction::STR(ArmInstrLoadStore::new(encoding));
+    }
+
+    if constrain!(encoding, [26 => 27, 0b01, true], [22 => 22, 0b1, true], [20 => 20, 0b0, true]) {
+        return ArmInstruction::STRB(ArmInstrLoadStore::new(encoding));
+    }
+
+    //
     // Load/store multiple instructions
-    handle!(STM: ArmInstrLoadStoreMulti, 0x0E500000, 0x08000000);
-    handle!(STM: ArmInstrLoadStoreMulti, 0x0E700000, 0x08400000);
-    handle!(LDM: ArmInstrLoadStoreMulti, 0x0E500000, 0x08100000);
-    handle!(LDM: ArmInstrLoadStoreMulti, 0x0E708000, 0x08500000);
-    handle!(LDM: ArmInstrLoadStoreMulti, 0x02508000, 0x08508000);
+    //
 
+    if constrain!(encoding, [25 => 27, 0b100, true], [22 => 22, 0b0, true], [20 => 20, 0b0, true]) ||
+        constrain!(encoding, [25 => 27, 0b100, true], [20 => 22, 0b100, true]) {
+        return ArmInstruction::STM(ArmInstrLoadStoreMulti::new(encoding));
+    }
+
+    if constrain!(encoding, [25 => 27, 0b100, true], [22 => 22, 0b0, true], [20 => 20, 0b1, true]) ||
+        constrain!(encoding, [25 => 27, 0b100, true], [20 => 22, 0b101, true], [15 => 15, 0b0, true]) ||
+        constrain!(encoding, [25 => 25, 0b100, true], [22 => 22, 0b1, true], [20 => 20, 0b1, true], [15 => 15, 0b1, true]) {
+        return ArmInstruction::LDM(ArmInstrLoadStoreMulti::new(encoding));
+    }
+
+    //
     // Coprocessor instructions
-    handle!(MRC: ArmInstrMoveCoproc, 0x0F100010, 0x0E100010);
-    handle!(MCR: ArmInstrMoveCoproc, 0x0F100010, 0x0E000010);
+    //
 
+    if constrain!(encoding, [24 => 27, 0b1110, true], [20 => 20, 0b1, true], [4 => 4, 0b1, true]) {
+        return ArmInstruction::MRC(ArmInstrMoveCoproc::new(encoding));
+    }
+
+    if constrain!(encoding, [24 => 27, 0b1110, true], [20 => 20, 0b0, true], [4 => 4, 0b1, true]) {
+        return ArmInstruction::MCR(ArmInstrMoveCoproc::new(encoding));
+    }
+
+    //
     // Status register instructions
-    handle!(MRS: ArmInstrMoveStatusReg, 0x0FB00000, 0x01000000);
-    handle!(MSR: ArmInstrMoveStatusReg, 0x0FB00000, 0x03200000);
-    handle!(MSR: ArmInstrMoveStatusReg, 0x0FB000F0, 0x01200000);
+    //
+
+    if constrain!(encoding, [23 => 27, 0b00010, true], [20 => 21, 0b00, true]) {
+        return ArmInstruction::MRS(ArmInstrMoveStatusReg::new(encoding));
+    }
+
+    if constrain!(encoding, [23 => 27, 0b00110, true], [20 => 21, 0b10, true]) ||
+        constrain!(encoding, [23 => 27, 0b00010, true], [20 => 21, 0b10, true], [4 => 7, 0b0000, true]) {
+        return ArmInstruction::MSR(ArmInstrMoveStatusReg::new(encoding));
+    }
 
     ArmInstruction::UNKNOWN
 }
