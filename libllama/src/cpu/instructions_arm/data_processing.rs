@@ -179,6 +179,7 @@ enum ProcessInstrLogicalOp {
     ADD,
     REVERSE_SUB,
     SUB,
+    SUB_CARRY,
 }
 
 #[inline(always)]
@@ -195,21 +196,30 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
 
     let (val, carry_bit, overflow_bit) = match op {
         ProcessInstrLogicalOp::ADD => {
-            let val = base_val + shifter_val;
+            let val = base_val.wrapping_add(shifter_val);
             let u_overflow = base_val.checked_add(shifter_val).is_none();
             let s_overflow = (base_val as i32).checked_add(shifter_val as i32).is_none();
             (val, u_overflow, s_overflow)
         },
         ProcessInstrLogicalOp::REVERSE_SUB => {
-            let val = shifter_val - base_val;
+            let val = shifter_val.wrapping_sub(base_val);
             let u_overflow = shifter_val.checked_sub(base_val).is_none();
             let s_overflow = (shifter_val as i32).checked_sub(base_val as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::SUB => {
-            let val = base_val - shifter_val;
+            let val = base_val.wrapping_sub(shifter_val);
             let u_overflow = base_val.checked_sub(shifter_val).is_none();
             let s_overflow = (base_val as i32).checked_sub(shifter_val as i32).is_none();
+            (val, !u_overflow, s_overflow)
+        }
+        ProcessInstrLogicalOp::SUB_CARRY => {
+            let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
+            let val = base_val.wrapping_sub(shifter_val).wrapping_sub(ncarry);
+            let u_overflow = base_val.checked_sub(shifter_val)
+                                     .map(|x| x.checked_sub(ncarry)).is_none();
+            let s_overflow = (base_val as i32).checked_sub(shifter_val as i32)
+                                              .map(|x| x.checked_sub(ncarry as i32)).is_none();
             (val, !u_overflow, s_overflow)
         }
     };
@@ -335,6 +345,11 @@ pub fn mvn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn rsb(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::REVERSE_SUB)
+}
+
+#[inline(always)]
+pub fn sbc(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+    instr_logical(cpu, data, ProcessInstrLogicalOp::SUB_CARRY)
 }
 
 #[inline(always)]
