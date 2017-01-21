@@ -62,9 +62,9 @@ fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32
 }
 
 #[inline(always)]
-fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let rd = bf!(data.rd);
@@ -84,18 +84,18 @@ fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
     if rd == 15 {
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
-        return 0;
+        return cpu::InstrStatus::Branched;
     } else {
         cpu.regs[rd as usize] = val;
     }
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
+fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let addr = decode_addressing_mode(&data, cpu);
@@ -111,25 +111,25 @@ fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> u32 {
         cpu.memory.write::<u32>(addr, val);
     };
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn ldr(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+pub fn ldr(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn ldrb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+pub fn ldrb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
     instr_load(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn str(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+pub fn str(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
     instr_store(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn strb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> u32 {
+pub fn strb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
     instr_store(cpu, data, true)
 }

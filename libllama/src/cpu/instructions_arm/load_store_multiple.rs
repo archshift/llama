@@ -28,9 +28,9 @@ fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStoreMulti, cpu: &mut Cp
 }
 
 #[inline(always)]
-pub fn ldm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> u32 {
+pub fn ldm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let (mut addr, writeback) = decode_addressing_mode(&data, cpu);
@@ -51,16 +51,16 @@ pub fn ldm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> u32 {
         let val = cpu.memory.read::<u32>(addr);
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
-        return 0;
+        return cpu::InstrStatus::Branched;
     } else {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 }
 
 #[inline(always)]
-pub fn stm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> u32 {
+pub fn stm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let (mut addr, writeback) = decode_addressing_mode(&data, cpu);
@@ -77,5 +77,5 @@ pub fn stm(cpu: &mut Cpu, data: cpu::ArmInstrLoadStoreMulti) -> u32 {
         cpu.regs[bf!(data.rn) as usize] = writeback;
     }
 
-    4
+    cpu::InstrStatus::InBlock
 }

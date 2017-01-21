@@ -1,6 +1,11 @@
 use cpu::{Cpu, ArmInstruction, Psr};
 use cpu::instructions_arm;
 
+pub enum InstrStatus {
+    InBlock, // Advance PC by instruction width
+    Branched, // Do not advance PC
+}
+
 #[inline(always)]
 pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     match cond_opcode {
@@ -41,7 +46,9 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
-    let bytes_advanced = match instr {
+    let instr_size = if bf!((cpu.cpsr).thumb_bit) == 1 { 2 } else { 4 };
+
+    let status = match instr {
         ArmInstruction::ADD(data) => instructions_arm::add(cpu, data),
         ArmInstruction::AND(data) => instructions_arm::and(cpu, data),
         ArmInstruction::BIC(data) => instructions_arm::bic(cpu, data),
@@ -71,8 +78,12 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
 
         _ => {
             warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
-            4
+            InstrStatus::InBlock
         }
     };
-    cpu.regs[15] += bytes_advanced;
+
+    match status {
+        InstrStatus::InBlock => cpu.regs[15] += instr_size,
+        InstrStatus::Branched => {},
+    }
 }

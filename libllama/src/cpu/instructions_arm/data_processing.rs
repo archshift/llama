@@ -110,9 +110,9 @@ enum ProcessInstrBitOp {
 }
 
 #[inline(always)]
-fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp) -> u32 {
+fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let dst_reg = bf!(data.rd);
@@ -139,17 +139,17 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp)
 
     if dst_reg == 15 {
         cpu.branch(val);
-        return 0;
+        return cpu::InstrStatus::Branched;
     } else {
         cpu.regs[dst_reg as usize] = val;
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 }
 
 #[inline(always)]
-fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> u32 {
+fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let base_val = cpu.regs[bf!(data.rn) as usize];
@@ -172,7 +172,7 @@ fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> u32
     bf!((cpu.cpsr).c_bit = carry_bit as u32);
     bf!((cpu.cpsr).v_bit = overflow_bit as u32);
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 enum ProcessInstrLogicalOp {
@@ -182,9 +182,9 @@ enum ProcessInstrLogicalOp {
 }
 
 #[inline(always)]
-fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogicalOp) -> u32 {
+fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let dst_reg = bf!(data.rd);
@@ -227,17 +227,17 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
 
     if dst_reg == 15 {
         cpu.branch(val);
-        return 0;
+        return cpu::InstrStatus::Branched;
     } else {
         cpu.regs[dst_reg as usize] = val;
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 }
 
 #[inline(always)]
-fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> u32 {
+fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let dst_reg = bf!(data.rd);
@@ -259,17 +259,17 @@ fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> u32 {
 
     if dst_reg == 15 {
         cpu.branch(src_val);
-        return 0;
+        return cpu::InstrStatus::Branched;
     } else {
         cpu.regs[dst_reg as usize] = src_val;
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 }
 
 #[inline(always)]
-fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> u32 {
+fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
@@ -284,70 +284,70 @@ fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> u32 {
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     bf!((cpu.cpsr).c_bit = shifter_carry as u32);
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn add(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn add(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::ADD)
 }
 
 #[inline(always)]
-pub fn and(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn and(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
 }
 
 #[inline(always)]
-pub fn bic(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn bic(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT)
 }
 
 #[inline(always)]
-pub fn cmn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn cmn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_compare(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn cmp(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn cmp(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_compare(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn eor(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn eor(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::XOR)
 }
 
 #[inline(always)]
-pub fn orr(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn orr(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::OR)
 }
 
 #[inline(always)]
-pub fn mov(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn mov(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn mvn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn mvn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_move(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn rsb(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn rsb(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::REVERSE_SUB)
 }
 
 #[inline(always)]
-pub fn sub(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn sub(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::SUB)
 }
 
 #[inline(always)]
-pub fn teq(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn teq(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_test(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn tst(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> u32 {
+pub fn tst(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
 }

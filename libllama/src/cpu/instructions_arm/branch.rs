@@ -3,9 +3,9 @@ use cpu::Cpu;
 use bitutils::sign_extend;
 
 #[inline(always)]
-fn instr_branch_exchange(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange, link: bool) -> u32 {
+fn instr_branch_exchange(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange, link: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let addr = cpu.regs[bf!(data.rm) as usize];
@@ -17,13 +17,13 @@ fn instr_branch_exchange(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange, link:
     bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
 
-    0
+    cpu::InstrStatus::Branched
 }
 
 #[inline(always)]
-pub fn bbl(cpu: &mut Cpu, data: cpu::ArmInstrBBL) -> u32 {
+pub fn bbl(cpu: &mut Cpu, data: cpu::ArmInstrBBL) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let signed_imm_24 = bf!(data.signed_imm_24);
@@ -35,21 +35,21 @@ pub fn bbl(cpu: &mut Cpu, data: cpu::ArmInstrBBL) -> u32 {
     let pc = cpu.regs[15];
     cpu.branch(((pc as i32) + (sign_extend(signed_imm_24, 24) << 2)) as u32);
 
-    0
+    cpu::InstrStatus::Branched
 }
 
 #[inline(always)]
-pub fn blx(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange) -> u32 {
+pub fn blx(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange) -> cpu::InstrStatus {
     instr_branch_exchange(cpu, data, true)
 }
 
 #[inline(always)]
-pub fn bx(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange) -> u32 {
+pub fn bx(cpu: &mut Cpu, data: cpu::ArmInstrBranchExchange) -> cpu::InstrStatus {
     instr_branch_exchange(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn mod_blx(cpu: &mut Cpu, data: cpu::ArmInstrModBLX) -> u32 {
+pub fn mod_blx(cpu: &mut Cpu, data: cpu::ArmInstrModBLX) -> cpu::InstrStatus {
     let signed_imm_24 = bf!(data.signed_imm_24);
     let h_bit = bf!(data.h_bit);
 
@@ -59,5 +59,5 @@ pub fn mod_blx(cpu: &mut Cpu, data: cpu::ArmInstrModBLX) -> u32 {
     let pc = cpu.regs[15];
     cpu.branch((pc as i32 + (sign_extend(signed_imm_24, 24) << 2)) as u32 + (h_bit << 1));
 
-    0
+    cpu::InstrStatus::Branched
 }

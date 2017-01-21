@@ -2,9 +2,9 @@ use cpu;
 use cpu::Cpu;
 
 #[inline(always)]
-pub fn mrs(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> u32 {
+pub fn mrs(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let rd = bf!(data.rd);
@@ -16,13 +16,13 @@ pub fn mrs(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> u32 {
         cpu.regs[rd as usize] = cpu.cpsr.raw();
     }
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> u32 {
+pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let field_mask = bf!(data.field_mask);
@@ -65,5 +65,5 @@ pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> u32 {
         spsr.set_raw(cleared_spsr | (val & byte_mask))
     }
 
-    4
+    cpu::InstrStatus::InBlock
 }

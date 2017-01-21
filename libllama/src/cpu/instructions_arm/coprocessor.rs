@@ -2,9 +2,9 @@ use cpu;
 use cpu::Cpu;
 
 #[inline(always)]
-pub fn mcr(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> u32 {
+pub fn mcr(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let src_val = cpu.regs[bf!(data.rd) as usize];
@@ -16,13 +16,13 @@ pub fn mcr(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> u32 {
     let retval = coproc.execute(src_val, opcode_1, opcode_2, crm as usize);
     coproc.set_reg(bf!(data.crn) as usize, retval);
 
-    4
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn mrc(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> u32 {
+pub fn mrc(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return 4;
+        return cpu::InstrStatus::InBlock;
     }
 
     let crm = bf!(data.crm);
@@ -45,5 +45,5 @@ pub fn mrc(cpu: &mut Cpu, data: cpu::ArmInstrCoprocData) -> u32 {
         cpu.regs[rd as usize] = retval;
     }
 
-    4
+    cpu::InstrStatus::InBlock
 }
