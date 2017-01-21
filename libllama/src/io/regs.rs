@@ -54,7 +54,6 @@ macro_rules! __iodevice__ {
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 default = $reg_default:expr;
                 write_bits = $reg_wb:expr;
-                read_effect = $reg_reff:expr;
                 write_effect = $reg_weff:expr;
             }
         )*
@@ -81,24 +80,23 @@ macro_rules! __iodevice__ {
 
         impl $crate::io::regs::IoRegAccess for $name {
             unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-                trace!("Reading from $name at +0x{:X}", offset);
+                trace!("Reading from {} at +0x{:X}", stringify!($name), offset);
                 match offset {
                     $( $reg_offs => {
                         self.$reg_name.mem_load(buf, buf_size);
-                        $reg_reff();
                     })*
-                    _ => panic!("at the disco")
+                    o @ _ => panic!("Unhandled {} register read: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
             }
 
             unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
-                trace!("Writing to $name at +0x{:X}", offset);
+                trace!("Writing to {} at +0x{:X}", stringify!($name), offset);
                 match offset {
                     $( $reg_offs => {
                         self.$reg_name.mem_save(buf, buf_size);
-                        $reg_weff();
+                        $reg_weff(self);
                     })*
-                    _ => panic!("at the disco")
+                    o @ _ => panic!("Unhandled {} register write: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
             }
         }
@@ -115,14 +113,9 @@ macro_rules! __iodevice_desc_wb__ {
     () => (!0);
 }
 
-macro_rules! __iodevice_desc_reff__ {
-    ($val:expr) => ($val);
-    () => (||{});
-}
-
 macro_rules! __iodevice_desc_weff__ {
     ($val:expr) => ($val);
-    () => (||{});
+    () => (|_|{});
 }
 
 #[macro_export]
@@ -132,7 +125,6 @@ macro_rules! iodevice {
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 $(default = $reg_default:expr;)*
                 $(write_bits = $reg_wb:expr;)*
-                $(read_effect = $reg_reff:expr;)*
                 $(write_effect = $reg_weff:expr;)*
             }
         )*
@@ -142,7 +134,6 @@ macro_rules! iodevice {
                 $reg_offs => $reg_name: $reg_ty {
                     default = __iodevice_desc_default__!($($reg_default),*);
                     write_bits = __iodevice_desc_wb__!($($reg_wb),*);
-                    read_effect = __iodevice_desc_reff__!($($reg_reff),*);
                     write_effect = __iodevice_desc_weff__!($($reg_weff),*);
                 }
             )*
@@ -158,7 +149,7 @@ mod test {
     iodevice!(MMCRegs, {
         0x000 => reg0: u16 { }
         0x002 => reg2: u16 {
-            write_effect = || { panic!("while writing") };
+            write_effect = |dev| { panic!("while writing") };
         }
         0x004 => reg4: u16 { write_bits = 0; }
     });

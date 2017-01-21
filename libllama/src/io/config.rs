@@ -7,4 +7,5 @@ iodevice!(ConfigDevice, {
     0x010 => cardstatus: u8 { }
     0x012 => cardcycles0: u16 { }
     0x014 => cardcycles1: u16 { }
+    0x020 => unknown0: u32 { }
 });
