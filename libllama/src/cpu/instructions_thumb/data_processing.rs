@@ -9,7 +9,7 @@ enum ProcessInstrBitOp {
 }
 
 #[inline(always)]
-fn instr_bitwise(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise, op: ProcessInstrBitOp) -> u32 {
+fn instr_bitwise(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise, op: ProcessInstrBitOp) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rd) as usize];
     let rm = cpu.regs[bf!(data.rm) as usize];
 
@@ -24,21 +24,21 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise, op: ProcessInstrBi
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     cpu.regs[bf!(data.rd) as usize] = val;
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn and(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+pub fn and(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
 }
 
 #[inline(always)]
-pub fn bic(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+pub fn bic(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT)
 }
 
 #[inline(always)]
-pub fn cmp_1(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_1) -> u32 {
+pub fn cmp_1(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed = bf!(data.immed_8) as u32;
 
@@ -51,11 +51,11 @@ pub fn cmp_1(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_1) -> u32 {
     bf!((cpu.cpsr).c_bit = carry_bit as u32);
     bf!((cpu.cpsr).v_bit = overflow_bit as u32);
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn cmp_3(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_3) -> u32 {
+pub fn cmp_3(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_3) -> cpu::InstrStatus {
     let rn = bf!(data.rn) | (bf!(data.h1) << 3);
     let rm = bf!(data.rm) | (bf!(data.h2) << 3);
     let base_val = cpu.regs[rn as usize];
@@ -70,16 +70,16 @@ pub fn cmp_3(cpu: &mut Cpu, data: cpu::ThumbInstrCMP_3) -> u32 {
     bf!((cpu.cpsr).c_bit = carry_bit as u32);
     bf!((cpu.cpsr).v_bit = overflow_bit as u32);
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn eor(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+pub fn eor(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::XOR)
 }
 
 #[inline(always)]
-pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> u32 {
+pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rm) as usize];
     let amount = bf!(data.immed_5) as u32;
     let val = base_val << amount;
@@ -91,11 +91,11 @@ pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> u32 {
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     cpu.regs[bf!(data.rd) as usize] = val;
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn lsr_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> u32 {
+pub fn lsr_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rm) as usize];
     let amount = bf!(data.immed_5) as u32;
 
@@ -111,23 +111,23 @@ pub fn lsr_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> u32 {
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     cpu.regs[bf!(data.rd) as usize] = val;
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 
 #[inline(always)]
-pub fn mov_1(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_1) -> u32 {
+pub fn mov_1(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_1) -> cpu::InstrStatus {
     let val = bf!(data.immed_8) as u32;
 
     bf!((cpu.cpsr).n_bit = bit!(val, 31));
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     cpu.regs[bf!(data.rd) as usize] = val;
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn mov_2(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_2) -> u32 {
+pub fn mov_2(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_2) -> cpu::InstrStatus {
     let val = cpu.regs[bf!(data.rn) as usize];
 
     bf!((cpu.cpsr).n_bit = bit!(val, 31));
@@ -136,36 +136,36 @@ pub fn mov_2(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_2) -> u32 {
     bf!((cpu.cpsr).v_bit = 0);
     cpu.regs[bf!(data.rd) as usize] = val;
 
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn mov_3(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_3) -> u32 {
+pub fn mov_3(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_3) -> cpu::InstrStatus {
     let rd = bf!(data.rd) | (bf!(data.h1) << 3);
     let rm = bf!(data.rm) | (bf!(data.h2) << 3);
     let base_val = cpu.regs[rm as usize];
 
     if rd == 15 {
         cpu.branch(base_val);
-        return 0
+        return cpu::InstrStatus::Branched
     }
 
     cpu.regs[rd as usize] = base_val;
-    2
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
-pub fn orr(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+pub fn orr(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::OR)
 }
 
 #[inline(always)]
-pub fn tst(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> u32 {
+pub fn tst(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rd) as usize];
     let val = base_val & cpu.regs[bf!(data.rm) as usize];
 
     bf!((cpu.cpsr).n_bit = bit!(val, 31));
     bf!((cpu.cpsr).z_bit = (val == 0) as u32);
 
-    2
+    cpu::InstrStatus::InBlock
 }

@@ -1,11 +1,11 @@
-use cpu::{Cpu, ThumbInstruction};
+use cpu::{Cpu, InstrStatus, ThumbInstruction};
 use cpu::instructions_thumb;
 
 #[inline(always)]
 pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
-    let bytes_advanced = match instr {
+    let status = match instr {
         ThumbInstruction::AND(data) => instructions_thumb::and(cpu, data),
         ThumbInstruction::B_1(data) => instructions_thumb::b_1(cpu, data),
         ThumbInstruction::BIC(data) => instructions_thumb::bic(cpu, data),
@@ -30,8 +30,12 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::TST(data) => instructions_thumb::tst(cpu, data),
         _ => {
             warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
-            2
+            InstrStatus::InBlock
         }
     };
-    cpu.regs[15] += bytes_advanced;
+
+    match status {
+        InstrStatus::InBlock => cpu.regs[15] += 2,
+        InstrStatus::Branched => {},
+    }
 }

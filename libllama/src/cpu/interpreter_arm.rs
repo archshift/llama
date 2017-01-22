@@ -46,8 +46,6 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
-    let instr_size = if bf!((cpu.cpsr).thumb_bit) == 1 { 2 } else { 4 };
-
     let status = match instr {
         ArmInstruction::ADD(data) => instructions_arm::add(cpu, data),
         ArmInstruction::AND(data) => instructions_arm::and(cpu, data),
@@ -84,7 +82,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     };
 
     match status {
-        InstrStatus::InBlock => cpu.regs[15] += instr_size,
+        InstrStatus::InBlock => cpu.regs[15] += 4,
         InstrStatus::Branched => {},
     }
 }
