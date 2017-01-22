@@ -31,6 +31,7 @@ pub enum ThumbInstruction {
     ORR(ThumbInstrBitwise),
     PUSH(ThumbInstrPUSH),
     POP(ThumbInstrPOP),
+    SBC(ThumbInstrSBC),
     STR_1(ThumbInstrLoadStore_1),
     STR_2(ThumbInstrLoadStore_2),
     STR_3(ThumbInstrLoadStore_3),
@@ -144,6 +145,11 @@ bitfield!(ThumbInstrPOP: u16, {
     r_bit: 8 => 8
 });
 
+bitfield!(ThumbInstrSBC: u16, {
+    rd: 0 => 2,
+    rm: 3 => 5
+});
+
 pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     macro_rules! handle {
         ($instr:ident: $data:ident, $mask:expr, $val:expr) => {
@@ -174,6 +180,7 @@ pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
     handle!(MOV_2: ThumbInstrMOV_2, 0xFFC0, 0x1C00);
     handle!(MOV_3: ThumbInstrMOV_3, 0xFF00, 0x4600);
     handle!(ORR: ThumbInstrBitwise, 0xFFC0, 0x4300);
+    handle!(SBC: ThumbInstrSBC, 0xFFC0, 0x4180);
     handle!(SUB_1: ThumbInstrAddSub_1, 0xFE00, 0x1E00);
     handle!(SUB_2: ThumbInstrAddSub_2, 0xF800, 0x3800);
     handle!(SUB_3: ThumbInstrAddSub_3, 0xFE00, 0x1A00);

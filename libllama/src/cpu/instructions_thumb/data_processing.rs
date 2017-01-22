@@ -160,6 +160,24 @@ pub fn orr(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn sbc(cpu: &mut Cpu, data: cpu::ThumbInstrSBC) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000001101_0000_0000_00000000_0000
+                                      | ((bf!(data.rd) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::sbc(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
+pub fn sub_1(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_1) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000100101_0000_0000_000000000_000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                          | ((bf!(data.immed_3) as u32) << 0);
+    cpu::instructions_arm::sub(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
 pub fn tst(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rd) as usize];
     let val = base_val & cpu.regs[bf!(data.rm) as usize];

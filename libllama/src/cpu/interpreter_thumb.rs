@@ -25,6 +25,8 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::ORR(data) => instructions_thumb::orr(cpu, data),
         ThumbInstruction::POP(data) => instructions_thumb::pop(cpu, data),
         ThumbInstruction::PUSH(data) => instructions_thumb::push(cpu, data),
+        ThumbInstruction::SUB_1(data) => instructions_thumb::sub_1(cpu, data),
+        ThumbInstruction::SBC(data) => instructions_thumb::sbc(cpu, data),
         ThumbInstruction::STR_1(data) => instructions_thumb::str_1(cpu, data),
         ThumbInstruction::STRH_1(data) => instructions_thumb::strh_1(cpu, data),
         ThumbInstruction::TST(data) => instructions_thumb::tst(cpu, data),
