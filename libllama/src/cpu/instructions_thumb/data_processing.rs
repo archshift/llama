@@ -28,6 +28,31 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise, op: ProcessInstrBi
 }
 
 #[inline(always)]
+pub fn add_1(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_1) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000101001_0000_0000_000000000_000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                          | ((bf!(data.immed_3) as u32) << 0);
+    cpu::instructions_arm::add(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
+pub fn add_2(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_2) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000101001_0000_0000_0000_00000000
+                                      | ((bf!(data.rd) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                     | ((bf!(data.immed_8) as u32) << 0);
+    cpu::instructions_arm::add(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
+pub fn add_7(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_4) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110001010001101110111110_0000000
+                                                   | ((bf!(data.immed_7) as u32) << 0);
+    cpu::instructions_arm::add(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
 pub fn and(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
 }
@@ -95,6 +120,15 @@ pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn lsl_2(cpu: &mut Cpu, data: cpu::ThumbInstrShift_2) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110000110110000_0000_0000_0001_0000
+                                        | ((bf!(data.rd) as u32) << 12)
+                                             | ((bf!(data.rs) as u32) << 8)
+                                                       | ((bf!(data.rd) as u32) << 0);
+    cpu::instructions_arm::mov(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
 pub fn lsr_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rm) as usize];
     let amount = bf!(data.immed_5) as u32;
@@ -113,7 +147,6 @@ pub fn lsr_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
 
     cpu::InstrStatus::InBlock
 }
-
 
 #[inline(always)]
 pub fn mov_1(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_1) -> cpu::InstrStatus {
@@ -155,6 +188,28 @@ pub fn mov_3(cpu: &mut Cpu, data: cpu::ThumbInstrMOV_3) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn mul(cpu: &mut Cpu, data: cpu::ThumbInstrMUL) -> cpu::InstrStatus {
+    let rm = cpu.regs[bf!(data.rm) as usize] as u64;
+    let rd = cpu.regs[bf!(data.rd) as usize] as u64;
+
+    let val = (rm * rd) as u32;
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    bf!((cpu.cpsr).n_bit = bit!(val, 31));
+    bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn neg(cpu: &mut Cpu, data: cpu::ThumbInstrNEG) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000100111_0000_0000_000000000000
+                                      | ((bf!(data.rm) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12);
+    cpu::instructions_arm::rsb(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
 pub fn orr(cpu: &mut Cpu, data: cpu::ThumbInstrBitwise) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::OR)
 }
@@ -174,6 +229,22 @@ pub fn sub_1(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_1) -> cpu::InstrStatus {
                                       | ((bf!(data.rn) as u32) << 16)
                                            | ((bf!(data.rd) as u32) << 12)
                                                           | ((bf!(data.immed_3) as u32) << 0);
+    cpu::instructions_arm::sub(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
+pub fn sub_2(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_2) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000100101_0000_0000_0000_00000000
+                                      | ((bf!(data.rd) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                     | ((bf!(data.immed_8) as u32) << 0);
+    cpu::instructions_arm::sub(cpu, cpu::ArmInstrDProc::new(arminst))
+}
+
+#[inline(always)]
+pub fn sub_4(cpu: &mut Cpu, data: cpu::ThumbInstrAddSub_4) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110001001001101110111110_0000000
+                                                   | ((bf!(data.immed_7) as u32) << 0);
     cpu::instructions_arm::sub(cpu, cpu::ArmInstrDProc::new(arminst))
 }
 

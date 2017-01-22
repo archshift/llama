@@ -20,6 +20,23 @@ pub fn ldr_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> cpu::InstrStatu
     cpu::InstrStatus::InBlock
 }
 
+#[inline(always)]
+pub fn ldr_4(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
+                                          | ((bf!(data.rd) as u32) << 12)
+                                                  | ((bf!(data.immed_8) as u32) << 2);
+    cpu::instructions_arm::str(cpu, cpu::ArmInstrLoadStore::new(arminst))
+}
+
+#[inline(always)]
+pub fn ldrb_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111001011101_0000_0000_0000000_00000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                        | ((bf!(data.immed_5) as u32) << 0);
+    cpu::instructions_arm::ldrb(cpu, cpu::ArmInstrLoadStore::new(arminst))
+}
+
 pub fn ldrh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed_5 = bf!(data.immed_5) as u32;
@@ -91,6 +108,14 @@ pub fn str_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatu
     cpu.memory.write::<u32>(addr, cpu.regs[bf!(data.rd) as usize]);
 
     cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn str_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
+                                          | ((bf!(data.rd) as u32) << 12)
+                                                           | ((bf!(data.immed_8) as u32) << 0);
+    cpu::instructions_arm::str(cpu, cpu::ArmInstrLoadStore::new(arminst))
 }
 
 pub fn strh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatus {
