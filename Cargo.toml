@@ -10,6 +10,6 @@ path = "llama-cli/main.rs"
 [dependencies]
 capstone = "0.0"
 env_logger = "0.3"
+libc = "0.2"
 libllama = { path = "libllama" }
 log = "0.3"
-ctrlc = "2.0"

@@ -18,17 +18,33 @@ static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
 
 #[inline(always)]
 fn sigint_trap_oneshot() {
+    use std::ptr;
+
     fn action_fn(_: libc::c_int) {
         SIGINT_REQUESTED.store(true, Ordering::SeqCst);
     }
 
+    #[cfg(target_os="macos")]
     let action = libc::sigaction {
         sa_sigaction: action_fn as libc::size_t,
         sa_mask: 0,
         sa_flags: libc::SA_RESETHAND,
     };
 
-    unsafe { libc::sigaction(libc::SIGINT, &action, std::ptr::null_mut()) };
+    #[cfg(target_os="linux")]
+    let action = {
+        use std::mem;
+        let mut sigset: libc::sigset_t = unsafe { mem::zeroed() };
+        let mut action: libc::sigaction = unsafe { mem::zeroed() };
+
+        unsafe { libc::sigemptyset(&mut sigset) };
+        action.sa_sigaction = action_fn as libc::size_t;
+        action.sa_mask = sigset;
+        action.sa_flags = libc::SA_RESETHAND;
+        action
+    };
+
+    unsafe { libc::sigaction(libc::SIGINT, &action, ptr::null_mut()) };
 }
 
 #[inline(always)]
