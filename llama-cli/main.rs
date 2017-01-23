@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate log;
 extern crate capstone;
-extern crate ctrlc;
 extern crate env_logger;
+extern crate libc;
 extern crate libllama;
 
 mod commands;
@@ -17,13 +17,18 @@ use libllama::{dbgcore, hwcore, ldr};
 static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
 
 #[inline(always)]
-fn sigint_trap() {
-    ctrlc::set_handler(|| SIGINT_REQUESTED.store(true, Ordering::SeqCst));
-}
+fn sigint_trap_oneshot() {
+    fn action_fn(_: libc::c_int) {
+        SIGINT_REQUESTED.store(true, Ordering::SeqCst);
+    }
 
-#[inline(always)]
-fn sigint_reset() {
-    ctrlc::set_handler(|| std::process::exit(0));
+    let action = libc::sigaction {
+        sa_sigaction: action_fn as libc::size_t,
+        sa_mask: 0,
+        sa_flags: libc::SA_RESETHAND,
+    };
+
+    unsafe { libc::sigaction(libc::SIGINT, &action, std::ptr::null_mut()) };
 }
 
 #[inline(always)]
@@ -36,11 +41,10 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
     debugger.ctx().hwcore_mut().start();
 
-    sigint_trap();
+    sigint_trap_oneshot();
     let mut is_paused = false;
     loop {
         if sigint_triggered() {
-            sigint_reset();
             debugger.ctx().pause();
             is_paused = true;
         }
@@ -62,6 +66,7 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
                     break
                 }
             }
+            sigint_trap_oneshot();
         } else {
             std::thread::sleep(Duration::from_millis(100));
         }
