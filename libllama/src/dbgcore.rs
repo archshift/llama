@@ -1,7 +1,6 @@
-use std::sync::{self, atomic};
+use std::sync;
 
 use hwcore;
-use cpu::Psr;
 
 #[derive(Clone)]
 pub struct DbgCore {
@@ -69,7 +68,7 @@ impl<'a> DbgHwContext<'a> {
     }
 
     pub fn write_reg(&mut self, reg: usize, value: u32) {
-
+        self.hw.arm9.regs[reg] = value;
     }
 
     pub fn pause_addr(&self) -> u32 {
@@ -84,7 +83,15 @@ impl<'a> DbgHwContext<'a> {
         self.hw.arm9.run(1);
     }
 
-    fn set_breakpoint(&mut self) {
+    pub fn set_breakpoint(&mut self, addr: u32) {
+        self.hw.arm9.breakpoints.insert(addr, false);
+    }
 
+    pub fn has_breakpoint(&mut self, addr: u32) -> bool {
+        self.hw.arm9.breakpoints.get(&addr).is_some()
+    }
+
+    pub fn del_breakpoint(&mut self, addr: u32) {
+        self.hw.arm9.breakpoints.remove(&addr);
     }
 }

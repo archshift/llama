@@ -32,7 +32,9 @@ pub struct Hardware {
 
 
 pub struct HwCore {
+    // TODO: Extract thread details into some `Task` abstraction
     running: sync::Arc<atomic::AtomicBool>,
+    running_internal: sync::Arc<atomic::AtomicBool>,
     hardware: sync::Arc<sync::RwLock<Hardware>>,
     hardware_thread: Option<thread::JoinHandle<()>>,
 }
@@ -47,6 +49,7 @@ impl HwCore {
 
         HwCore {
             running: sync::Arc::new(atomic::AtomicBool::new(false)),
+            running_internal: sync::Arc::new(atomic::AtomicBool::new(false)),
             hardware: sync::Arc::new(sync::RwLock::new(Hardware {
                 arm9: cpu
             })),
@@ -63,21 +66,45 @@ impl HwCore {
 
         let hardware = self.hardware.clone();
         let running = self.running.clone();
+        let running_internal = self.running_internal.clone();
+        self.running_internal.store(true, atomic::Ordering::SeqCst);
 
         self.hardware_thread = Some(thread::spawn(move || {
             // Nobody else can access the hardware while the thread runs
             let mut hardware = hardware.write().unwrap();
 
             while running.load(atomic::Ordering::SeqCst) {
-                hardware.arm9.run(1000);
+                if let cpu::BreakReason::Breakpoint = hardware.arm9.run(1000) {
+                    info!("Breakpoint hit @ 0x{:X}!", hardware.arm9.regs[15] - hardware.arm9.get_pc_offset());
+                    break;
+                }
             }
+
+            running_internal.store(false, atomic::Ordering::SeqCst);
         }));
+    }
+
+    pub fn try_wait(&mut self) -> Result<(), ()> {
+        if self.running_internal.load(atomic::Ordering::SeqCst) {
+            Err(())
+        } else {
+            self.stop();
+            Ok(())
+        }
     }
 
     pub fn stop(&mut self) {
         if let Some(handle) = self.hardware_thread.take() {
-        self.running.store(false, atomic::Ordering::SeqCst);
-            handle.join().unwrap();
+            self.running.store(false, atomic::Ordering::SeqCst);
+            if handle.join().is_ok() {
+                return;
+            }
+
+            // Join failed, uh oh
+            if let Err(poisoned) = self.hardware.read() {
+                let hw = poisoned.into_inner();
+                panic!("CPU thread panicked! PC: 0x{:X}, LR: 0x{:X}", hw.arm9.regs[15], hw.arm9.regs[14]);
+            }
         }
     }
 

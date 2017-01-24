@@ -40,6 +40,37 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     }
 }
 
+/// Adds CPU breakpoint at instruction address
+/// Command format: "brk <address hex>"
+///
+/// `args`: Iterator over &str items
+fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+    use libllama::utils::from_hex;
+
+    let addr_str = match args.next() {
+        Some(arg) => from_hex(arg),
+        None => { println!("Usage: `brk <addr>"); return }
+    };
+
+    // Check for from_hex errors
+    let addr = match addr_str {
+        Ok(x) => x,
+        _ => { println!("Error: could not parse hex value!"); return }
+    };
+
+    info!("Toggling breakpoint at 0x{:X}", addr);
+
+    let mut ctx = debugger.ctx();
+    let mut hw = ctx.hw();
+
+    if !hw.has_breakpoint(addr) {
+        hw.set_breakpoint(addr);
+    } else {
+        hw.del_breakpoint(addr);
+    }
+}
+
 /// Prints memory to the screen based on provided address, number of bytes
 /// Command format: "mem <start address hex> [# bytes hex]"
 ///
@@ -141,6 +172,7 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It) -> bool
 
     match command.next() {
         Some("run") => { debugger.ctx().resume(); is_paused = false; },
+        Some("brk") => cmd_brk(debugger, command),
         Some("asm") => cmd_asm(debugger, command),
         Some("mem") => cmd_mem(debugger, command),
         Some("reg") => cmd_reg(debugger, command),

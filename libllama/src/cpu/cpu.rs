@@ -1,6 +1,8 @@
 use cpu;
 use mem;
 
+use std::collections::HashMap;
+
 // Program status register
 bitfield!(Psr: u32, {
     mode: 0 => 4,
@@ -24,6 +26,7 @@ pub struct Cpu {
     pub spsr_und: Psr,
 
     pub memory: mem::MemController,
+    pub breakpoints: HashMap<u32, bool> // addr, is_triggered
 }
 
 pub enum BreakReason {
@@ -43,6 +46,7 @@ impl Cpu {
             spsr_und: Psr::new(0),
 
             memory: memory,
+            breakpoints: HashMap::new()
         }
     }
 
@@ -86,6 +90,9 @@ impl Cpu {
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
+            if self.find_toggle_breakpoint(addr) {
+                return BreakReason::Breakpoint;
+            }
 
             if bf!((self.cpsr).thumb_bit) == 0 {
                 let instr = cpu::decode_arm_instruction(self.memory.read::<u32>(addr));
@@ -97,5 +104,14 @@ impl Cpu {
         }
 
         BreakReason::LimitReached
+    }
+
+    pub fn find_toggle_breakpoint(&mut self, addr: u32) -> bool {
+        if let Some(triggered) = self.breakpoints.get_mut(&addr) {
+            *triggered ^= true;
+            *triggered
+        } else {
+            false
+        }
     }
 }

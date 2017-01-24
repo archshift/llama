@@ -16,17 +16,11 @@ use libllama::{dbgcore, hwcore, ldr};
 
 static SIGINT_REQUESTED: AtomicBool = ATOMIC_BOOL_INIT;
 
-#[inline(always)]
-fn sigint_trap_oneshot() {
+unsafe fn sigint_set_action(action_fn: libc::size_t) {
     use std::ptr;
-
-    fn action_fn(_: libc::c_int) {
-        SIGINT_REQUESTED.store(true, Ordering::SeqCst);
-    }
-
     #[cfg(target_os="macos")]
     let action = libc::sigaction {
-        sa_sigaction: action_fn as libc::size_t,
+        sa_sigaction: action_fn,
         sa_mask: 0,
         sa_flags: libc::SA_RESETHAND,
     };
@@ -34,20 +28,30 @@ fn sigint_trap_oneshot() {
     #[cfg(target_os="linux")]
     let action = {
         use std::mem;
-        let mut sigset: libc::sigset_t = unsafe { mem::zeroed() };
-        let mut action: libc::sigaction = unsafe { mem::zeroed() };
+        let mut sigset: libc::sigset_t = mem::zeroed();
+        let mut action: libc::sigaction = mem::zeroed();
 
-        unsafe { libc::sigemptyset(&mut sigset) };
+        libc::sigemptyset(&mut sigset);
         action.sa_sigaction = action_fn as libc::size_t;
         action.sa_mask = sigset;
         action.sa_flags = libc::SA_RESETHAND;
         action
     };
 
-    unsafe { libc::sigaction(libc::SIGINT, &action, ptr::null_mut()) };
+    libc::sigaction(libc::SIGINT, &action, ptr::null_mut());
 }
 
-#[inline(always)]
+fn sigint_trap() {
+    fn action_fn(_: libc::c_int) {
+        SIGINT_REQUESTED.store(true, Ordering::SeqCst);
+    }
+    unsafe { sigint_set_action(action_fn as libc::size_t) };
+}
+
+fn sigint_reset() {
+    unsafe { sigint_set_action(libc::SIG_DFL) };
+}
+
 fn sigint_triggered() -> bool {
     SIGINT_REQUESTED.compare_and_swap(true, false, Ordering::SeqCst)
 }
@@ -57,7 +61,7 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
     debugger.ctx().hwcore_mut().start();
 
-    sigint_trap_oneshot();
+    sigint_trap();
     let mut is_paused = false;
     loop {
         if sigint_triggered() {
@@ -66,6 +70,8 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
         }
 
         if is_paused {
+            sigint_reset();
+
             // Print prompt text
             print!(" > ");
             stdout().flush().unwrap();
@@ -82,8 +88,12 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
                     break
                 }
             }
-            sigint_trap_oneshot();
+
+            sigint_trap();
         } else {
+            if let Ok(_) = debugger.ctx().hwcore_mut().try_wait() {
+                is_paused = true;
+            }
             std::thread::sleep(Duration::from_millis(100));
         }
     }
