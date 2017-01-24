@@ -50,6 +50,7 @@ enum IrqType {
 // }
 
 iodevice!(IrqDevice, {
+    regs:
     0x000 => enabled: u32 {
         write_bits = 0b00111111_11111111_11111111_11111111;
     }

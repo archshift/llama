@@ -1,4 +1,5 @@
 iodevice!(ConfigDevice, {
+    regs:
     0x000 => sysprot9: u8 { }
     0x001 => sysprot11: u8 { }
     0x002 => reset11: u8 { }

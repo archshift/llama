@@ -50,6 +50,8 @@ pub trait IoRegAccess {
 
 macro_rules! __iodevice__ {
     ($name:ident, {
+        $(internal_state: $instate:path;)*
+        regs:
         $(
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 default = $reg_default:expr;
@@ -61,13 +63,19 @@ macro_rules! __iodevice__ {
         #[derive(Debug)]
         pub struct $name {
             $( $reg_name: $crate::io::regs::IoReg<$reg_ty>, )*
+            $(_internal_state: $instate,)*
         }
 
         impl ::std::default::Default for $name {
+            #[allow(unused_mut)]
             fn default() -> $name {
-                $name {
+                let mut s = $name {
                     $( $reg_name: $crate::io::regs::IoReg::new($reg_default, $reg_wb), )*
-                }
+                    $(_internal_state: unsafe { ::std::mem::uninitialized::<$instate>() }, )*
+                };
+                // Get around pesky inability to call $path::default() (curse the macro expander)
+                $(unsafe { ::std::ptr::write::<$instate>(&mut s._internal_state, ::std::default::Default::default()) }; )*
+                s
             }
         }
 
@@ -121,6 +129,8 @@ macro_rules! __iodevice_desc_weff__ {
 #[macro_export]
 macro_rules! iodevice {
     ($name:ident, {
+        $(internal_state: $instate:path;)*
+        regs:
         $(
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 $(default = $reg_default:expr;)*
@@ -130,6 +140,8 @@ macro_rules! iodevice {
         )*
     }) => (
         __iodevice__!($name, {
+            $(internal_state: $instate;)*
+            regs:
             $(
                 $reg_offs => $reg_name: $reg_ty {
                     default = __iodevice_desc_default__!($($reg_default),*);

@@ -77,7 +77,7 @@ pub fn str_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatu
 pub fn str_3(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_3) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
                                           | ((bf!(data.rd) as u32) << 12)
-                                                           | ((bf!(data.immed_8) as u32) << 0);
+                                                  | ((bf!(data.immed_8) as u32) << 2);
     cpu::instructions_arm::str(cpu, cpu::ArmInstrLoadStore::new(arminst))
 }
 

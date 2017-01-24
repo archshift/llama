@@ -122,9 +122,9 @@ pub fn lsl_1(cpu: &mut Cpu, data: cpu::ThumbInstrShift_1) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn lsl_2(cpu: &mut Cpu, data: cpu::ThumbInstrShift_2) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110000110110000_0000_0000_0001_0000
-                                        | ((bf!(data.rd) as u32) << 12)
-                                             | ((bf!(data.rs) as u32) << 8)
-                                                       | ((bf!(data.rd) as u32) << 0);
+                                          | ((bf!(data.rd) as u32) << 12)
+                                               | ((bf!(data.rs) as u32) << 8)
+                                                         | ((bf!(data.rd) as u32) << 0);
     cpu::instructions_arm::mov(cpu, cpu::ArmInstrDProc::new(arminst))
 }
 

@@ -34,21 +34,96 @@ enum Status1 {
     IllAccess   = (1 << 15),
 }
 
+#[derive(Debug, Default)]
+struct EmmcDeviceState {
+    expect_appcmd: bool,
+}
+
+fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
+    match cmd_index {
+        0 => {
+            warn!("STUBBED: SDMMC CMD0 GO_IDLE_STATE!");
+        }
+        1 => {
+            dev.response0.set_unchecked(0x0000);
+            dev.response1.set_unchecked(0x8000);
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD1 SEND_OP_COND!");
+        }
+        2 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD2 ALL_SEND_CID!");
+        }
+        3 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD3 SEND/SET_RELATIVE_ADDR!");
+        }
+        6 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD6 SWITCH!");
+        }
+        7 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD7 SELECT_DESELECT_CARD!");
+        }
+        8 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD8 SET_IF_COND!");
+        }
+        9 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD9 SEND_CSD!");
+        }
+        13 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD13 GET_STATUS!");
+        }
+        16 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD16 SET_BLOCKLEN!");
+        }
+        55 => {
+            dev._internal_state.expect_appcmd = true;
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD55 APP_CMD!");
+        }
+        c => panic!("UNIMPLEMENTED: SDMMC CMD{}; device.cmd=0x{:X}!", c, dev.cmd.get()),
+    }
+}
+
+fn handle_acmd(dev: &mut EmmcDevice, acmd_index: u16) {
+    match acmd_index {
+        6 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC ACMD6 SET_BUS_WIDTH!");
+        }
+        41 => {
+            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC ACMD41 SD_SEND_OP_COND!");
+        }
+        c => panic!("UNIMPLEMENTED: SDMMC ACMD{}; device.cmd=0x{:X}!", c, dev.cmd.get()),
+    }
+}
+
+fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
+    let index = bf!((dev.cmd.get()) @ RegCmd::command_index);
+
+    dev.irq_status0.set_unchecked(0);
+
+    if dev._internal_state.expect_appcmd {
+        assert_eq!(bf!((dev.cmd.get()) @ RegCmd::command_type), 1);
+        handle_acmd(dev, index);
+        dev._internal_state.expect_appcmd = false;
+    } else {
+        handle_cmd(dev, index);
+    }
+}
+
 iodevice!(EmmcDevice, {
+    internal_state: EmmcDeviceState;
+    regs:
     0x000 => cmd: u16 {
-        write_effect = |dev: &mut EmmcDevice| {
-            let cmd = bf!((dev.cmd.get()) @ RegCmd::command_index);
-            dev.irq_status0.set_unchecked(0);
-            match cmd {
-                1 => {
-                    dev.response0.set_unchecked(0x0000);
-                    dev.response1.set_unchecked(0x8000);
-                    dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
-                    warn!("STUBBED: SDMMC CMD1 SEND_OP_COND!");
-                }
-                c @ _ => error!("UNIMPLEMENTED: SDMMC CMD{}!", c),
-            }
-        };
+        write_effect = reg_cmd_onupdate;
     }
     0x002 => port_select: u16 { }
     0x004 => param0: u16 { }
