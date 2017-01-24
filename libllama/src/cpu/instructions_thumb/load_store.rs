@@ -49,54 +49,17 @@ pub fn ldrh_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStat
 }
 
 pub fn pop(cpu: &mut Cpu, data: cpu::ThumbInstrPOP) -> cpu::InstrStatus {
-    let register_list = bf!(data.register_list);
-    let r_bit = bf!(data.r_bit);
-
-    let mut addr = cpu.regs[13];
-
-    for i in 0..7 {
-        if bit!(register_list, i) == 1 {
-            cpu.regs[i] = cpu.memory.read::<u32>(addr);
-            addr += 4;
-        }
-    }
-
-    let ret = if r_bit == 1 {
-        let val = cpu.memory.read::<u32>(addr);
-        addr += 4;
-
-        bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
-        cpu.branch(val & 0xFFFFFFFE);
-
-        cpu::InstrStatus::Branched
-    } else {
-        cpu::InstrStatus::InBlock
-    };
-
-    cpu.regs[13] = addr;
-    ret
+    let arminst: u32 = 0b1110100010111101_0_0000000_00000000
+                                          | ((bf!(data.r_bit) as u32) << 15)
+                                                    | ((bf!(data.register_list) as u32) << 0);
+    cpu::instructions_arm::ldm(cpu, cpu::ArmInstrLoadStoreMulti::new(arminst))
 }
 
 pub fn push(cpu: &mut Cpu, data: cpu::ThumbInstrPUSH) -> cpu::InstrStatus {
-    let register_list = bf!(data.register_list);
-    let r_bit = bf!(data.r_bit);
-
-    let num_registers = register_list.count_ones() + r_bit as u32;
-    cpu.regs[13] -= num_registers * 4;
-    let mut addr = cpu.regs[13];
-
-    for i in 0..7 {
-        if bit!(register_list, i) == 1 {
-            cpu.memory.write::<u32>(addr, cpu.regs[i]);
-            addr += 4;
-        }
-    }
-
-    if r_bit == 1 {
-        cpu.memory.write::<u32>(addr, cpu.regs[14]);
-    }
-
-    cpu::InstrStatus::InBlock
+    let arminst: u32 = 0b11101001001011010_0_000000_00000000
+                                           | ((bf!(data.r_bit) as u32) << 14)
+                                                    | ((bf!(data.register_list) as u32) << 0);
+    cpu::instructions_arm::stm(cpu, cpu::ArmInstrLoadStoreMulti::new(arminst))
 }
 
 pub fn str_1(cpu: &mut Cpu, data: cpu::ThumbInstrLoadStore_1) -> cpu::InstrStatus {
