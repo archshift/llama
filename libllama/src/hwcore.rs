@@ -1,5 +1,6 @@
 use std::sync::{self, atomic};
-use std::thread;
+
+use utils::task::Task;
 
 use cpu;
 use ldr;
@@ -32,11 +33,8 @@ pub struct Hardware {
 
 
 pub struct HwCore {
-    // TODO: Extract thread details into some `Task` abstraction
-    running: sync::Arc<atomic::AtomicBool>,
-    running_internal: sync::Arc<atomic::AtomicBool>,
     hardware: sync::Arc<sync::RwLock<Hardware>>,
-    hardware_thread: Option<thread::JoinHandle<()>>,
+    hardware_task: Option<Task>,
 }
 
 impl HwCore {
@@ -48,28 +46,18 @@ impl HwCore {
         cpu.reset(loader.entrypoint());
 
         HwCore {
-            running: sync::Arc::new(atomic::AtomicBool::new(false)),
-            running_internal: sync::Arc::new(atomic::AtomicBool::new(false)),
             hardware: sync::Arc::new(sync::RwLock::new(Hardware {
                 arm9: cpu
             })),
-            hardware_thread: None,
+            hardware_task: None,
         }
     }
 
     // Spin up the hardware thread, take ownership of hardware
     pub fn start(&mut self) {
-        // Signals that we're currently running, returns if we were already running before
-        if self.running.swap(true, atomic::Ordering::SeqCst) {
-            return
-        }
-
         let hardware = self.hardware.clone();
-        let running = self.running.clone();
-        let running_internal = self.running_internal.clone();
-        self.running_internal.store(true, atomic::Ordering::SeqCst);
 
-        self.hardware_thread = Some(thread::spawn(move || {
+        self.hardware_task = Some(Task::spawn(move |running| {
             // Nobody else can access the hardware while the thread runs
             let mut hardware = hardware.write().unwrap();
 
@@ -79,33 +67,42 @@ impl HwCore {
                     break;
                 }
             }
-
-            running_internal.store(false, atomic::Ordering::SeqCst);
         }));
     }
 
-    pub fn try_wait(&mut self) -> Result<(), ()> {
-        if self.running_internal.load(atomic::Ordering::SeqCst) {
-            Err(())
+    fn panic_action(&self) -> ! {
+        // Join failed, uh oh
+        if let Err(poisoned) = self.hardware.read() {
+            let hw = poisoned.into_inner();
+            panic!("CPU thread panicked! PC: 0x{:X}, LR: 0x{:X}", hw.arm9.regs[15], hw.arm9.regs[14]);
+        }
+        panic!("CPU thread panicked!");
+    }
+
+    pub fn try_wait(&mut self) -> bool {
+        let res = if let Some(ref mut task) = self.hardware_task {
+            task.try_join()
         } else {
-            self.stop();
-            Ok(())
+            Ok(true)
+        };
+
+        match res {
+            Ok(x) => x,
+            Err(_) => self.panic_action()
         }
     }
 
     pub fn stop(&mut self) {
-        if let Some(handle) = self.hardware_thread.take() {
-            self.running.store(false, atomic::Ordering::SeqCst);
-            if handle.join().is_ok() {
-                return;
-            }
+        let is_err = if let Some(ref mut task) = self.hardware_task {
+            task.stop().is_err()
+        } else {
+            false
+        };
 
-            // Join failed, uh oh
-            if let Err(poisoned) = self.hardware.read() {
-                let hw = poisoned.into_inner();
-                panic!("CPU thread panicked! PC: 0x{:X}, LR: 0x{:X}", hw.arm9.regs[15], hw.arm9.regs[14]);
-            }
+        if is_err {
+            self.panic_action();
         }
+        self.hardware_task = None;
     }
 
     pub fn hardware(&self) -> sync::RwLockReadGuard<Hardware> {

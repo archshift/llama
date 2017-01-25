@@ -91,7 +91,7 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
 
             sigint_trap();
         } else {
-            if let Ok(_) = debugger.ctx().hwcore_mut().try_wait() {
+            if debugger.ctx().hwcore_mut().try_wait() {
                 is_paused = true;
             }
             std::thread::sleep(Duration::from_millis(100));
