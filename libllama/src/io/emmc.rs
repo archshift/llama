@@ -1,3 +1,9 @@
+use std::env;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::mem;
+use std::ops::Range;
+
 bfdesc!(RegCmd: u16, {
     command_index: 0 => 5,
     command_type: 6 => 7,
@@ -34,57 +40,106 @@ enum Status1 {
     IllAccess   = (1 << 15),
 }
 
+#[derive(Debug)]
+struct ActiveTransfer {
+    blocks_left: u16,
+    fifo_pos: u16,
+    fifo_size: u16,
+}
+
 #[derive(Debug, Default)]
 struct EmmcDeviceState {
     expect_appcmd: bool,
+
+    sd_file: Option<File>,
+    transfer: Option<ActiveTransfer>,
+}
+
+fn get_params_u16(dev: &EmmcDevice) -> [u16; 2] {
+    [dev.param0.get(), dev.param1.get()]
+}
+fn get_params_u32(dev: &EmmcDevice) -> u32 {
+    dev.param0.get() as u32 | ((dev.param1.get() as u32) << 16)
 }
 
 fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
     match cmd_index {
         0 => {
+            let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.raw");
+            dev._internal_state.sd_file = match File::open(&filename) {
+                Ok(file) => Some(file),
+                Err(x) => panic!("Failed to open SD card file `{}`; {:?}", filename, x)
+            };
+
             warn!("STUBBED: SDMMC CMD0 GO_IDLE_STATE!");
         }
         1 => {
             dev.response0.set_unchecked(0x0000);
             dev.response1.set_unchecked(0x8000);
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD1 SEND_OP_COND!");
         }
         2 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD2 ALL_SEND_CID!");
         }
         3 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD3 SEND/SET_RELATIVE_ADDR!");
         }
         6 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD6 SWITCH!");
         }
         7 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD7 SELECT_DESELECT_CARD!");
         }
         8 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD8 SET_IF_COND!");
         }
         9 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD9 SEND_CSD!");
         }
+        12 => {
+            dev._internal_state.transfer = None;
+            dev.irq_status1.bitclr_unchecked(Status1::RxReady as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
+            warn!("STUBBED: SDMMC CMD12 STOP_TRANSMISSION!");
+        }
         13 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD13 GET_STATUS!");
         }
         16 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD16 SET_BLOCKLEN!");
+        }
+        18 => {
+            let file_offset = get_params_u32(&*dev);
+            if let Some(ref mut file) = dev._internal_state.sd_file {
+                file.seek(SeekFrom::Start(file_offset as u64));
+                trace!("Seeking SD pointer to offset 0x{:08X}!", file_offset);
+            } else {
+                return
+            }
+
+            let transfer = ActiveTransfer {
+                blocks_left: dev.data16_blk_cnt.get(),
+                fifo_pos: 0,
+                fifo_size: dev.data16_blk_len.get(),
+            };
+            trace!("Starting SD transfer (read): {:?}", transfer);
+            dev._internal_state.transfer = Some(transfer);
+
+            dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
+            warn!("STUBBED: SDMMC CMD18 READ_MULTIPLE_BLOCK!");
         }
         55 => {
             dev._internal_state.expect_appcmd = true;
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD55 APP_CMD!");
         }
         c => panic!("UNIMPLEMENTED: SDMMC CMD{}; device.cmd=0x{:X}!", c, dev.cmd.get()),
@@ -94,11 +149,11 @@ fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
 fn handle_acmd(dev: &mut EmmcDevice, acmd_index: u16) {
     match acmd_index {
         6 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC ACMD6 SET_BUS_WIDTH!");
         }
         41 => {
-            dev.irq_status0.set_unchecked(Status0::CmdResponseEnd as u16);
+            dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC ACMD41 SD_SEND_OP_COND!");
         }
         c => panic!("UNIMPLEMENTED: SDMMC ACMD{}; device.cmd=0x{:X}!", c, dev.cmd.get()),
@@ -116,6 +171,40 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
         dev._internal_state.expect_appcmd = false;
     } else {
         handle_cmd(dev, index);
+    }
+}
+
+fn reg_fifo_fetch(dev: &mut EmmcDevice) {
+    let should_stop = {
+        let file = match dev._internal_state.sd_file {
+            Some(ref mut f) => f,
+            None => return
+        };
+        let transfer = match dev._internal_state.transfer {
+            Some(ref mut t) => t,
+            None => return
+        };
+
+        let mut buf16 = [0u8; 2];
+        file.read_exact(&mut buf16);
+
+        trace!("Reading from SD FIFO! blocks left: {}, fifo pos: {}, buf: {:01X} {:01X}", transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
+        dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
+
+        // Hack to keep the client reading even after acknowledging
+        dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
+
+        transfer.fifo_pos += 2;
+        if transfer.fifo_pos >= transfer.fifo_size {
+            transfer.blocks_left -= 1;
+            transfer.fifo_pos = 0;
+        }
+        transfer.blocks_left == 0
+    };
+
+    if should_stop {
+        dev.irq_status0.bitadd_unchecked(Status0::DataEnd as u16);
+        handle_cmd(dev, 12); // STOP_TRANSMISSION
     }
 }
 
@@ -147,7 +236,9 @@ iodevice!(EmmcDevice, {
     0x028 => card_option: u16 { }
     0x02C => err_status0: u16 { }
     0x02E => err_status1: u16 { }
-    0x030 => data16_fifo: u16 { }
+    0x030 => data16_fifo: u16 {
+        read_effect = reg_fifo_fetch;
+    }
     0x0D8 => data16_ctl: u16 { }
     0x0E0 => software_reset: u16 { write_bits = 0b1; }
     0x0F6 => protected: u16 { }

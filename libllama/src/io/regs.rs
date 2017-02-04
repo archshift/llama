@@ -24,6 +24,12 @@ impl<T> IoReg<T>
         self.val &= !self.write_bits;
         self.val |= new_val & self.write_bits;
     }
+    pub fn bitadd_unchecked(&mut self, bits: T) {
+        self.val |= bits;
+    }
+    pub fn bitclr_unchecked(&mut self, bits: T) {
+        self.val &= !bits;
+    }
     pub fn set_unchecked(&mut self, new_val: T) {
         self.val = new_val;
     }
@@ -43,7 +49,7 @@ impl<T> IoReg<T>
 }
 
 pub trait IoRegAccess {
-    unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize);
+    unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize);
     unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize);
 }
 
@@ -56,6 +62,7 @@ macro_rules! __iodevice__ {
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 default = $reg_default:expr;
                 write_bits = $reg_wb:expr;
+                read_effect = $reg_reff:expr;
                 write_effect = $reg_weff:expr;
             }
         )*
@@ -87,10 +94,11 @@ macro_rules! __iodevice__ {
         }
 
         impl $crate::io::regs::IoRegAccess for $name {
-            unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+            unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
                 trace!("Reading from {} at +0x{:X}", stringify!($name), offset);
                 match offset {
                     $( $reg_offs => {
+                        $reg_reff(&mut *self);
                         self.$reg_name.mem_load(buf, buf_size);
                     })*
                     o @ _ => panic!("Unhandled {} register read: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
@@ -102,7 +110,7 @@ macro_rules! __iodevice__ {
                 match offset {
                     $( $reg_offs => {
                         self.$reg_name.mem_save(buf, buf_size);
-                        $reg_weff(self);
+                        $reg_weff(&mut *self);
                     })*
                     o @ _ => panic!("Unhandled {} register write: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
@@ -121,7 +129,7 @@ macro_rules! __iodevice_desc_wb__ {
     () => (!0);
 }
 
-macro_rules! __iodevice_desc_weff__ {
+macro_rules! __iodevice_desc_eff__ {
     ($val:expr) => ($val);
     () => (|_|{});
 }
@@ -135,6 +143,7 @@ macro_rules! iodevice {
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 $(default = $reg_default:expr;)*
                 $(write_bits = $reg_wb:expr;)*
+                $(read_effect = $reg_reff:expr;)*
                 $(write_effect = $reg_weff:expr;)*
             }
         )*
@@ -146,7 +155,8 @@ macro_rules! iodevice {
                 $reg_offs => $reg_name: $reg_ty {
                     default = __iodevice_desc_default__!($($reg_default),*);
                     write_bits = __iodevice_desc_wb__!($($reg_wb),*);
-                    write_effect = __iodevice_desc_weff__!($($reg_weff),*);
+                    read_effect = __iodevice_desc_eff__!($($reg_reff),*);
+                    write_effect = __iodevice_desc_eff__!($($reg_weff),*);
                 }
             )*
         });

@@ -12,7 +12,7 @@ pub type MemoryNode = sync::RwLock<[u8; KB_SIZE]>;
 pub enum MemoryBlock {
     Ram(sync::Arc<Vec<MemoryNode>>),
     Rom(sync::Arc<Vec<MemoryNode>>),
-    Io(sync::Arc<(usize, sync::RwLock<io::IoRegion>)>),
+    Io(sync::Arc<(usize, sync::Mutex<io::IoRegion>)>),
 }
 
 impl MemoryBlock {
@@ -26,7 +26,7 @@ impl MemoryBlock {
     }
 
     pub fn make_io(variant: io::IoRegion, kbs: usize) -> MemoryBlock {
-        MemoryBlock::Io(sync::Arc::new((kbs, sync::RwLock::new(variant))))
+        MemoryBlock::Io(sync::Arc::new((kbs, sync::Mutex::new(variant))))
     }
 
     pub fn get_bytes(&self) -> u32 {
@@ -58,8 +58,8 @@ impl MemoryBlock {
                     node_pos = 0;
                 }
             },
-            MemoryBlock::Io(ref region) => match *region.1.read().unwrap() {
-                io::IoRegion::Arm9(ref x) => x.read_reg(offset, buf, buf_size),
+            MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
+                io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
                 _ => unimplemented!(),
             },
         }
@@ -86,7 +86,7 @@ impl MemoryBlock {
                 }
             },
             MemoryBlock::Rom(_) => panic!("Attempted to write to ROM!"),
-            MemoryBlock::Io(ref region) => match *region.1.write().unwrap() {
+            MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
                 io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
                 _ => unimplemented!(),
             },
