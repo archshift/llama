@@ -1,6 +1,10 @@
 mod cpu;
+
+#[macro_use]
+mod define_inst;
 mod decoder_arm;
 mod decoder_thumb;
+
 mod interpreter_arm;
 mod interpreter_thumb;
 

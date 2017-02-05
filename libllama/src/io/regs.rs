@@ -169,6 +169,7 @@ mod test {
     use super::*;
 
     iodevice!(MMCRegs, {
+        regs:
         0x000 => reg0: u16 { }
         0x002 => reg2: u16 {
             write_effect = |dev| { panic!("while writing") };
@@ -178,7 +179,7 @@ mod test {
 
     #[test]
     fn read_reg() {
-        let mmc_regs = MMCRegs::new();
+        let mut mmc_regs = MMCRegs::new();
         let mut buf = vec![0xFFu8; 2];
         unsafe { mmc_regs.read_reg(0x000, buf.as_mut_ptr(), buf.len()); }
         assert_eq!(buf, vec![0x00, 0x00]);
@@ -187,11 +188,11 @@ mod test {
     #[test]
     fn write_reg() {
         let mut mmc_regs = MMCRegs::new();
-        assert_eq!(mmc_regs.cmd.get(), 0x0000);
+        assert_eq!(mmc_regs.reg0.get(), 0x0000);
 
         let mut buf = vec![0xFFu8; 2];
         unsafe { mmc_regs.write_reg(0x000, buf.as_ptr(), buf.len()); }
-        assert_eq!(mmc_regs.cmd.get(), 0xFFFF);
+        assert_eq!(mmc_regs.reg0.get(), 0xFFFF);
     }
 
     #[test]

@@ -98,7 +98,7 @@ impl Cpu {
                 let instr = cpu::decode_arm_instruction(self.memory.read::<u32>(addr));
                 cpu::interpret_arm(self, instr);
             } else {
-                let instr = cpu::decode_thumb_instruction(self.memory.read::<u16>(addr));
+                let instr = cpu::ThumbInstruction::decode(self.memory.read::<u16>(addr));
                 cpu::interpret_thumb(self, instr);
             }
         }

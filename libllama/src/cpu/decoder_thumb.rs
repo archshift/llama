@@ -1,269 +1,64 @@
-#[derive(Debug)]
-pub enum ThumbInstruction {
-    ADD_1(ThumbInstrAddSub_1),
-    ADD_2(ThumbInstrAddSub_2),
-    ADD_3(ThumbInstrAddSub_3),
-    ADD_4(ThumbInstrADD_4),
-    ADD_5(ThumbInstrAddSub_2),
-    ADD_6(ThumbInstrAddSub_2),
-    ADD_7(ThumbInstrAddSub_4),
-    AND(ThumbInstrBitwise),
-    ASR_1(ThumbInstrShift_1),
-    B_1(ThumbInstrB_1),
-    BIC(ThumbInstrBitwise),
-    BLX_2(ThumbInstrBranchReg),
-    BRANCH(ThumbInstrBRANCH),
-    BX(ThumbInstrBranchReg),
-    CMP_1(ThumbInstrCMP_1),
-    CMP_2(ThumbInstrCMP_2),
-    CMP_3(ThumbInstrCMP_3),
-    EOR(ThumbInstrBitwise),
-    LDR_1(ThumbInstrLoadStore_1),
-    LDR_2(ThumbInstrLoadStore_2),
-    LDR_3(ThumbInstrLoadStore_3),
-    LDR_4(ThumbInstrLoadStore_3),
-    LDRB_1(ThumbInstrLoadStore_1),
-    LDRB_2(ThumbInstrLoadStore_2),
-    LDRH_1(ThumbInstrLoadStore_1),
-    LDRH_2(ThumbInstrLoadStore_2),
-    LSL_1(ThumbInstrShift_1),
-    LSL_2(ThumbInstrShift_2),
-    LSR_1(ThumbInstrShift_1),
-    MOV_1(ThumbInstrMOV_1),
-    MOV_2(ThumbInstrMOV_2),
-    MOV_3(ThumbInstrMOV_3),
-    MUL(ThumbInstrMUL),
-    NEG(ThumbInstrNEG),
-    ORR(ThumbInstrBitwise),
-    PUSH(ThumbInstrPUSH),
-    POP(ThumbInstrPOP),
-    SBC(ThumbInstrSBC),
-    STR_1(ThumbInstrLoadStore_1),
-    STR_2(ThumbInstrLoadStore_2),
-    STR_3(ThumbInstrLoadStore_3),
-    STRB_1(ThumbInstrLoadStore_1),
-    STRB_2(ThumbInstrLoadStore_2),
-    STRH_1(ThumbInstrLoadStore_1),
-    STRH_2(ThumbInstrLoadStore_2),
-    SUB_1(ThumbInstrAddSub_1),
-    SUB_2(ThumbInstrAddSub_2),
-    SUB_3(ThumbInstrAddSub_3),
-    SUB_4(ThumbInstrAddSub_4),
-    TST(ThumbInstrBitwise),
-
-    UNKNOWN,
-}
-
-bitfield!(ThumbInstrAddSub_1: u16, {
-    rd: 0 => 2,
-    rn: 3 => 5,
-    immed_3: 6 => 8
+define_insts!(ThumbInstruction: u16, {
+    adc: [ {0b0100000101}.10; rm.3; rd.3 ],
+    add_1: [ {0b0001110}.7; immed_3.3; rn.3; rd.3 ],
+    add_2: [ {0b00110}.5; rd.3; immed_8.8 ],
+    add_3: [ {0b0001100}.7; rm.3; rn.3; rd.3 ],
+    add_4: [ {0b01000100}.8; h1.1; h2.1; rm.3; rd.3 ],
+    add_5: [ {0b10100}.5; rd.3; immed_8.8 ],
+    add_6: [ {0b10101}.5; rd.3; immed_8.8 ],
+    add_7: [ {0b101100000}.9; immed_7.7 ],
+    and: [ {0b0100000000}.10; rm.3; rd.3 ],
+    asr_1: [ {0b00010}.5; immed_5.5; rm.3; rd.3 ],
+    asr_2: [ {0b0100000100}.10; rs.3; rd.3 ],
+    b_1: [ {0b1101}.4; cond.4; signed_imm_8.8 ],
+    bic: [ {0b0100001110}.10; rm.3; rd.3 ],
+    bkpt: [ {0b10111110}.8; immed_8.8 ],
+    branch: [ {0b111}.3; h_bits.2; offset_11.11 ],
+    blx_2: [ {0b010001111}.9; h2.1; rm.3; {0b000}.3 ],
+    bx: [ {0b010001110}.9; h2.1; rm.3; {0b000}.3 ],
+    cmn: [ {0b0100001011}.10; rm.3; rn.3 ],
+    cmp_1: [ {0b00101}.5; rn.3; immed_8.8 ],
+    cmp_2: [ {0b0100001010}.10; rm.3; rn.3 ],
+    cmp_3: [ {0b01000101}.8; h1.1; h2.1; rm.3; rn.3 ],
+    eor: [ {0b0100000001}.10; rm.3; rd.3 ],
+    ldmia: [ {0b11001}.5; rn.3; register_list.8 ],
+    ldr_1: [ {0b01101}.5; immed_5.5; rn.3; rd.3 ],
+    ldr_2: [ {0b0101100}.7; rm.3; rn.3; rd.3 ],
+    ldr_3: [ {0b01001}.5; rd.3; immed_8.8 ],
+    ldr_4: [ {0b10011}.5; rd.3; immed_8.8 ],
+    ldrb_1: [ {0b01111}.5; immed_5.5; rn.3; rd.3 ],
+    ldrb_2: [ {0b0101110}.7; rm.3; rn.3; rd.3 ],
+    ldrh_1: [ {0b10001}.5; immed_5.5; rn.3; rd.3 ],
+    ldrh_2: [ {0b0101101}.7; rm.3; rn.3; rd.3 ],
+    ldrsb: [ {0b0101011}.7; rm.3; rn.3; rd.3 ],
+    ldrsh: [ {0b0101111}.7; rm.3; rn.3; rd.3 ],
+    lsl_1: [ {0b00000}.5; immed_5.5; rm.3; rd.3 ],
+    lsl_2: [ {0b0100000010}.10; rs.3; rd.3 ],
+    lsr_1: [ {0b00001}.5; immed_5.5; rm.3; rd.3 ],
+    lsr_2: [ {0b0100000011}.10; rs.3; rd.3 ],
+    mov_1: [ {0b00100}.5; rd.3; immed_8.8 ],
+    mov_2: [ {0b0001110000}.10; rn.3; rd.3 ],
+    mov_3: [ {0b01000110}.8; h1.1; h2.1; rm.3; rd.3 ],
+    mul: [ {0b0100001101}.10; rm.3; rd.3 ],
+    mvn: [ {0b0100001111}.10; rm.3; rd.3 ],
+    neg: [ {0b0100001001}.10; rm.3; rd.3 ],
+    orr: [ {0b0100001100}.10; rm.3; rd.3 ],
+    pop: [ {0b1011110}.7; r_bit.1; register_list.8 ],
+    push: [ {0b1011010}.7; r_bit.1; register_list.8 ],
+    ror: [ {0b0100000111}.10; rs.3; rd.3 ],
+    sbc: [ {0b0100000110}.10; rm.3; rd.3 ],
+    stmia: [ {0b11000}.5; rn.3; register_list.8 ],
+    str_1: [ {0b01100}.5; immed_5.5; rn.3; rd.3 ],
+    str_2: [ {0b0101000}.7; rm.3; rn.3; rd.3 ],
+    str_3: [ {0b10010}.5; rd.3; immed_8.8 ],
+    strb_1: [ {0b01110}.5; immed_5.5; rn.3; rd.3 ],
+    strb_2: [ {0b0101010}.7; rm.3; rn.3; rd.3 ],
+    strh_1: [ {0b10000}.5; immed_5.5; rn.3; rd.3 ],
+    strh_2: [ {0b0101001}.7; rm.3; rn.3; rd.3 ],
+    sub_1: [ {0b0001111}.7; immed_3.3; rn.3; rd.3 ],
+    sub_2: [ {0b00111}.5; rd.3; immed_8.8 ],
+    sub_3: [ {0b0001101}.7; rm.3; rn.3; rd.3 ],
+    sub_4: [ {0b101100001}.9; immed_7.7 ],
+    swi: [ {0b11011111}.8; immed_8.8 ],
+    tst: [ {0b0100001000}.10; rm.3; rn.3 ]
 });
-
-bitfield!(ThumbInstrAddSub_2: u16, {
-    immed_8: 0 => 7,
-    rd: 8 => 10
-});
-
-bitfield!(ThumbInstrAddSub_3: u16, {
-    rd: 0 => 2,
-    rn: 3 => 5,
-    rm: 6 => 8
-});
-
-bitfield!(ThumbInstrAddSub_4: u16, {
-    immed_7: 0 => 6
-});
-
-bitfield!(ThumbInstrADD_4: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5,
-    h2: 6 => 6,
-    h1: 7 => 7
-});
-
-bitfield!(ThumbInstrB_1: u16, {
-    signed_imm_8: 0 => 7,
-    cond: 8 => 11
-});
-
-bitfield!(ThumbInstrBitwise: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5
-});
-
-bitfield!(ThumbInstrBRANCH: u16, {
-    offset_11: 0 => 10,
-    h_bits: 11 => 12
-});
-
-bitfield!(ThumbInstrBranchReg: u16, {
-    rm: 3 => 6
-});
-
-bitfield!(ThumbInstrCMP_1: u16, {
-    immed_8: 0 => 7,
-    rn: 8 => 10
-});
-
-bitfield!(ThumbInstrCMP_2: u16, {
-    rn: 0 => 2,
-    rm: 3 => 5
-});
-
-bitfield!(ThumbInstrCMP_3: u16, {
-    rn: 0 => 2,
-    rm: 3 => 5,
-    h2: 6 => 6,
-    h1: 7 => 7
-});
-
-bitfield!(ThumbInstrLoadStore_1: u16, {
-    rd: 0 => 2,
-    rn: 3 => 5,
-    immed_5: 6 => 10
-});
-
-bitfield!(ThumbInstrLoadStore_2: u16, {
-    rd: 0 => 2,
-    rn: 3 => 5,
-    rm: 6 => 8
-});
-
-bitfield!(ThumbInstrLoadStore_3: u16, {
-    immed_8: 0 => 7,
-    rd: 8 => 10
-});
-
-bitfield!(ThumbInstrShift_1: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5,
-    immed_5: 6 => 10
-});
-
-bitfield!(ThumbInstrShift_2: u16, {
-    rd: 0 => 2,
-    rs: 3 => 5
-});
-
-bitfield!(ThumbInstrMOV_1: u16, {
-    immed_8: 0 => 7,
-    rd: 8 => 10
-});
-
-bitfield!(ThumbInstrMOV_2: u16, {
-    rd: 0 => 2,
-    rn: 3 => 5
-});
-
-bitfield!(ThumbInstrMOV_3: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5,
-    h2: 6 => 6,
-    h1: 7 => 7
-});
-
-bitfield!(ThumbInstrMUL: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5
-});
-
-bitfield!(ThumbInstrNEG: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5
-});
-
-bitfield!(ThumbInstrPUSH: u16, {
-    register_list: 0 => 7,
-    r_bit: 8 => 8
-});
-
-bitfield!(ThumbInstrPOP: u16, {
-    register_list: 0 => 7,
-    r_bit: 8 => 8
-});
-
-bitfield!(ThumbInstrSBC: u16, {
-    rd: 0 => 2,
-    rm: 3 => 5
-});
-
-pub fn decode_thumb_instruction(encoding: u16) -> ThumbInstruction {
-    macro_rules! handle {
-        ($instr:ident: $data:ident, $mask:expr, $val:expr) => {
-            if encoding & $mask == $val {
-                return ThumbInstruction::$instr($data::new(encoding));
-            }
-        };
-    }
-
-    //
-    // Data Processing instructions
-    //
-
-    handle!(ADD_1: ThumbInstrAddSub_1, 0xFE00, 0x1C00);
-    handle!(ADD_2: ThumbInstrAddSub_2, 0xF800, 0x3000);
-    handle!(ADD_3: ThumbInstrAddSub_3, 0xFE00, 0x1800);
-    handle!(ADD_4: ThumbInstrADD_4, 0xFF00, 0x4400);
-    handle!(ADD_5: ThumbInstrAddSub_2, 0xF800, 0xA000);
-    handle!(ADD_6: ThumbInstrAddSub_2, 0xF800, 0xA800);
-    handle!(ADD_7: ThumbInstrAddSub_4, 0xFF80, 0xB000);
-    handle!(AND: ThumbInstrBitwise, 0xFFC0, 0x4000);
-    handle!(ASR_1: ThumbInstrShift_1, 0xF800, 0x1000);
-    handle!(BIC: ThumbInstrBitwise, 0xFFC0, 0x4380);
-    handle!(CMP_1: ThumbInstrCMP_1, 0xF800, 0x2800);
-    handle!(CMP_2: ThumbInstrCMP_2, 0xFFC0, 0x4280);
-    handle!(CMP_3: ThumbInstrCMP_3, 0xFF00, 0x4500);
-    handle!(EOR: ThumbInstrBitwise, 0xFFC0, 0x4040);
-    handle!(LSL_1: ThumbInstrShift_1, 0xF800, 0x0000);
-    handle!(LSL_2: ThumbInstrShift_2, 0xFFC0, 0x4080);
-    handle!(LSR_1: ThumbInstrShift_1, 0xF800, 0x0800);
-    handle!(MOV_1: ThumbInstrMOV_1, 0xF800, 0x2000);
-    handle!(MOV_2: ThumbInstrMOV_2, 0xFFC0, 0x1C00);
-    handle!(MOV_3: ThumbInstrMOV_3, 0xFF00, 0x4600);
-    handle!(MUL: ThumbInstrMUL, 0xFFC0, 0x4340);
-    handle!(NEG: ThumbInstrNEG, 0xFFC0, 0x4240);
-    handle!(ORR: ThumbInstrBitwise, 0xFFC0, 0x4300);
-    handle!(SBC: ThumbInstrSBC, 0xFFC0, 0x4180);
-    handle!(SUB_1: ThumbInstrAddSub_1, 0xFE00, 0x1E00);
-    handle!(SUB_2: ThumbInstrAddSub_2, 0xF800, 0x3800);
-    handle!(SUB_3: ThumbInstrAddSub_3, 0xFE00, 0x1A00);
-    handle!(SUB_4: ThumbInstrAddSub_4, 0xFF80, 0xB080);
-    handle!(TST: ThumbInstrBitwise, 0xFFC0, 0x4200);
-
-    //
-    // Branch instructions
-    //
-
-    handle!(B_1: ThumbInstrB_1, 0xF000, 0xD000);
-    handle!(BLX_2: ThumbInstrBranchReg, 0xFF80, 0x4780);
-    handle!(BRANCH: ThumbInstrBRANCH, 0xE000, 0xE000);
-    handle!(BX: ThumbInstrBranchReg, 0xFF80, 0x4700);
-
-    //
-    // Load/store instructions
-    //
-
-    handle!(LDR_1: ThumbInstrLoadStore_1, 0xF800, 0x6800);
-    handle!(LDR_2: ThumbInstrLoadStore_2, 0xFE00, 0x5800);
-    handle!(LDR_3: ThumbInstrLoadStore_3, 0xF800, 0x4800);
-    handle!(LDR_4: ThumbInstrLoadStore_3, 0xF800, 0x9800);
-    handle!(LDRB_1: ThumbInstrLoadStore_1, 0xF800, 0x7800);
-    handle!(LDRB_2: ThumbInstrLoadStore_2, 0xFE00, 0x5c00);
-    handle!(LDRH_1: ThumbInstrLoadStore_1, 0xF800, 0x8800);
-    handle!(LDRH_2: ThumbInstrLoadStore_2, 0xFE00, 0x5a00);
-
-    handle!(STR_1: ThumbInstrLoadStore_1, 0xF800, 0x6000);
-    handle!(STR_2: ThumbInstrLoadStore_2, 0xFE00, 0x5000);
-    handle!(STR_3: ThumbInstrLoadStore_3, 0xF800, 0x9000);
-    handle!(STRB_1: ThumbInstrLoadStore_1, 0xF800, 0x7000);
-    handle!(STRB_2: ThumbInstrLoadStore_2, 0xFE00, 0x5400);
-    handle!(STRH_1: ThumbInstrLoadStore_1, 0xF800, 0x8000);
-    handle!(STRH_2: ThumbInstrLoadStore_2, 0xFE00, 0x5200);
-
-    handle!(POP: ThumbInstrPOP, 0xFE00, 0xBC00);
-    handle!(PUSH: ThumbInstrPUSH, 0xFE00, 0xB400);
-
-
-    ThumbInstruction::UNKNOWN
-}

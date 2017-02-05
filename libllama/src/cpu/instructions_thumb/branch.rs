@@ -3,7 +3,7 @@ use cpu::Cpu;
 use bitutils::sign_extend;
 
 #[inline(always)]
-pub fn b_1(cpu: &mut Cpu, data: cpu::ThumbInstrB_1) -> cpu::InstrStatus {
+pub fn b_1(cpu: &mut Cpu, data: cpu::b_1::InstrDesc) -> cpu::InstrStatus {
     let offset_8 = bf!(data.signed_imm_8);
     let cond = bf!(data.cond);
 
@@ -17,7 +17,7 @@ pub fn b_1(cpu: &mut Cpu, data: cpu::ThumbInstrB_1) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
-pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> cpu::InstrStatus {
+pub fn branch(cpu: &mut Cpu, data: cpu::branch::InstrDesc) -> cpu::InstrStatus {
     let offset_11 = bf!(data.offset_11);
 
     match bf!(data.h_bits) {
@@ -48,8 +48,8 @@ pub fn branch(cpu: &mut Cpu, data: cpu::ThumbInstrBRANCH) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
-pub fn bx(cpu: &mut Cpu, data: cpu::ThumbInstrBranchReg) -> cpu::InstrStatus {
-    let addr = cpu.regs[bf!(data.rm) as usize];
+pub fn bx(cpu: &mut Cpu, data: cpu::bx::InstrDesc) -> cpu::InstrStatus {
+    let addr = cpu.regs[((bf!(data.h2) << 3) | bf!(data.rm)) as usize];
     bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
     cpu::InstrStatus::Branched
