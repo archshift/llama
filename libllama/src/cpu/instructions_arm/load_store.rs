@@ -1,8 +1,9 @@
 use cpu;
 use cpu::Cpu;
+use cpu::decoder_arm as arm;
 
 #[inline(always)]
-fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32 {
+fn decode_addressing_mode(instr_data: arm::ldr::InstrDesc, cpu: &Cpu) -> u32 {
     let c_bit = bf!((cpu.cpsr).c_bit) == 1;
 
     let i_bit = bf!(instr_data.i_bit);
@@ -62,13 +63,36 @@ fn decode_addressing_mode(instr_data: &cpu::ArmInstrLoadStore, cpu: &Cpu) -> u32
 }
 
 #[inline(always)]
-fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::InstrStatus {
+fn decode_addr_and_writeback(instr_data: u32, cpu: &Cpu) -> (u32, u32) {
+    // For convenience
+    let instr_data = arm::ldr::InstrDesc::new(instr_data);
+
+    let base_addr = cpu.regs[bf!(instr_data.rn) as usize];
+    let mod_addr = decode_addressing_mode(instr_data, cpu);
+
+    if bf!(instr_data.p_bit) == 1 {
+        // Pre-indexed
+        if bf!(instr_data.w_bit) == 0 {
+            // Writeback disabled
+            (mod_addr, base_addr)
+        } else {
+            (mod_addr, mod_addr)
+        }
+    } else {
+        // Post-indexed
+        assert!(bf!(instr_data.w_bit) == 0); // TODO: Implement
+        (base_addr, mod_addr)
+    }
+}
+
+#[inline(always)]
+fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let rd = bf!(data.rd);
-    let addr = decode_addressing_mode(&data, cpu);
+    let (addr, wb) = decode_addr_and_writeback(data.raw(), cpu);
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     let val = if byte {
@@ -77,9 +101,8 @@ fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::I
         cpu.memory.read::<u32>(addr.rotate_right(8 * bits!(addr, 0 => 1)))
     };
 
-    // TODO: Implement
-    assert!(bf!(data.p_bit) == 1);
-    assert!(bf!(data.w_bit) == 0);
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb;
 
     if rd == 15 {
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
@@ -93,17 +116,16 @@ fn instr_load(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::I
 }
 
 #[inline(always)]
-fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::InstrStatus {
+fn instr_store(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let addr = decode_addressing_mode(&data, cpu);
+    let (addr, wb) = decode_addr_and_writeback(data.raw(), cpu);
     let val = cpu.regs[bf!(data.rd) as usize];
 
-    // TODO: Implement
-    assert!(bf!(data.p_bit) == 1);
-    assert!(bf!(data.w_bit) == 0);
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb;
 
     if byte {
         cpu.memory.write::<u8>(addr, val as u8);
@@ -115,21 +137,21 @@ fn instr_store(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore, byte: bool) -> cpu::
 }
 
 #[inline(always)]
-pub fn ldr(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
+pub fn ldr(cpu: &mut Cpu, data: arm::ldr::InstrDesc) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn ldrb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
-    instr_load(cpu, data, true)
+pub fn ldrb(cpu: &mut Cpu, data: arm::ldrb::InstrDesc) -> cpu::InstrStatus {
+    instr_load(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
 }
 
 #[inline(always)]
-pub fn str(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
-    instr_store(cpu, data, false)
+pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
+    instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), false)
 }
 
 #[inline(always)]
-pub fn strb(cpu: &mut Cpu, data: cpu::ArmInstrLoadStore) -> cpu::InstrStatus {
-    instr_store(cpu, data, true)
+pub fn strb(cpu: &mut Cpu, data: arm::strb::InstrDesc) -> cpu::InstrStatus {
+    instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
 }

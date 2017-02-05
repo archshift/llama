@@ -2,15 +2,13 @@ mod cpu;
 
 #[macro_use]
 mod define_inst;
-mod decoder_arm;
-mod decoder_thumb;
+pub mod decoder_arm;
+pub mod decoder_thumb;
 
 mod interpreter_arm;
 mod interpreter_thumb;
 
 pub use self::cpu::*;
-pub use self::decoder_arm::*;
-pub use self::decoder_thumb::*;
 pub use self::interpreter_arm::*;
 pub use self::interpreter_thumb::*;
 

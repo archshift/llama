@@ -1,4 +1,5 @@
-use cpu::{Cpu, ArmInstruction, Psr};
+use cpu::{Cpu, Psr};
+use cpu::decoder_arm::ArmInstruction;
 use cpu::instructions_arm;
 
 pub enum InstrStatus {
@@ -47,33 +48,37 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let status = match instr {
-        ArmInstruction::ADD(data) => instructions_arm::add(cpu, data),
-        ArmInstruction::AND(data) => instructions_arm::and(cpu, data),
-        ArmInstruction::BIC(data) => instructions_arm::bic(cpu, data),
-        ArmInstruction::B_BL(data) => instructions_arm::bbl(cpu, data),
-        ArmInstruction::BLX(data) => instructions_arm::blx(cpu, data),
-        ArmInstruction::BX(data) => instructions_arm::bx(cpu, data),
-        ArmInstruction::CMN(data) => instructions_arm::cmn(cpu, data),
-        ArmInstruction::CMP(data) => instructions_arm::cmp(cpu, data),
-        ArmInstruction::EOR(data) => instructions_arm::eor(cpu, data),
-        ArmInstruction::LDM(data) => instructions_arm::ldm(cpu, data),
-        ArmInstruction::LDR(data) => instructions_arm::ldr(cpu, data),
-        ArmInstruction::LDRB(data) => instructions_arm::ldrb(cpu, data),
-        ArmInstruction::MOV(data) => instructions_arm::mov(cpu, data),
-        ArmInstruction::MRS(data) => instructions_arm::mrs(cpu, data),
-        ArmInstruction::MSR(data) => instructions_arm::msr(cpu, data),
-        ArmInstruction::MVN(data) => instructions_arm::mvn(cpu, data),
-        ArmInstruction::ORR(data) => instructions_arm::orr(cpu, data),
-        ArmInstruction::RSB(data) => instructions_arm::rsb(cpu, data),
-        ArmInstruction::SBC(data) => instructions_arm::sbc(cpu, data),
-        ArmInstruction::STM(data) => instructions_arm::stm(cpu, data),
-        ArmInstruction::STR(data) => instructions_arm::str(cpu, data),
-        ArmInstruction::STRB(data) => instructions_arm::strb(cpu, data),
-        ArmInstruction::SUB(data) => instructions_arm::sub(cpu, data),
-        ArmInstruction::TEQ(data) => instructions_arm::teq(cpu, data),
-        ArmInstruction::TST(data) => instructions_arm::tst(cpu, data),
+        ArmInstruction::add(data) => instructions_arm::add(cpu, data),
+        ArmInstruction::and(data) => instructions_arm::and(cpu, data),
+        ArmInstruction::bic(data) => instructions_arm::bic(cpu, data),
+        ArmInstruction::bbl(data) => instructions_arm::bbl(cpu, data),
+        ArmInstruction::blx_2(data) => instructions_arm::blx(cpu, data),
+        ArmInstruction::bx(data) => instructions_arm::bx(cpu, data),
+        ArmInstruction::cmn(data) => instructions_arm::cmn(cpu, data),
+        ArmInstruction::cmp(data) => instructions_arm::cmp(cpu, data),
+        ArmInstruction::eor(data) => instructions_arm::eor(cpu, data),
+        ArmInstruction::ldm_1(data) => instructions_arm::ldm_1(cpu, data),
+        ArmInstruction::ldm_2(data) => instructions_arm::ldm_2(cpu, data),
+        ArmInstruction::ldm_3(data) => instructions_arm::ldm_3(cpu, data),
+        ArmInstruction::ldr(data) => instructions_arm::ldr(cpu, data),
+        ArmInstruction::ldrb(data) => instructions_arm::ldrb(cpu, data),
+        ArmInstruction::mov(data) => instructions_arm::mov(cpu, data),
+        ArmInstruction::mrs(data) => instructions_arm::mrs(cpu, data),
+        ArmInstruction::msr_1(data) => instructions_arm::msr_1(cpu, data),
+        ArmInstruction::msr_2(data) => instructions_arm::msr_2(cpu, data),
+        ArmInstruction::mvn(data) => instructions_arm::mvn(cpu, data),
+        ArmInstruction::orr(data) => instructions_arm::orr(cpu, data),
+        ArmInstruction::rsb(data) => instructions_arm::rsb(cpu, data),
+        ArmInstruction::sbc(data) => instructions_arm::sbc(cpu, data),
+        ArmInstruction::stm_1(data) => instructions_arm::stm_1(cpu, data),
+        ArmInstruction::stm_2(data) => instructions_arm::stm_2(cpu, data),
+        ArmInstruction::str(data) => instructions_arm::str(cpu, data),
+        ArmInstruction::strb(data) => instructions_arm::strb(cpu, data),
+        ArmInstruction::sub(data) => instructions_arm::sub(cpu, data),
+        ArmInstruction::teq(data) => instructions_arm::teq(cpu, data),
+        ArmInstruction::tst(data) => instructions_arm::tst(cpu, data),
 
-        ArmInstruction::MOD_BLX(data) => instructions_arm::mod_blx(cpu, data),
+        ArmInstruction::mod_blx(data) => instructions_arm::mod_blx(cpu, data),
 
         _ => {
             warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);

@@ -1,4 +1,5 @@
-use cpu::{Cpu, InstrStatus, ThumbInstruction};
+use cpu::{Cpu, InstrStatus};
+use cpu::decoder_thumb::ThumbInstruction;
 use cpu::instructions_thumb;
 
 #[inline(always)]

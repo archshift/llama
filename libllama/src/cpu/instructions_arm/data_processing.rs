@@ -1,8 +1,12 @@
 use cpu;
 use cpu::Cpu;
+use cpu::decoder_arm as arm;
 
 #[inline(always)]
-fn get_shifter_val(instr_data: &cpu::ArmInstrDProc, cpu: &Cpu) -> (u32, bool) {
+fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> (u32, bool) {
+    // Just to make it a little bit easier to use this
+    let instr_data = arm::add::InstrDesc::new(instr_data);
+
     let shifter_bits = bf!(instr_data.shifter_operand);
     let c_bit = bf!((cpu.cpsr).c_bit) == 1;
 
@@ -110,14 +114,14 @@ enum ProcessInstrBitOp {
 }
 
 #[inline(always)]
-fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp) -> cpu::InstrStatus {
+fn instr_bitwise(cpu: &mut Cpu, data: arm::and::InstrDesc, op: ProcessInstrBitOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let dst_reg = bf!(data.rd);
     let s_bit = bf!(data.s_bit) == 1;
-    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let (shifter_val, shifter_carry) = get_shifter_val(data.raw(), cpu);
     let rn = bf!(data.rn);
 
     let val = match op {
@@ -147,13 +151,13 @@ fn instr_bitwise(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrBitOp)
 }
 
 #[inline(always)]
-fn instr_compare(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negative: bool) -> cpu::InstrStatus {
+fn instr_compare(cpu: &mut Cpu, data: arm::cmp::InstrDesc, negative: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let base_val = cpu.regs[bf!(data.rn) as usize];
-    let (shifter_val, _) = get_shifter_val(&data, cpu);
+    let (shifter_val, _) = get_shifter_val(data.raw(), cpu);
 
     let (val, carry_bit, overflow_bit) = if !negative {
         let val = base_val.wrapping_sub(shifter_val);
@@ -183,7 +187,7 @@ enum ProcessInstrLogicalOp {
 }
 
 #[inline(always)]
-fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
+fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -192,7 +196,7 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
     let s_bit = bf!(data.s_bit) == 1;
 
     let base_val = cpu.regs[bf!(data.rn) as usize];
-    let (shifter_val, _) = get_shifter_val(&data, cpu);
+    let (shifter_val, _) = get_shifter_val(data.raw(), cpu);
 
     let (val, carry_bit, overflow_bit) = match op {
         ProcessInstrLogicalOp::ADD => {
@@ -245,14 +249,14 @@ fn instr_logical(cpu: &mut Cpu, data: cpu::ArmInstrDProc, op: ProcessInstrLogica
 }
 
 #[inline(always)]
-fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> cpu::InstrStatus {
+fn instr_move(cpu: &mut Cpu, data: arm::mov::InstrDesc, negate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let dst_reg = bf!(data.rd);
     let s_bit = bf!(data.s_bit) == 1;
-    let (mut src_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let (mut src_val, shifter_carry) = get_shifter_val(data.raw(), cpu);
     if negate {
         src_val = !src_val;
     }
@@ -277,12 +281,12 @@ fn instr_move(cpu: &mut Cpu, data: cpu::ArmInstrDProc, negate: bool) -> cpu::Ins
 }
 
 #[inline(always)]
-fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> cpu::InstrStatus {
+fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (shifter_val, shifter_carry) = get_shifter_val(&data, cpu);
+    let (shifter_val, shifter_carry) = get_shifter_val(data.raw(), cpu);
     let rn = bf!(data.rn);
     let val = if equiv {
         cpu.regs[rn as usize] ^ shifter_val
@@ -298,71 +302,71 @@ fn instr_test(cpu: &mut Cpu, data: cpu::ArmInstrDProc, equiv: bool) -> cpu::Inst
 }
 
 #[inline(always)]
-pub fn add(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+pub fn add(cpu: &mut Cpu, data: arm::add::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::ADD)
 }
 
 #[inline(always)]
-pub fn and(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+pub fn and(cpu: &mut Cpu, data: arm::and::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
 }
 
 #[inline(always)]
-pub fn bic(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, data, ProcessInstrBitOp::AND_NOT)
+pub fn bic(cpu: &mut Cpu, data: arm::bic::InstrDesc) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AND_NOT)
 }
 
 #[inline(always)]
-pub fn cmn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_compare(cpu, data, true)
+pub fn cmn(cpu: &mut Cpu, data: arm::cmn::InstrDesc) -> cpu::InstrStatus {
+    instr_compare(cpu, arm::cmp::InstrDesc::new(data.raw()), true)
 }
 
 #[inline(always)]
-pub fn cmp(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+pub fn cmp(cpu: &mut Cpu, data: arm::cmp::InstrDesc) -> cpu::InstrStatus {
     instr_compare(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn eor(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, data, ProcessInstrBitOp::XOR)
+pub fn eor(cpu: &mut Cpu, data: arm::eor::InstrDesc) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::XOR)
 }
 
 #[inline(always)]
-pub fn orr(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, data, ProcessInstrBitOp::OR)
+pub fn orr(cpu: &mut Cpu, data: arm::orr::InstrDesc) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::OR)
 }
 
 #[inline(always)]
-pub fn mov(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+pub fn mov(cpu: &mut Cpu, data: arm::mov::InstrDesc) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
 }
 
 #[inline(always)]
-pub fn mvn(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_move(cpu, data, true)
+pub fn mvn(cpu: &mut Cpu, data: arm::mvn::InstrDesc) -> cpu::InstrStatus {
+    instr_move(cpu, arm::mov::InstrDesc::new(data.raw()), true)
 }
 
 #[inline(always)]
-pub fn rsb(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_logical(cpu, data, ProcessInstrLogicalOp::REVERSE_SUB)
+pub fn rsb(cpu: &mut Cpu, data: arm::rsb::InstrDesc) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::REVERSE_SUB)
 }
 
 #[inline(always)]
-pub fn sbc(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_logical(cpu, data, ProcessInstrLogicalOp::SUB_CARRY)
+pub fn sbc(cpu: &mut Cpu, data: arm::sbc::InstrDesc) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SUB_CARRY)
 }
 
 #[inline(always)]
-pub fn sub(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_logical(cpu, data, ProcessInstrLogicalOp::SUB)
+pub fn sub(cpu: &mut Cpu, data: arm::sub::InstrDesc) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SUB)
 }
 
 #[inline(always)]
-pub fn teq(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
-    instr_test(cpu, data, true)
+pub fn teq(cpu: &mut Cpu, data: arm::teq::InstrDesc) -> cpu::InstrStatus {
+    instr_test(cpu, arm::tst::InstrDesc::new(data.raw()), true)
 }
 
 #[inline(always)]
-pub fn tst(cpu: &mut Cpu, data: cpu::ArmInstrDProc) -> cpu::InstrStatus {
+pub fn tst(cpu: &mut Cpu, data: arm::tst::InstrDesc) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
 }

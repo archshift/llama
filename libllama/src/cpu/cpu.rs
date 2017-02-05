@@ -88,6 +88,9 @@ impl Cpu {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
+        use cpu::decoder_arm::ArmInstruction;
+        use cpu::decoder_thumb::ThumbInstruction;
+
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
             if self.find_toggle_breakpoint(addr) {
@@ -95,10 +98,10 @@ impl Cpu {
             }
 
             if bf!((self.cpsr).thumb_bit) == 0 {
-                let instr = cpu::decode_arm_instruction(self.memory.read::<u32>(addr));
+                let instr = ArmInstruction::decode(self.memory.read::<u32>(addr));
                 cpu::interpret_arm(self, instr);
             } else {
-                let instr = cpu::ThumbInstruction::decode(self.memory.read::<u16>(addr));
+                let instr = ThumbInstruction::decode(self.memory.read::<u16>(addr));
                 cpu::interpret_thumb(self, instr);
             }
         }

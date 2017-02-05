@@ -1,8 +1,9 @@
 use cpu;
 use cpu::Cpu;
+use cpu::decoder_arm as arm;
 
 #[inline(always)]
-pub fn mrs(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus {
+pub fn mrs(cpu: &mut Cpu, data: arm::mrs::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -20,7 +21,7 @@ pub fn mrs(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus 
 }
 
 #[inline(always)]
-pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus {
+pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -28,7 +29,7 @@ pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus 
     let field_mask = bf!(data.field_mask);
     let shifter_operand = bf!(data.shifter_operand);
 
-    let val = if bf!(data.i_bit) == 1 {
+    let val = if immediate {
         let immed_8 = bits!(shifter_operand, 0 => 7);
         let rotate_imm = bits!(shifter_operand, 8 => 11);
         immed_8.rotate_right(rotate_imm * 2)
@@ -66,4 +67,14 @@ pub fn msr(cpu: &mut Cpu, data: cpu::ArmInstrMoveStatusReg) -> cpu::InstrStatus 
     }
 
     cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn msr_1(cpu: &mut Cpu, data: arm::msr_1::InstrDesc) -> cpu::InstrStatus {
+    instr_msr(cpu, data, true)
+}
+
+#[inline(always)]
+pub fn msr_2(cpu: &mut Cpu, data: arm::msr_2::InstrDesc) -> cpu::InstrStatus {
+    instr_msr(cpu, arm::msr_1::InstrDesc::new(data.raw()), false)
 }

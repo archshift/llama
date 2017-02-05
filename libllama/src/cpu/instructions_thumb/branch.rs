@@ -1,9 +1,10 @@
 use cpu;
 use cpu::Cpu;
+use cpu::decoder_thumb as thumb;
 use bitutils::sign_extend;
 
 #[inline(always)]
-pub fn b_1(cpu: &mut Cpu, data: cpu::b_1::InstrDesc) -> cpu::InstrStatus {
+pub fn b_1(cpu: &mut Cpu, data: thumb::b_1::InstrDesc) -> cpu::InstrStatus {
     let offset_8 = bf!(data.signed_imm_8);
     let cond = bf!(data.cond);
 
@@ -17,7 +18,7 @@ pub fn b_1(cpu: &mut Cpu, data: cpu::b_1::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
-pub fn branch(cpu: &mut Cpu, data: cpu::branch::InstrDesc) -> cpu::InstrStatus {
+pub fn branch(cpu: &mut Cpu, data: thumb::branch::InstrDesc) -> cpu::InstrStatus {
     let offset_11 = bf!(data.offset_11);
 
     match bf!(data.h_bits) {
@@ -48,7 +49,7 @@ pub fn branch(cpu: &mut Cpu, data: cpu::branch::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
-pub fn bx(cpu: &mut Cpu, data: cpu::bx::InstrDesc) -> cpu::InstrStatus {
+pub fn bx(cpu: &mut Cpu, data: thumb::bx::InstrDesc) -> cpu::InstrStatus {
     let addr = cpu.regs[((bf!(data.h2) << 3) | bf!(data.rm)) as usize];
     bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
