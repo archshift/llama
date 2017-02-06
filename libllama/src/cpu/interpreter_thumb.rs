@@ -32,6 +32,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::ldrb_1(data) => instructions_thumb::ldrb_1(cpu, data),
         ThumbInstruction::ldrb_2(data) => instructions_thumb::ldrb_2(cpu, data),
         ThumbInstruction::ldrh_1(data) => instructions_thumb::ldrh_1(cpu, data),
+        ThumbInstruction::ldrh_2(data) => instructions_thumb::ldrh_2(cpu, data),
         ThumbInstruction::lsl_1(data) => instructions_thumb::lsl_1(cpu, data),
         ThumbInstruction::lsl_2(data) => instructions_thumb::lsl_2(cpu, data),
         ThumbInstruction::lsr_1(data) => instructions_thumb::lsr_1(cpu, data),
@@ -39,6 +40,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::mov_2(data) => instructions_thumb::mov_2(cpu, data),
         ThumbInstruction::mov_3(data) => instructions_thumb::mov_3(cpu, data),
         ThumbInstruction::mul(data) => instructions_thumb::mul(cpu, data),
+        ThumbInstruction::mvn(data) => instructions_thumb::mvn(cpu, data),
         ThumbInstruction::neg(data) => instructions_thumb::neg(cpu, data),
         ThumbInstruction::orr(data) => instructions_thumb::orr(cpu, data),
         ThumbInstruction::pop(data) => instructions_thumb::pop(cpu, data),
@@ -52,12 +54,11 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::str_2(data) => instructions_thumb::str_2(cpu, data),
         ThumbInstruction::str_3(data) => instructions_thumb::str_3(cpu, data),
         ThumbInstruction::strb_1(data) => instructions_thumb::strb_1(cpu, data),
+        ThumbInstruction::strb_2(data) => instructions_thumb::strb_2(cpu, data),
         ThumbInstruction::strh_1(data) => instructions_thumb::strh_1(cpu, data),
+        ThumbInstruction::strh_2(data) => instructions_thumb::strh_2(cpu, data),
         ThumbInstruction::tst(data) => instructions_thumb::tst(cpu, data),
-        _ => {
-            warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
-            InstrStatus::InBlock
-        }
+        _ => panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
     };
 
     match status {

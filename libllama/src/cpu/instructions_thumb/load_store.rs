@@ -68,6 +68,17 @@ pub fn ldrh_1(cpu: &mut Cpu, data: thumb::ldrh_1::InstrDesc) -> cpu::InstrStatus
     cpu::InstrStatus::InBlock
 }
 
+pub fn ldrh_2(cpu: &mut Cpu, data: thumb::ldrh_2::InstrDesc) -> cpu::InstrStatus {
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let offset = cpu.regs[bf!(data.rm) as usize];
+
+    let addr = base_val + offset;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u16>(addr) as u32;
+
+    cpu::InstrStatus::InBlock
+}
+
 pub fn pop(cpu: &mut Cpu, data: thumb::pop::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110100010111101_0_0000000_00000000
                                           | ((bf!(data.r_bit) as u32) << 15)
@@ -119,11 +130,31 @@ pub fn strb_1(cpu: &mut Cpu, data: thumb::strb_1::InstrDesc) -> cpu::InstrStatus
     cpu::instructions_arm::strb(cpu, arm::strb::InstrDesc::new(arminst))
 }
 
+#[inline(always)]
+pub fn strb_2(cpu: &mut Cpu, data: thumb::strb_2::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111001111100_0000_0000_00000000_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::strb(cpu, arm::strb::InstrDesc::new(arminst))
+}
+
 pub fn strh_1(cpu: &mut Cpu, data: thumb::strh_1::InstrDesc) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed_5 = bf!(data.immed_5) as u32;
 
     let addr = base_val + immed_5 * 2;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    cpu.memory.write::<u16>(addr, cpu.regs[bf!(data.rd) as usize] as u16);
+
+    cpu::InstrStatus::InBlock
+}
+
+pub fn strh_2(cpu: &mut Cpu, data: thumb::strh_2::InstrDesc) -> cpu::InstrStatus {
+    let base_val = cpu.regs[bf!(data.rn) as usize];
+    let offset = cpu.regs[bf!(data.rm) as usize];
+
+    let addr = base_val + offset;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     cpu.memory.write::<u16>(addr, cpu.regs[bf!(data.rd) as usize] as u16);
 

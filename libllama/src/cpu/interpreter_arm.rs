@@ -81,10 +81,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
 
         ArmInstruction::mod_blx(data) => instructions_arm::mod_blx(cpu, data),
 
-        _ => {
-            warn!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
-            InstrStatus::InBlock
-        }
+        _ => panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
     };
 
     match status {

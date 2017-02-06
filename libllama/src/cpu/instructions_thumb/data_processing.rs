@@ -267,6 +267,14 @@ pub fn mul(cpu: &mut Cpu, data: thumb::mul::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn mvn(cpu: &mut Cpu, data: thumb::mvn::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000011111_0000_0000_00000000_0000
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::mvn(cpu, arm::mvn::InstrDesc::new(arminst))
+}
+
+#[inline(always)]
 pub fn neg(cpu: &mut Cpu, data: thumb::neg::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111000100111_0000_0000_000000000000
                                       | ((bf!(data.rm) as u32) << 16)
