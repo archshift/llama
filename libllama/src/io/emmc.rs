@@ -188,7 +188,7 @@ fn reg_fifo_fetch(dev: &mut EmmcDevice) {
         let mut buf16 = [0u8; 2];
         file.read_exact(&mut buf16);
 
-        trace!("Reading from SD FIFO! blocks left: {}, fifo pos: {}, buf: {:01X} {:01X}", transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
+        trace!("Reading from SD FIFO! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X}", transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
         dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
         // Hack to keep the client reading even after acknowledging

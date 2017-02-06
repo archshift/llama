@@ -207,12 +207,12 @@ fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogic
             (val, u_overflow, s_overflow)
         },
         ProcessInstrLogicalOp::ADD_CARRY => {
-            let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
-            let val = base_val.wrapping_add(shifter_val).wrapping_add(ncarry);
+            let carry = bf!((cpu.cpsr).c_bit) as u32;
+            let val = base_val.wrapping_add(shifter_val).wrapping_add(carry);
             let u_overflow = base_val.checked_add(shifter_val)
-                                     .map(|x| x.checked_add(ncarry)).is_none();
+                                     .map(|x| x.checked_add(carry)).is_none();
             let s_overflow = (base_val as i32).checked_add(shifter_val as i32)
-                                              .map(|x| x.checked_add(ncarry as i32)).is_none();
+                                              .map(|x| x.checked_add(carry as i32)).is_none();
             (val, u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::REVERSE_SUB => {
