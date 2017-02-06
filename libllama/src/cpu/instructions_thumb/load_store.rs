@@ -48,6 +48,15 @@ pub fn ldrb_1(cpu: &mut Cpu, data: thumb::ldrb_1::InstrDesc) -> cpu::InstrStatus
     cpu::instructions_arm::ldrb(cpu, arm::ldrb::InstrDesc::new(arminst))
 }
 
+#[inline(always)]
+pub fn ldrb_2(cpu: &mut Cpu, data: thumb::ldrb_2::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111001111101_0000_0000_00000000_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::ldrb(cpu, arm::ldrb::InstrDesc::new(arminst))
+}
+
 pub fn ldrh_1(cpu: &mut Cpu, data: thumb::ldrh_1::InstrDesc) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed_5 = bf!(data.immed_5) as u32;
@@ -99,6 +108,15 @@ pub fn str_3(cpu: &mut Cpu, data: thumb::str_3::InstrDesc) -> cpu::InstrStatus {
                                           | ((bf!(data.rd) as u32) << 12)
                                                   | ((bf!(data.immed_8) as u32) << 2);
     cpu::instructions_arm::str(cpu, arm::str::InstrDesc::new(arminst))
+}
+
+#[inline(always)]
+pub fn strb_1(cpu: &mut Cpu, data: thumb::strb_1::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111001011100_0000_0000_0000000_00000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                        | ((bf!(data.immed_5) as u32) << 0);
+    cpu::instructions_arm::strb(cpu, arm::strb::InstrDesc::new(arminst))
 }
 
 pub fn strh_1(cpu: &mut Cpu, data: thumb::strh_1::InstrDesc) -> cpu::InstrStatus {

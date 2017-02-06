@@ -7,6 +7,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let status = match instr {
+        ThumbInstruction::adc(data) => instructions_thumb::adc(cpu, data),
         ThumbInstruction::add_1(data) => instructions_thumb::add_1(cpu, data),
         ThumbInstruction::add_2(data) => instructions_thumb::add_2(cpu, data),
         ThumbInstruction::add_3(data) => instructions_thumb::add_3(cpu, data),
@@ -15,6 +16,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::add_6(data) => instructions_thumb::add_6(cpu, data),
         ThumbInstruction::add_7(data) => instructions_thumb::add_7(cpu, data),
         ThumbInstruction::and(data) => instructions_thumb::and(cpu, data),
+        ThumbInstruction::asr_1(data) => instructions_thumb::asr_1(cpu, data),
         ThumbInstruction::b_1(data) => instructions_thumb::b_1(cpu, data),
         ThumbInstruction::bic(data) => instructions_thumb::bic(cpu, data),
         ThumbInstruction::branch(data) => instructions_thumb::branch(cpu, data),
@@ -28,6 +30,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::ldr_3(data) => instructions_thumb::ldr_3(cpu, data),
         ThumbInstruction::ldr_4(data) => instructions_thumb::ldr_4(cpu, data),
         ThumbInstruction::ldrb_1(data) => instructions_thumb::ldrb_1(cpu, data),
+        ThumbInstruction::ldrb_2(data) => instructions_thumb::ldrb_2(cpu, data),
         ThumbInstruction::ldrh_1(data) => instructions_thumb::ldrh_1(cpu, data),
         ThumbInstruction::lsl_1(data) => instructions_thumb::lsl_1(cpu, data),
         ThumbInstruction::lsl_2(data) => instructions_thumb::lsl_2(cpu, data),
@@ -48,6 +51,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::str_1(data) => instructions_thumb::str_1(cpu, data),
         ThumbInstruction::str_2(data) => instructions_thumb::str_2(cpu, data),
         ThumbInstruction::str_3(data) => instructions_thumb::str_3(cpu, data),
+        ThumbInstruction::strb_1(data) => instructions_thumb::strb_1(cpu, data),
         ThumbInstruction::strh_1(data) => instructions_thumb::strh_1(cpu, data),
         ThumbInstruction::tst(data) => instructions_thumb::tst(cpu, data),
         _ => {

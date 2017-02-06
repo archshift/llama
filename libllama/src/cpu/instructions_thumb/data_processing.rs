@@ -30,6 +30,15 @@ fn instr_bitwise(cpu: &mut Cpu, data: thumb::and::InstrDesc, op: ProcessInstrBit
 }
 
 #[inline(always)]
+pub fn adc(cpu: &mut Cpu, data: thumb::adc::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000001011_0000_0000_00000000_0000
+                                      | ((bf!(data.rd) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::adc(cpu, arm::adc::InstrDesc::new(arminst))
+}
+
+#[inline(always)]
 pub fn add_1(cpu: &mut Cpu, data: thumb::add_1::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111000101001_0000_0000_000000000_000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -94,6 +103,15 @@ pub fn add_7(cpu: &mut Cpu, data: thumb::add_7::InstrDesc) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn and(cpu: &mut Cpu, data: thumb::and::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
+}
+
+#[inline(always)]
+pub fn asr_1(cpu: &mut Cpu, data: thumb::asr_1::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110000110110000_0000_00000_100_0000
+                                          | ((bf!(data.rd) as u32) << 12)
+                                               | ((bf!(data.immed_5) as u32) << 7)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::mov(cpu, arm::mov::InstrDesc::new(arminst))
 }
 
 #[inline(always)]

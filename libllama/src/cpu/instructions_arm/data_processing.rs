@@ -181,6 +181,7 @@ fn instr_compare(cpu: &mut Cpu, data: arm::cmp::InstrDesc, negative: bool) -> cp
 
 enum ProcessInstrLogicalOp {
     ADD,
+    ADD_CARRY,
     REVERSE_SUB,
     SUB,
     SUB_CARRY,
@@ -205,6 +206,15 @@ fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogic
             let s_overflow = (base_val as i32).checked_add(shifter_val as i32).is_none();
             (val, u_overflow, s_overflow)
         },
+        ProcessInstrLogicalOp::ADD_CARRY => {
+            let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
+            let val = base_val.wrapping_add(shifter_val).wrapping_add(ncarry);
+            let u_overflow = base_val.checked_add(shifter_val)
+                                     .map(|x| x.checked_add(ncarry)).is_none();
+            let s_overflow = (base_val as i32).checked_add(shifter_val as i32)
+                                              .map(|x| x.checked_add(ncarry as i32)).is_none();
+            (val, u_overflow, s_overflow)
+        }
         ProcessInstrLogicalOp::REVERSE_SUB => {
             let val = shifter_val.wrapping_sub(base_val);
             let u_overflow = shifter_val.checked_sub(base_val).is_none();
@@ -299,6 +309,11 @@ fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::Ins
     bf!((cpu.cpsr).c_bit = shifter_carry as u32);
 
     cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn adc(cpu: &mut Cpu, data: arm::adc::InstrDesc) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ADD_CARRY)
 }
 
 #[inline(always)]

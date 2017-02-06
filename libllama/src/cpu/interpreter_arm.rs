@@ -48,6 +48,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let status = match instr {
+        ArmInstruction::adc(data) => instructions_arm::adc(cpu, data),
         ArmInstruction::add(data) => instructions_arm::add(cpu, data),
         ArmInstruction::and(data) => instructions_arm::and(cpu, data),
         ArmInstruction::bic(data) => instructions_arm::bic(cpu, data),
