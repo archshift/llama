@@ -1,6 +1,6 @@
 use std::env;
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::ops::Range;
 
@@ -40,8 +40,15 @@ enum Status1 {
     IllAccess   = (1 << 15),
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum TransferType {
+    Read,
+    Write
+}
+
 #[derive(Debug)]
 struct ActiveTransfer {
+    ty: TransferType,
     blocks_left: u16,
     fifo_pos: u16,
     fifo_size: u16,
@@ -65,8 +72,9 @@ fn get_params_u32(dev: &EmmcDevice) -> u32 {
 fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
     match cmd_index {
         0 => {
-            let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.raw");
-            dev._internal_state.sd_file = match File::open(&filename) {
+            let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.fat");
+            dev._internal_state.sd_file = match OpenOptions::new().read(true).write(true)
+                                                                  .open(&filename) {
                 Ok(file) => Some(file),
                 Err(x) => panic!("Failed to open SD card file `{}`; {:?}", filename, x)
             };
@@ -127,6 +135,7 @@ fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
             }
 
             let transfer = ActiveTransfer {
+                ty: TransferType::Read,
                 blocks_left: dev.data16_blk_cnt.get(),
                 fifo_pos: 0,
                 fifo_size: dev.data16_blk_len.get(),
@@ -136,6 +145,27 @@ fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
 
             dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
             warn!("STUBBED: SDMMC CMD18 READ_MULTIPLE_BLOCK!");
+        }
+        25 => {
+            let file_offset = get_params_u32(&*dev);
+            if let Some(ref mut file) = dev._internal_state.sd_file {
+                file.seek(SeekFrom::Start(file_offset as u64));
+                trace!("Seeking SD pointer to offset 0x{:08X}!", file_offset);
+            } else {
+                return
+            }
+
+            let transfer = ActiveTransfer {
+                ty: TransferType::Write,
+                blocks_left: dev.data16_blk_cnt.get(),
+                fifo_pos: 0,
+                fifo_size: dev.data16_blk_len.get(),
+            };
+            trace!("Starting SD transfer (write): {:?}", transfer);
+            dev._internal_state.transfer = Some(transfer);
+
+            dev.irq_status1.bitadd_unchecked(Status1::TxRq as u16);
+            warn!("STUBBED: SDMMC CMD25 WRITE_MULTIPLE_BLOCK!");
         }
         55 => {
             dev._internal_state.expect_appcmd = true;
@@ -174,7 +204,7 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
     }
 }
 
-fn reg_fifo_fetch(dev: &mut EmmcDevice) {
+fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
     let should_stop = {
         let file = match dev._internal_state.sd_file {
             Some(ref mut f) => f,
@@ -185,14 +215,31 @@ fn reg_fifo_fetch(dev: &mut EmmcDevice) {
             None => return
         };
 
-        let mut buf16 = [0u8; 2];
-        file.read_exact(&mut buf16);
+        assert_eq!(transfer.ty, transfer_type);
 
-        trace!("Reading from SD FIFO! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X}", transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
-        dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
+        let mut buf16 = [0u8; 2];
+        let status_out = match transfer_type {
+            TransferType::Read => {
+                file.read_exact(&mut buf16).unwrap();
+
+                dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
+
+                Status1::RxReady
+            }
+            TransferType::Write => {
+                buf16 = unsafe { mem::transmute(dev.data16_fifo.get()) };
+                file.write_all(&buf16).unwrap();
+
+                Status1::TxRq
+            }
+        };
+
+        trace!("{} to SD FIFO! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X}",
+               match transfer_type { TransferType::Read => "Reading", TransferType::Write => "Writing"},
+               transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
 
         // Hack to keep the client reading even after acknowledging
-        dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
+        dev.irq_status1.bitadd_unchecked(status_out as u16);
 
         transfer.fifo_pos += 2;
         if transfer.fifo_pos >= transfer.fifo_size {
@@ -237,7 +284,8 @@ iodevice!(EmmcDevice, {
     0x02C => err_status0: u16 { }
     0x02E => err_status1: u16 { }
     0x030 => data16_fifo: u16 {
-        read_effect = reg_fifo_fetch;
+        read_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Read);
+        write_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Write);
     }
     0x0D8 => data16_ctl: u16 { }
     0x0E0 => software_reset: u16 { write_bits = 0b1; }
