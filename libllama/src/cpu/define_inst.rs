@@ -10,7 +10,16 @@ macro_rules! __inst_gen_bf {
     );
 
     (
-        $itop:expr, [ $fpart:ident.$fwidth:expr $(; $part:tt.$width:expr)* ],
+        $itop:expr, [ {}.$fwidth:expr $(; $part:tt.$width:expr)* ],
+                    { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
+    ) => (
+        // Move counter but otherwise pass it right through
+        __inst_gen_bf!($itop - $fwidth, [ $($part.$width);* ],
+                                        { $($spart: $splow => $sphi),* }, $ty);
+    );
+
+    (
+        $itop:expr, [ $fpart:tt.$fwidth:expr $(; $part:tt.$width:expr)* ],
                     { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
     ) => (
         __inst_gen_bf!($itop - $fwidth, [ $($part.$width);* ], {
@@ -39,7 +48,14 @@ macro_rules! __inst_gen_decode {
     );
 
     (
-        $itop:expr, [ $fpart:ident.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
+        $itop:expr, [ $fpart:tt.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
+    ) => (
+        // Move counter but otherwise pass it right through
+        __inst_gen_decode!($itop - $fwidth, [ $($part.$width);* ], $mask, $test, $ty);
+    );
+
+    (
+        $itop:expr, [ {}.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
     ) => (
         // Move counter but otherwise pass it right through
         __inst_gen_decode!($itop - $fwidth, [ $($part.$width);* ], $mask, $test, $ty);
@@ -49,13 +65,9 @@ macro_rules! __inst_gen_decode {
         $itop:expr, [ ], $mask:expr, $test:expr, $ty:ty
     ) => (
         #[inline(always)]
-        pub fn try_decode(encoding: $ty) -> Option<InstrDesc> {
+        pub fn decodable(encoding: $ty) -> bool {
             assert!($itop == 0, format!("{} encoded bits do not add up!", module_path!()));
-            if encoding & $mask == $test {
-                Some(InstrDesc::new(encoding))
-            } else {
-                None
-            }
+            encoding & $mask == $test
         }
     )
 }
@@ -73,22 +85,32 @@ macro_rules! define_inst {
 #[macro_export]
 macro_rules! define_insts {
     ($enumname:ident: $ty:ty, {
-        $( $name:ident: [ $($part:tt.$width:expr);* ] ),*
+        $(
+            with $([ $($wpart:tt.$wwidth:expr);* ])or*
+            {
+                $( $name:ident: [ $($part:tt.$width:expr);* ] ),*
+            }
+        )*
     }) => (
-        $( define_inst!($name: $ty, $($part.$width);*); )*
+        $($( define_inst!($name: $ty, $($part.$width);*); )*)*
 
         #[derive(Debug)]
         #[allow(non_camel_case_types)]
         pub enum $enumname {
-            $( $name($name::InstrDesc), )*
+            $($( $name($name::InstrDesc), )*)*
             Unknown
         }
 
         impl $enumname {
             pub fn decode(encoding: $ty) -> $enumname {
                 $(
-                    if let Some(desc) = $name::try_decode(encoding) {
-                        return $enumname::$name(desc)
+                    if $({ __inst_gen_decode!(::std::mem::size_of::<$ty>()*8, [ $($wpart.$wwidth);* ], 0, 0, $ty);
+                         decodable(encoding) })||* {
+                    $(
+                        if $name::decodable(encoding) {
+                            return $enumname::$name($name::InstrDesc::new(encoding))
+                        }
+                    )*
                     }
                 )*
 
