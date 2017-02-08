@@ -1,5 +1,6 @@
 #[macro_export]
 macro_rules! __inst_gen_bf {
+    // We don't care about the value (`{val}.n`) parts. Reduces item list. Reduces $itop to next item.
     (
         $itop:expr, [ {$fpart:expr}.$fwidth:expr $(; $part:tt.$width:expr)* ],
                     { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
@@ -9,6 +10,7 @@ macro_rules! __inst_gen_bf {
                                         { $($spart: $splow => $sphi),* }, $ty);
     );
 
+    // Skip filler (`{}.n`) parts. Reduces item list. Reduces $itop to next item.
     (
         $itop:expr, [ {}.$fwidth:expr $(; $part:tt.$width:expr)* ],
                     { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
@@ -18,6 +20,8 @@ macro_rules! __inst_gen_bf {
                                         { $($spart: $splow => $sphi),* }, $ty);
     );
 
+    // From named (`foo.n`) parts, accumulate top and bottom bits into position list.
+    // Reduces item list. Reduces $itop to next item.
     (
         $itop:expr, [ $fpart:tt.$fwidth:expr $(; $part:tt.$width:expr)* ],
                     { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
@@ -28,6 +32,7 @@ macro_rules! __inst_gen_bf {
                                         }, $ty);
     );
 
+    // Once item list is empty, finally produce our end result: the `InstrDesc` bitfield.
     (
         $itop:expr, [ ], { $($spart:ident: $splow:expr => $sphi:expr),* }, $ty:ty
     ) => (
@@ -39,6 +44,8 @@ macro_rules! __inst_gen_bf {
 
 #[macro_export]
 macro_rules! __inst_gen_decode {
+    // ORs value (`{val}.n`) at position into $test, mask of value into $mask. Reduces item list.
+    // Reduces $itop to next item.
     (
         $itop:expr, [ {$fpart:expr}.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
     ) => (
@@ -47,6 +54,7 @@ macro_rules! __inst_gen_decode {
                            $test | (bits!($fpart as $ty, 0 => ($fwidth - 1)) << ($itop - $fwidth)), $ty);
     );
 
+    // We don't care about the named (`foo.n`) parts. Reduces item list. Reduces $itop to next item.
     (
         $itop:expr, [ $fpart:tt.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
     ) => (
@@ -54,6 +62,7 @@ macro_rules! __inst_gen_decode {
         __inst_gen_decode!($itop - $fwidth, [ $($part.$width);* ], $mask, $test, $ty);
     );
 
+    // Skip filler (`{}.n`) parts. Reduces item list. Reduces $itop to next item.
     (
         $itop:expr, [ {}.$fwidth:expr $(; $part:tt.$width:expr)* ], $mask:expr, $test:expr, $ty:ty
     ) => (
@@ -61,6 +70,7 @@ macro_rules! __inst_gen_decode {
         __inst_gen_decode!($itop - $fwidth, [ $($part.$width);* ], $mask, $test, $ty);
     );
 
+    // Once item list is empty, finally produce our end result: the `decodable` function.
     (
         $itop:expr, [ ], $mask:expr, $test:expr, $ty:ty
     ) => (
@@ -82,6 +92,15 @@ macro_rules! define_inst {
     )
 }
 
+// Usage:
+// define_insts!(Foo: ty {
+//     with [ constraints ]
+//       or [ constraints ]...
+//     {
+//         bar: [ constraints ],...
+//     }
+//     ...
+// });
 #[macro_export]
 macro_rules! define_insts {
     ($enumname:ident: $ty:ty, {
