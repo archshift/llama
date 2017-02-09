@@ -44,6 +44,17 @@ mod addressing {
         }
     }
 
+    fn misc_immed_offset(mode_data: u32) -> u32 {
+        let immed_lo = bits!(mode_data, 0 => 3);
+        let immed_hi = bits!(mode_data, 8 => 11);
+        immed_lo | (immed_hi << 4)
+    }
+
+    fn misc_reg_offset(cpu: &Cpu, mode_data: u32) -> u32 {
+        let rm = bits!(mode_data, 0 => 3);
+        cpu.regs[rm as usize]
+    }
+
     fn make_addresses(base_addr: u32, offset: u32, u_bit: bool, p_bit: bool, w_bit: bool) -> (LsAddr, WbAddr) {
         let mod_addr = if u_bit {
             base_addr.wrapping_add(offset)
@@ -67,6 +78,21 @@ mod addressing {
             normal_shifted_offset(cpu, instr_data.raw(), carry_bit)
         } else {
             normal_immed_offset(instr_data.raw())
+        };
+
+        make_addresses(cpu.regs[bf!(instr_data.rn) as usize], offset,
+                       bf!(instr_data.u_bit) == 1,
+                       bf!(instr_data.p_bit) == 1,
+                       bf!(instr_data.w_bit) == 1)
+    }
+
+    pub fn decode_misc(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
+        let instr_data = arm::ldrh::InstrDesc::new(instr_data);
+
+        let offset = if bf!(instr_data.i_bit) == 1 {
+            misc_immed_offset(instr_data.raw())
+        } else {
+            misc_reg_offset(cpu, instr_data.raw())
         };
 
         make_addresses(cpu.regs[bf!(instr_data.rn) as usize], offset,
@@ -138,6 +164,23 @@ pub fn ldrb(cpu: &mut Cpu, data: arm::ldrb::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn ldrh(cpu: &mut Cpu, data: arm::ldrh::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    let val = cpu.memory.read::<u16>(addr.0) as u32;
+
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
 pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
     instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), false)
 }
@@ -145,4 +188,21 @@ pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn strb(cpu: &mut Cpu, data: arm::strb::InstrDesc) -> cpu::InstrStatus {
     instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
+}
+
+#[inline(always)]
+pub fn strh(cpu: &mut Cpu, data: arm::strh::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
+    let val = cpu.regs[bf!(data.rd) as usize];
+
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    cpu.memory.write::<u16>(addr.0, val as u16);
+
+    cpu::InstrStatus::InBlock
 }

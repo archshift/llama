@@ -37,8 +37,8 @@ define_insts!(ArmInstruction: u32, {
 
     with [ {}.4; {0b000}.3; {}.17; {1}.1; {}.2; {1}.1; {}.4 ] // Multiplies, extra loads/stores
     {
-        ldrh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; {}.4; {0b1011}.4; addr_mode.4 ],
-        strh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; {}.4; {0b1011}.4; addr_mode.4 ]
+        ldrh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ],
+        strh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ]
     }
 
     with [ {}.4; {0b010}.3; {}.25 ] // Load/store immediate offset

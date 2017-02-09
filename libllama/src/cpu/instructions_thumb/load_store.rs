@@ -58,25 +58,20 @@ pub fn ldrb_2(cpu: &mut Cpu, data: thumb::ldrb_2::InstrDesc) -> cpu::InstrStatus
 }
 
 pub fn ldrh_1(cpu: &mut Cpu, data: thumb::ldrh_1::InstrDesc) -> cpu::InstrStatus {
-    let base_val = cpu.regs[bf!(data.rn) as usize];
-    let immed_5 = bf!(data.immed_5) as u32;
-
-    let addr = base_val + immed_5 * 2;
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u16>(addr) as u32;
-
-    cpu::InstrStatus::InBlock
+    let arminst: u32 = 0b111000011101_0000_0000_00_00_1011_000_0
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                   | ((bf!(data.immed_5) as u32 >> 3) << 8)
+                                                           | ((bf!(data.immed_5) as u32 & 0b111) << 1);
+    cpu::instructions_arm::ldrh(cpu, arm::ldrh::InstrDesc::new(arminst))
 }
 
 pub fn ldrh_2(cpu: &mut Cpu, data: thumb::ldrh_2::InstrDesc) -> cpu::InstrStatus {
-    let base_val = cpu.regs[bf!(data.rn) as usize];
-    let offset = cpu.regs[bf!(data.rm) as usize];
-
-    let addr = base_val + offset;
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u16>(addr) as u32;
-
-    cpu::InstrStatus::InBlock
+    let arminst: u32 = 0b111000011001_0000_0000_00001011_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::ldrh(cpu, arm::ldrh::InstrDesc::new(arminst))
 }
 
 pub fn pop(cpu: &mut Cpu, data: thumb::pop::InstrDesc) -> cpu::InstrStatus {
@@ -140,23 +135,18 @@ pub fn strb_2(cpu: &mut Cpu, data: thumb::strb_2::InstrDesc) -> cpu::InstrStatus
 }
 
 pub fn strh_1(cpu: &mut Cpu, data: thumb::strh_1::InstrDesc) -> cpu::InstrStatus {
-    let base_val = cpu.regs[bf!(data.rn) as usize];
-    let immed_5 = bf!(data.immed_5) as u32;
-
-    let addr = base_val + immed_5 * 2;
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u16>(addr, cpu.regs[bf!(data.rd) as usize] as u16);
-
-    cpu::InstrStatus::InBlock
+    let arminst: u32 = 0b111000011100_0000_0000_00_00_1011_000_0
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                   | ((bf!(data.immed_5) as u32 >> 3) << 8)
+                                                           | ((bf!(data.immed_5) as u32 & 0b111) << 1);
+    cpu::instructions_arm::strh(cpu, arm::strh::InstrDesc::new(arminst))
 }
 
 pub fn strh_2(cpu: &mut Cpu, data: thumb::strh_2::InstrDesc) -> cpu::InstrStatus {
-    let base_val = cpu.regs[bf!(data.rn) as usize];
-    let offset = cpu.regs[bf!(data.rm) as usize];
-
-    let addr = base_val + offset;
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u16>(addr, cpu.regs[bf!(data.rd) as usize] as u16);
-
-    cpu::InstrStatus::InBlock
+    let arminst: u32 = 0b111000011000_0000_0000_00001011_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::strh(cpu, arm::strh::InstrDesc::new(arminst))
 }
