@@ -2,86 +2,77 @@ use cpu;
 use cpu::Cpu;
 use cpu::decoder_arm as arm;
 
-#[inline(always)]
-fn decode_addressing_mode(instr_data: arm::ldr::InstrDesc, cpu: &Cpu) -> u32 {
-    let c_bit = bf!((cpu.cpsr).c_bit) == 1;
+mod addressing {
+    use cpu::Cpu;
+    use cpu::decoder_arm as arm;
 
-    let i_bit = bf!(instr_data.i_bit);
-    let u_bit = bf!(instr_data.u_bit);
-    let base_addr = cpu.regs[bf!(instr_data.rn) as usize];
+    pub struct LsAddr(pub u32);
+    pub struct WbAddr(pub u32);
 
-    let offset = if i_bit == 0 {
-        bits!(instr_data.raw(), 0 => 11)
-    } else {
-        let pre_shift = cpu.regs[bits!(instr_data.raw(), 0 => 3) as usize];
+    fn normal_immed_offset(mode_data: u32) -> u32 {
+        bits!(mode_data, 0 => 11)
+    }
 
-        let offset = if bits!(instr_data.raw(), 4 => 11) == 0 {
-            pre_shift
-        } else {
-            let shift = bits!(instr_data.raw(), 5 => 6);
-            let shift_imm = bits!(instr_data.raw(), 7 => 11);
+    fn normal_shifted_offset(cpu: &Cpu, mode_data: u32, carry_bit: u32) -> u32 {
+        let rm = bits!(mode_data, 0 => 3);
+        let shift = bits!(mode_data, 5 => 6);
+        let shift_imm = bits!(mode_data, 7 => 11);
 
-            match shift {
-                0b00 => pre_shift << shift_imm,
-                0b01 => {
-                    let index = if shift_imm == 0 {
-                        0
-                    } else {
-                        pre_shift >> shift_imm
-                    }; index
-                },
-                0b10 => {
-                    let index = if shift_imm == 0 {
-                        let index = if bit!(pre_shift, 31) == 1 {
-                            0xFFFFFFFF
-                        } else {
-                            0
-                        }; index
-                    } else {
-                        ((pre_shift as i32) >> shift_imm) as u32
-                    }; index
-                },
-                0b11 => {
-                    let index = if shift_imm == 0 {
-                        ((c_bit as u32) << 31) | (pre_shift >> 1)
-                    } else {
-                        pre_shift.rotate_right(shift_imm)
-                    }; index
+        let pre_shift = cpu.regs[rm as usize];
+        match shift {
+            0b00 => pre_shift << shift_imm,
+            0b01 => {
+                if shift_imm == 0 { 0 }
+                else { pre_shift >> shift_imm }
+            },
+            0b10 => {
+                if shift_imm == 0 {
+                    if bit!(pre_shift, 31) == 1 { 0xFFFFFFFF }
+                    else { 0 }
+                } else {
+                    ((pre_shift as i32) >> shift_imm) as u32
                 }
-                _ => {
-                    panic!("Unhandled shifter operation!");
+            },
+            0b11 => {
+                if shift_imm == 0 {
+                    (carry_bit << 31) | (pre_shift >> 1)
+                } else {
+                    pre_shift.rotate_right(shift_imm)
                 }
             }
-        }; offset
-    };
-
-    if u_bit == 1 {
-        return base_addr + offset;
-    } else {
-        return base_addr - offset;
-    }
-}
-
-#[inline(always)]
-fn decode_addr_and_writeback(instr_data: u32, cpu: &Cpu) -> (u32, u32) {
-    // For convenience
-    let instr_data = arm::ldr::InstrDesc::new(instr_data);
-
-    let base_addr = cpu.regs[bf!(instr_data.rn) as usize];
-    let mod_addr = decode_addressing_mode(instr_data, cpu);
-
-    if bf!(instr_data.p_bit) == 1 {
-        // Pre-indexed
-        if bf!(instr_data.w_bit) == 0 {
-            // Writeback disabled
-            (mod_addr, base_addr)
-        } else {
-            (mod_addr, mod_addr)
+            _ => unreachable!()
         }
-    } else {
-        // Post-indexed
-        assert!(bf!(instr_data.w_bit) == 0); // TODO: Implement
-        (base_addr, mod_addr)
+    }
+
+    fn make_addresses(base_addr: u32, offset: u32, u_bit: bool, p_bit: bool, w_bit: bool) -> (LsAddr, WbAddr) {
+        let mod_addr = if u_bit {
+            base_addr.wrapping_add(offset)
+        } else {
+            base_addr.wrapping_sub(offset)
+        };
+
+        match (p_bit, w_bit) {
+            (true, false)  => (LsAddr(mod_addr), WbAddr(base_addr)), // Pre-indexed, writeback disabled
+            (true, true)   => (LsAddr(mod_addr), WbAddr(mod_addr)), // Pre-indexed, writeback enabled
+            (false, false) => (LsAddr(base_addr), WbAddr(mod_addr)), // Post-indexed, writeback enabled
+            (false, true)  => panic!("Invalid writeback mode!") // UNPREDICTABLE
+        }
+    }
+
+    pub fn decode_normal(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
+        let instr_data = arm::ldr::InstrDesc::new(instr_data);
+        let carry_bit = bf!((cpu.cpsr).c_bit) as u32;
+
+        let offset = if bf!(instr_data.i_bit) == 1 {
+            normal_shifted_offset(cpu, instr_data.raw(), carry_bit)
+        } else {
+            normal_immed_offset(instr_data.raw())
+        };
+
+        make_addresses(cpu.regs[bf!(instr_data.rn) as usize], offset,
+                       bf!(instr_data.u_bit) == 1,
+                       bf!(instr_data.p_bit) == 1,
+                       bf!(instr_data.w_bit) == 1)
     }
 }
 
@@ -92,17 +83,17 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
     }
 
     let rd = bf!(data.rd);
-    let (addr, wb) = decode_addr_and_writeback(data.raw(), cpu);
+    let (addr, wb) = addressing::decode_normal(data.raw(), cpu);
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     let val = if byte {
-        cpu.memory.read::<u8>(addr) as u32
+        cpu.memory.read::<u8>(addr.0) as u32
     } else {
-        cpu.memory.read::<u32>(addr.rotate_right(8 * bits!(addr, 0 => 1)))
+        cpu.memory.read::<u32>(addr.0.rotate_right(8 * bits!(addr.0, 0 => 1)))
     };
 
     // Writeback
-    cpu.regs[bf!(data.rn) as usize] = wb;
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
 
     if rd == 15 {
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
@@ -121,16 +112,16 @@ fn instr_store(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Ins
         return cpu::InstrStatus::InBlock;
     }
 
-    let (addr, wb) = decode_addr_and_writeback(data.raw(), cpu);
+    let (addr, wb) = addressing::decode_normal(data.raw(), cpu);
     let val = cpu.regs[bf!(data.rd) as usize];
 
     // Writeback
-    cpu.regs[bf!(data.rn) as usize] = wb;
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
 
     if byte {
-        cpu.memory.write::<u8>(addr, val as u8);
+        cpu.memory.write::<u8>(addr.0, val as u8);
     } else {
-        cpu.memory.write::<u32>(addr, val);
+        cpu.memory.write::<u32>(addr.0, val);
     };
 
     cpu::InstrStatus::InBlock
