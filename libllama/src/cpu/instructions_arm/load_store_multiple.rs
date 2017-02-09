@@ -13,21 +13,12 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
     let u_bit = bf!(instr_data.u_bit) == 1;
     let rn_val = cpu.regs[bf!(instr_data.rn) as usize];
 
-    if !p_bit && u_bit {
-        // Increment after
-        return (rn_val, rn_val + num_registers * 4)
-    } else if p_bit && u_bit {
-        // Increment before
-        return (rn_val + 4, rn_val + num_registers * 4)
-    } else if !p_bit && !u_bit {
-        // Decrement after
-        return (rn_val - num_registers * 4 + 4, rn_val - num_registers * 4)
-    } else if p_bit && !u_bit {
-        // Decrement before
-        return (rn_val - num_registers * 4, rn_val - num_registers * 4)
-    } else {
-        unreachable!();
-    };
+    match (p_bit, u_bit) {
+        (false, true)  => (rn_val, rn_val + num_registers * 4), // Increment after
+        (true, true)   => (rn_val + 4, rn_val + num_registers * 4), // Increment before
+        (false, false) => (rn_val - num_registers * 4 + 4, rn_val - num_registers * 4), // Decrement after
+        (true, false)  => (rn_val - num_registers * 4, rn_val - num_registers * 4) // Decrement before
+    }
 }
 
 #[inline(always)]
@@ -39,7 +30,7 @@ pub fn instr_ldm(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus
     let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
     let register_list = bf!(data.register_list);
 
-    for i in 0..14 {
+    for i in 0..15 {
         if bit!(register_list, i) == 1 {
             cpu.regs[i] = cpu.memory.read::<u32>(addr);
             addr += 4;
@@ -69,7 +60,7 @@ pub fn instr_stm(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus
     let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
     let register_list = bf!(data.register_list);
 
-    for i in 0..15 {
+    for i in 0..16 {
         if bit!(register_list, i) == 1 {
             cpu.memory.write::<u32>(addr, cpu.regs[i]);
             addr += 4;
