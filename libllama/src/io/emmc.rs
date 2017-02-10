@@ -114,6 +114,7 @@ fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
         12 => {
             dev._internal_state.transfer = None;
             dev.irq_status1.bitclr_unchecked(Status1::RxReady as u16);
+            dev.irq_status1.bitclr_unchecked(Status1::TxRq as u16);
             dev.irq_status0.bitadd_unchecked(Status0::CmdResponseEnd as u16);
             warn!("STUBBED: SDMMC CMD12 STOP_TRANSMISSION!");
         }

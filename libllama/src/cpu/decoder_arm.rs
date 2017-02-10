@@ -31,13 +31,18 @@ define_insts!(ArmInstruction: u32, {
     {
         blx_2: [ cond.4; {0b000100101111111111110011}.24; rm.4 ],
         bx: [ cond.4; {0b000100101111111111110001}.24; rm.4 ],
+        clz: [ cond.4; {0b000101101111}.12; rd.4; {0b1111}.4; {0b0001}.4; rm.4 ],
         mrs: [ cond.4; {0b00010}.5; r_bit.1; {0b00}.2; {0b1111}.4; rd.4; {0b000000000000}.12 ],
         msr_2: [ cond.4; {0b00010}.5; r_bit.1; {0b10}.2; field_mask.4; {0b111100000000}.12; rm.4 ]
     }
 
     with [ {}.4; {0b000}.3; {}.17; {1}.1; {}.2; {1}.1; {}.4 ] // Multiplies, extra loads/stores
     {
+        ldrd: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1101}.4; addr_mode_lo.4 ],
         ldrh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ],
+        ldrsb: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1101}.4; addr_mode_lo.4 ],
+        ldrsh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1111}.4; addr_mode_lo.4 ],
+        strd: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1111}.4; addr_mode_lo.4 ],
         strh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ]
     }
 
@@ -53,7 +58,7 @@ define_insts!(ArmInstruction: u32, {
     with [ {}.4; {0b100}.3; {}.25 ] // Load/store multiple
     {
         ldm_1: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {0}.1; w_bit.1; {1}.1; rn.4; register_list.16 ],
-        ldm_2: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {0b101}.3; rn.4; {1}.1; register_list.15 ],
+        ldm_2: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {0b101}.3; rn.4; {0}.1; register_list.15 ],
         ldm_3: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {1}.1; w_bit.1; {1}.1; rn.4; {1}.1; register_list.15 ],
         stm_1: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {0}.1; w_bit.1; {0}.1; rn.4; register_list.16 ],
         stm_2: [ cond.4; {0b100}.3; p_bit.1; u_bit.1; {0b100}.3; rn.4; register_list.16 ]

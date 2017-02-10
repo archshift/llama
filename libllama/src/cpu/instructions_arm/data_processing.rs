@@ -332,6 +332,14 @@ pub fn bic(cpu: &mut Cpu, data: arm::bic::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn clz(cpu: &mut Cpu, data: arm::clz::InstrDesc) -> cpu::InstrStatus {
+    let base_val = cpu.regs[bf!(data.rm) as usize];
+    cpu.regs[bf!(data.rd) as usize] = base_val.leading_zeros();
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
 pub fn cmn(cpu: &mut Cpu, data: arm::cmn::InstrDesc) -> cpu::InstrStatus {
     instr_compare(cpu, arm::cmp::InstrDesc::new(data.raw()), true)
 }

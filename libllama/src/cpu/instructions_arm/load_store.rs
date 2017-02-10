@@ -2,6 +2,8 @@ use cpu;
 use cpu::Cpu;
 use cpu::decoder_arm as arm;
 
+use bitutils::sign_extend;
+
 mod addressing {
     use cpu::Cpu;
     use cpu::decoder_arm as arm;
@@ -102,6 +104,13 @@ mod addressing {
     }
 }
 
+enum MiscLsType {
+    Doubleword,
+    Halfword,
+    SignedByte,
+    SignedHalfword
+}
+
 #[inline(always)]
 fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
@@ -133,7 +142,37 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
 }
 
 #[inline(always)]
-fn instr_store(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
+fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let rd = bf!(data.rd) as usize;
+    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    let val = match ty {
+        MiscLsType::Doubleword => {
+            assert!((rd % 2 == 0) && (rd != 14) && (addr.0 % 4 == 0));
+            let val = cpu.memory.read::<u64>(addr.0);
+            cpu.regs[rd] = val as u32;
+            cpu.regs[rd+1] = (val >> 32) as u32;
+            return cpu::InstrStatus::InBlock
+        }
+        MiscLsType::Halfword => cpu.memory.read::<u16>(addr.0) as u32,
+        MiscLsType::SignedByte => sign_extend(cpu.memory.read::<u8>(addr.0) as u32, 8) as u32,
+        MiscLsType::SignedHalfword => sign_extend(cpu.memory.read::<u16>(addr.0) as u32, 16) as u32
+    };
+
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -154,6 +193,31 @@ fn instr_store(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Ins
 }
 
 #[inline(always)]
+fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
+    let rd = bf!(data.rd) as usize;
+
+    // Writeback
+    cpu.regs[bf!(data.rn) as usize] = wb.0;
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    match ty {
+        MiscLsType::Doubleword => {
+            assert!((rd % 2 == 0) && (rd != 14) && (addr.0 % 4 == 0));
+            let val = (cpu.regs[rd] as u64) | ((cpu.regs[rd+1] as u64) << 32);
+            cpu.memory.write::<u64>(addr.0, val)
+        }
+        MiscLsType::Halfword => cpu.memory.write::<u16>(addr.0, cpu.regs[rd] as u16),
+        _ => panic!("Invalid miscellaneous store type!")
+    }
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
 pub fn ldr(cpu: &mut Cpu, data: arm::ldr::InstrDesc) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
@@ -164,45 +228,41 @@ pub fn ldrb(cpu: &mut Cpu, data: arm::ldrb::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn ldrd(cpu: &mut Cpu, data: arm::ldrd::InstrDesc) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
+}
+
+#[inline(always)]
 pub fn ldrh(cpu: &mut Cpu, data: arm::ldrh::InstrDesc) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return cpu::InstrStatus::InBlock;
-    }
+    instr_load_misc(cpu, data, MiscLsType::Halfword)
+}
 
-    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    let val = cpu.memory.read::<u16>(addr.0) as u32;
+#[inline(always)]
+pub fn ldrsb(cpu: &mut Cpu, data: arm::ldrsb::InstrDesc) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedByte)
+}
 
-    // Writeback
-    cpu.regs[bf!(data.rn) as usize] = wb.0;
-    cpu.regs[bf!(data.rd) as usize] = val;
-
-    cpu::InstrStatus::InBlock
+#[inline(always)]
+pub fn ldrsh(cpu: &mut Cpu, data: arm::ldrsh::InstrDesc) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedHalfword)
 }
 
 #[inline(always)]
 pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
-    instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), false)
+    instr_store(cpu, data, false)
 }
 
 #[inline(always)]
 pub fn strb(cpu: &mut Cpu, data: arm::strb::InstrDesc) -> cpu::InstrStatus {
-    instr_store(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
+    instr_store(cpu, arm::str::InstrDesc::new(data.raw()), true)
+}
+
+#[inline(always)]
+pub fn strd(cpu: &mut Cpu, data: arm::strd::InstrDesc) -> cpu::InstrStatus {
+    instr_store_misc(cpu, arm::strh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
 }
 
 #[inline(always)]
 pub fn strh(cpu: &mut Cpu, data: arm::strh::InstrDesc) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
-        return cpu::InstrStatus::InBlock;
-    }
-
-    let (addr, wb) = addressing::decode_misc(data.raw(), cpu);
-    let val = cpu.regs[bf!(data.rd) as usize];
-
-    // Writeback
-    cpu.regs[bf!(data.rn) as usize] = wb.0;
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u16>(addr.0, val as u16);
-
-    cpu::InstrStatus::InBlock
+    instr_store_misc(cpu, data, MiscLsType::Halfword)
 }

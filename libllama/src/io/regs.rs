@@ -38,12 +38,12 @@ impl<T> IoReg<T>
     }
 
     pub unsafe fn mem_load<BUF: Copy>(&self, buf: *mut BUF, buf_size: usize) {
-        assert!(mem::size_of::<T>() == buf_size);
+        assert_eq!(mem::size_of::<T>(), buf_size);
         ptr::write(mem::transmute(buf), self.get());
     }
 
     pub unsafe fn mem_save<BUF: Copy>(&mut self, buf: *const BUF, buf_size: usize) {
-        assert!(mem::size_of::<T>() == buf_size);
+        assert_eq!(mem::size_of::<T>(), buf_size);
         self.set(ptr::read(mem::transmute(buf)));
     }
 }

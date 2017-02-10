@@ -19,6 +19,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::asr_1(data) => instructions_thumb::asr_1(cpu, data),
         ThumbInstruction::b_1(data) => instructions_thumb::b_1(cpu, data),
         ThumbInstruction::bic(data) => instructions_thumb::bic(cpu, data),
+        ThumbInstruction::blx_2(data) => instructions_thumb::blx_2(cpu, data),
         ThumbInstruction::branch(data) => instructions_thumb::branch(cpu, data),
         ThumbInstruction::bx(data) => instructions_thumb::bx(cpu, data),
         ThumbInstruction::cmp_1(data) => instructions_thumb::cmp_1(cpu, data),

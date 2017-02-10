@@ -49,6 +49,18 @@ pub fn branch(cpu: &mut Cpu, data: thumb::branch::InstrDesc) -> cpu::InstrStatus
 }
 
 #[inline(always)]
+pub fn blx_2(cpu: &mut Cpu, data: thumb::blx_2::InstrDesc) -> cpu::InstrStatus {
+    let rm = bf!(data.rm) | (bf!(data.h2) << 3);
+    let addr = cpu.regs[rm as usize];
+
+    cpu.regs[14] = (cpu.regs[15] - 2) as u32 | 1;
+    bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
+
+    cpu.branch(addr & 0xFFFFFFFE);
+    cpu::InstrStatus::Branched
+}
+
+#[inline(always)]
 pub fn bx(cpu: &mut Cpu, data: thumb::bx::InstrDesc) -> cpu::InstrStatus {
     let addr = cpu.regs[((bf!(data.h2) << 3) | bf!(data.rm)) as usize];
     bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
