@@ -1,6 +1,6 @@
 use std::sync::{self, atomic};
 
-use utils::task::Task;
+use utils::task::{self, TaskMgmt};
 
 use cpu;
 use ldr;
@@ -40,6 +40,7 @@ pub struct Hardware11 {
     pub mem: mem::MemController
 }
 
+#[derive(Debug)]
 enum HandshakePos {
     NotStarted,
     Finished1,
@@ -51,8 +52,8 @@ pub struct HwCore {
     hardware9: sync::Arc<sync::RwLock<Hardware9>>,
     hardware11: sync::Arc<sync::RwLock<Hardware11>>,
 
-    hardware_task: Option<Task>,
-    arm11_handshake_task: Option<Task>,
+    hardware_task: Option<task::Task>,
+    arm11_handshake_task: Option<task::Task>,
 }
 
 impl HwCore {
@@ -81,7 +82,7 @@ impl HwCore {
         let hardware9 = self.hardware9.clone();
         let hardware11 = self.hardware11.clone();
 
-        self.hardware_task = Some(Task::spawn(move |running| {
+        self.hardware_task = Some(task::Task::spawn(move |running| {
             // Nobody else can access the hardware while the thread runs
             let mut hardware = hardware9.write().unwrap();
 
@@ -96,7 +97,7 @@ impl HwCore {
         // On reset, the ARM9 and ARM11 processors perform a handshake, where
         // the two processors synchronize over AXI WRAM address 0x1FFFFFF0.
         // Until the ARM11 is emulated, manually doing this will allow FIRM to boot.
-        self.arm11_handshake_task = Some(Task::spawn(move |running| {
+        self.arm11_handshake_task = Some(task::Task::spawn(move |running| {
             use std::thread;
 
             // Nobody else can access the hardware while the thread runs
@@ -110,7 +111,7 @@ impl HwCore {
 
             if let HandshakePos::Finished1 = hardware.handshake_pos {
                 while hardware.mem.read::<u8>(sync_addr) != 2 {
-                    if !running.load(atomic::Ordering::SeqCst) { break }
+                    if !running.load(atomic::Ordering::SeqCst) { return }
                     thread::yield_now();
                 }
                 hardware.handshake_pos = HandshakePos::Finished2;
@@ -134,37 +135,34 @@ impl HwCore {
 
     pub fn try_wait(&mut self) -> bool {
         let res = {
-            [&mut self.hardware_task, &mut self.arm11_handshake_task].iter_mut()
-                .map(|t| {
-                    if let Some(ref mut task) = **t { task.try_join() }
-                    else { Ok(true) }
-                })
-                .fold(Ok(true), |acc, res| {
-                    acc.and(res) // None if either is none
-                    .and(acc.map(|val| val && res.unwrap())) // otherwise Ok(a && b)
-                })
+            let mut tasks = [
+                (&mut self.hardware_task, task::EndBehavior::StopAll),
+                (&mut self.arm11_handshake_task, task::EndBehavior::Ignore)
+            ];
+            task::TaskUnion(&mut tasks).try_join()
         };
 
         match res {
-            Ok(x) => x,
+            Ok(x) => x == task::JoinStatus::Joined,
             Err(_) => self.panic_action()
         }
     }
 
     pub fn stop(&mut self) {
-        let is_err = {
-            [&mut self.hardware_task, &mut self.arm11_handshake_task].iter_mut()
-                .map(|t| {
-                    if let Some(ref mut task) = **t { task.stop().is_err() }
-                    else { false }
-                })
-                .fold(true, |acc, res| acc && res)
+        let res = {
+            let mut tasks = [
+                (&mut self.hardware_task, task::EndBehavior::StopAll),
+                (&mut self.arm11_handshake_task, task::EndBehavior::Ignore)
+            ];
+
+            task::TaskUnion(&mut tasks).stop()
         };
 
-        if is_err {
-            self.panic_action();
+        if res.is_err() {
+            self.panic_action()
         }
         self.hardware_task = None;
+        self.arm11_handshake_task = None;
     }
 
     pub fn hardware(&self) -> sync::RwLockReadGuard<Hardware9> {
