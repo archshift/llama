@@ -1,6 +1,7 @@
-use cpu::{Cpu, Psr};
+use cpu::Cpu;
 use cpu::decoder_arm::ArmInstruction;
 use cpu::instructions_arm;
+use cpu::regs::Psr;
 
 pub enum InstrStatus {
     InBlock, // Advance PC by instruction width
@@ -68,6 +69,8 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::ldrh(data) => instructions_arm::ldrh(cpu, data),
         ArmInstruction::ldrsb(data) => instructions_arm::ldrsb(cpu, data),
         ArmInstruction::ldrsh(data) => instructions_arm::ldrsh(cpu, data),
+        ArmInstruction::mcr(data) => InstrStatus::InBlock,
+        ArmInstruction::mrc(data) => InstrStatus::InBlock,
         ArmInstruction::mov(data) => instructions_arm::mov(cpu, data),
         ArmInstruction::mrs(data) => instructions_arm::mrs(cpu, data),
         ArmInstruction::msr_1(data) => instructions_arm::msr_1(cpu, data),

@@ -1,23 +1,37 @@
 use cpu;
+use cpu::regs::{GpRegs, Psr};
 use mem;
 
 use std::collections::HashMap;
 
-// Program status register
-bitfield!(Psr: u32, {
-    mode: 0 => 4,
-    thumb_bit: 5 => 5,
-    disable_fiq_bit: 6 => 6,
-    disable_irq_bit: 7 => 7,
-    q_bit: 27 => 27,
-    v_bit: 28 => 28,
-    c_bit: 29 => 29,
-    z_bit: 30 => 30,
-    n_bit: 31 => 31
-});
+#[derive(Copy, Clone, Debug)]
+pub enum Mode {
+    Usr = 0b10000,
+    Fiq = 0b10001,
+    Irq = 0b10010,
+    Svc = 0b10011,
+    Abt = 0b10111,
+    Und = 0b11011,
+    Sys = 0b11111
+}
+
+impl Mode {
+    pub fn from_num(val: u32) -> Mode {
+        match val {
+            n if n == Mode::Usr as u32 => Mode::Usr,
+            n if n == Mode::Fiq as u32 => Mode::Fiq,
+            n if n == Mode::Irq as u32 => Mode::Irq,
+            n if n == Mode::Svc as u32 => Mode::Svc,
+            n if n == Mode::Abt as u32 => Mode::Abt,
+            n if n == Mode::Und as u32 => Mode::Und,
+            n if n == Mode::Sys as u32 => Mode::Sys,
+            _ => unreachable!()
+        }
+    }
+}
 
 pub struct Cpu {
-    pub regs: [u32; 16],
+    pub regs: GpRegs,
     pub cpsr: Psr,
     pub spsr_fiq: Psr,
     pub spsr_irq: Psr,
@@ -37,7 +51,7 @@ pub enum BreakReason {
 impl Cpu {
     pub fn new(memory: mem::MemController) -> Cpu {
         Cpu {
-            regs: [0; 16],
+            regs: GpRegs::new(Mode::Svc),
             cpsr: Psr::new(0),
             spsr_fiq: Psr::new(0),
             spsr_irq: Psr::new(0),
@@ -51,11 +65,13 @@ impl Cpu {
     }
 
     pub fn reset(&mut self, entry: u32) {
-        self.regs[15] = entry + self.get_pc_offset();
-        bf!((self.cpsr).mode = 0b10011);
+        self.regs.flush(Mode::Svc);
+        bf!((self.cpsr).mode = Mode::Svc as u32);
         bf!((self.cpsr).thumb_bit = 0b0);
         bf!((self.cpsr).disable_fiq_bit = 0b1);
         bf!((self.cpsr).disable_irq_bit = 0b1);
+
+        self.regs[15] = entry + self.get_pc_offset();
     }
 
     pub fn get_pc_offset(&self) -> u32 {
@@ -67,12 +83,12 @@ impl Cpu {
     }
 
     pub fn get_current_spsr(&mut self) -> &mut Psr {
-        match bf!((self.cpsr).mode) {
-            0b10001 => &mut self.spsr_fiq,
-            0b10010 => &mut self.spsr_irq,
-            0b10011 => &mut self.spsr_svc,
-            0b10111 => &mut self.spsr_abt,
-            0b11011 => &mut self.spsr_und,
+        match Mode::from_num(bf!((self.cpsr).mode)) {
+            Mode::Fiq => &mut self.spsr_fiq,
+            Mode::Irq => &mut self.spsr_irq,
+            Mode::Svc => &mut self.spsr_svc,
+            Mode::Abt => &mut self.spsr_abt,
+            Mode::Und => &mut self.spsr_und,
             _ => panic!("Attempted to access non-existent SPSR!"),
         }
     }

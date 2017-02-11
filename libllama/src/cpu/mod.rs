@@ -14,3 +14,4 @@ pub use self::interpreter_thumb::*;
 
 pub mod instructions_arm;
 pub mod instructions_thumb;
+pub mod regs;

@@ -56,14 +56,19 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) ->
         // CPSR
         // TODO: Check privileges
         let cleared_cpsr = cpu.cpsr.raw() & !byte_mask;
-        cpu.cpsr.set_raw(cleared_cpsr | (val & byte_mask))
+        cpu.cpsr.set_raw(cleared_cpsr | (val & byte_mask));
+
+        if bit!(field_mask, 0) == 1 {
+            // CPU mode may have been changed
+            cpu.regs.flush(cpu::Mode::from_num(bf!((cpu.cpsr).mode)));
+        }
     } else {
         // SPSR
         let spsr = cpu.get_current_spsr();
         byte_mask &= user_mask | priv_mask | state_mask;
 
         let cleared_spsr = spsr.raw() & !byte_mask;
-        spsr.set_raw(cleared_spsr | (val & byte_mask))
+        spsr.set_raw(cleared_spsr | (val & byte_mask));
     }
 
     cpu::InstrStatus::InBlock
