@@ -39,8 +39,8 @@ impl GpRegs {
         }
     }
 
-    pub fn flush(&mut self, mode: cpu::Mode) {
-        trace!("Flushing register banks: mode {:?} to {:?}", self.mode, mode);
+    pub fn swap(&mut self, mode: cpu::Mode) {
+        trace!("Swapping register banks: mode {:?} to {:?}", self.mode, mode);
         { // Save active regs to bank
             let mut iter = self.banks.build_iter(self.mode);
             for i in 0..15 {

@@ -22,7 +22,7 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
 }
 
 #[inline(always)]
-pub fn instr_ldm(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
+pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -52,7 +52,29 @@ pub fn instr_ldm(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus
 }
 
 #[inline(always)]
-pub fn instr_stm(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
+pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (mut addr, _) = decode_addressing_mode(data.raw(), cpu);
+    let register_list = bf!(data.register_list);
+
+    let current_mode = cpu::Mode::from_num(bf!((cpu.cpsr).mode));
+    cpu.regs.swap(cpu::Mode::Usr);
+    for i in 0..14 {
+        if bit!(register_list, i) == 1 {
+            cpu.regs[i] = cpu.memory.read::<u32>(addr);
+            addr += 4;
+        }
+    }
+    cpu.regs.swap(current_mode);
+
+    return cpu::InstrStatus::InBlock;
+}
+
+#[inline(always)]
+pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -72,29 +94,4 @@ pub fn instr_stm(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus
     }
 
     cpu::InstrStatus::InBlock
-}
-
-#[inline(always)]
-pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
-    instr_ldm(cpu, data)
-}
-
-#[inline(always)]
-pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
-    instr_ldm(cpu, arm::ldm_1::InstrDesc::new(data.raw()))
-}
-
-#[inline(always)]
-pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
-    instr_ldm(cpu, arm::ldm_1::InstrDesc::new(data.raw()))
-}
-
-#[inline(always)]
-pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
-    instr_stm(cpu, data)
-}
-
-#[inline(always)]
-pub fn stm_2(cpu: &mut Cpu, data: arm::stm_2::InstrDesc) -> cpu::InstrStatus {
-    instr_stm(cpu, arm::stm_1::InstrDesc::new(data.raw()))
 }

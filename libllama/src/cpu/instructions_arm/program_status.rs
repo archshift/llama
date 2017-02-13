@@ -60,7 +60,7 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) ->
 
         if bit!(field_mask, 0) == 1 {
             // CPU mode may have been changed
-            cpu.regs.flush(cpu::Mode::from_num(bf!((cpu.cpsr).mode)));
+            cpu.regs.swap(cpu::Mode::from_num(bf!((cpu.cpsr).mode)));
         }
     } else {
         // SPSR

@@ -78,14 +78,14 @@ pub fn pop(cpu: &mut Cpu, data: thumb::pop::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110100010111101_0_0000000_00000000
                                           | ((bf!(data.r_bit) as u32) << 15)
                                                     | ((bf!(data.register_list) as u32) << 0);
-    cpu::instructions_arm::instr_ldm(cpu, arm::ldm_1::InstrDesc::new(arminst))
+    cpu::instructions_arm::ldm_1(cpu, arm::ldm_1::InstrDesc::new(arminst))
 }
 
 pub fn push(cpu: &mut Cpu, data: thumb::push::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b11101001001011010_0_000000_00000000
                                            | ((bf!(data.r_bit) as u32) << 14)
                                                     | ((bf!(data.register_list) as u32) << 0);
-    cpu::instructions_arm::instr_stm(cpu, arm::stm_1::InstrDesc::new(arminst))
+    cpu::instructions_arm::stm_1(cpu, arm::stm_1::InstrDesc::new(arminst))
 }
 
 pub fn str_1(cpu: &mut Cpu, data: thumb::str_1::InstrDesc) -> cpu::InstrStatus {

@@ -65,7 +65,7 @@ impl Cpu {
     }
 
     pub fn reset(&mut self, entry: u32) {
-        self.regs.flush(Mode::Svc);
+        self.regs.swap(Mode::Svc);
         bf!((self.cpsr).mode = Mode::Svc as u32);
         bf!((self.cpsr).thumb_bit = 0b0);
         bf!((self.cpsr).disable_fiq_bit = 0b1);
