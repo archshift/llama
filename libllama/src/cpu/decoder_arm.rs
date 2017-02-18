@@ -42,6 +42,7 @@ define_insts!(ArmInstruction: u32, {
         ldrh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ],
         ldrsb: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1101}.4; addr_mode_lo.4 ],
         ldrsh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {1}.1; rn.4; rd.4; addr_mode_hi.4; {0b1111}.4; addr_mode_lo.4 ],
+        mul: [ cond.4; {0b0000000}.7; s_bit.1; rd.4; {0b0000}.4; rs.4; {0b1001}.4; rm.4 ],
         strd: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1111}.4; addr_mode_lo.4 ],
         strh: [ cond.4; {0b000}.3; p_bit.1; u_bit.1; i_bit.1; w_bit.1; {0}.1; rn.4; rd.4; addr_mode_hi.4; {0b1011}.4; addr_mode_lo.4 ]
     }

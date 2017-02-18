@@ -333,6 +333,10 @@ pub fn bic(cpu: &mut Cpu, data: arm::bic::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn clz(cpu: &mut Cpu, data: arm::clz::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
     let base_val = cpu.regs[bf!(data.rm) as usize];
     cpu.regs[bf!(data.rd) as usize] = base_val.leading_zeros();
 
@@ -392,4 +396,24 @@ pub fn teq(cpu: &mut Cpu, data: arm::teq::InstrDesc) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn tst(cpu: &mut Cpu, data: arm::tst::InstrDesc) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
+}
+
+#[inline(always)]
+pub fn mul(cpu: &mut Cpu, data: arm::mul::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
+    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
+    let val = (base_val * multiplier) as u32;
+
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    if bf!(data.s_bit) == 1 {
+        bf!((cpu.cpsr).n_bit = bit!(val, 31));
+        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    };
+
+    cpu::InstrStatus::InBlock
 }

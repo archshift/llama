@@ -74,6 +74,32 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
+    let register_list = bf!(data.register_list);
+
+    for i in 0..15 {
+        if bit!(register_list, i) == 1 {
+            cpu.regs[i] = cpu.memory.read::<u32>(addr);
+            addr += 4;
+        }
+    }
+
+    if bf!(data.w_bit) == 1 {
+        cpu.regs[bf!(data.rn) as usize] = writeback;
+    }
+
+    cpu.spsr_make_current();
+    let dest = cpu.memory.read::<u32>(addr);
+    cpu.branch(dest & 0xFFFFFFFE);
+    cpu::InstrStatus::Branched
+}
+
+#[inline(always)]
 pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;

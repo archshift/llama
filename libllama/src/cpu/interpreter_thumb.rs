@@ -51,6 +51,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::sub_3(data) => instructions_thumb::sub_3(cpu, data),
         ThumbInstruction::sub_4(data) => instructions_thumb::sub_4(cpu, data),
         ThumbInstruction::sbc(data) => instructions_thumb::sbc(cpu, data),
+        ThumbInstruction::stmia(data) => instructions_thumb::stmia(cpu, data),
         ThumbInstruction::str_1(data) => instructions_thumb::str_1(cpu, data),
         ThumbInstruction::str_2(data) => instructions_thumb::str_2(cpu, data),
         ThumbInstruction::str_3(data) => instructions_thumb::str_3(cpu, data),

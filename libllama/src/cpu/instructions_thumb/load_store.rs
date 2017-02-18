@@ -88,6 +88,13 @@ pub fn push(cpu: &mut Cpu, data: thumb::push::InstrDesc) -> cpu::InstrStatus {
     cpu::instructions_arm::stm_1(cpu, arm::stm_1::InstrDesc::new(arminst))
 }
 
+pub fn stmia(cpu: &mut Cpu, data: thumb::stmia::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111010001010_0000_00000000_00000000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                                    | ((bf!(data.register_list) as u32) << 0);
+    cpu::instructions_arm::stm_1(cpu, arm::stm_1::InstrDesc::new(arminst))
+}
+
 pub fn str_1(cpu: &mut Cpu, data: thumb::str_1::InstrDesc) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed_5 = bf!(data.immed_5) as u32;
