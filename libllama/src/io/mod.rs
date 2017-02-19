@@ -4,6 +4,7 @@ mod regs;
 mod config;
 mod emmc;
 mod irq;
+mod xdma;
 
 use std::default::Default;
 
@@ -25,9 +26,9 @@ pub struct IoRegsArm9 {
     // aes,
     // sha,
     // rsa,
-    // xdma,
+    xdma: xdma::XdmaDevice,
     // spicard,
-    // config_ext,
+    config_ext: config::ConfigExtDevice,
     // prng,
     // otp,
     // arm7,
@@ -43,6 +44,8 @@ impl IoRegsArm9 {
             0x000 => &mut self.config,
             0x001 => &mut self.irq,
             0x006 => &mut self.emmc,
+            0x00C => &mut self.xdma,
+            0x010 => &mut self.config_ext,
             _ => { error!("Unimplemented IO register read at offset 0x{:X}", offset); return },
         };
         device.read_reg(offset & 0xFFF, buf, buf_size);
@@ -53,6 +56,8 @@ impl IoRegsArm9 {
             0x000 => &mut self.config,
             0x001 => &mut self.irq,
             0x006 => &mut self.emmc,
+            0x00C => &mut self.xdma,
+            0x010 => &mut self.config_ext,
             _ => { error!("Unimplemented IO register write at offset 0x{:X}", offset); return },
         };
         device.write_reg(offset & 0xFFF, buf, buf_size);
