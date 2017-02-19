@@ -81,11 +81,13 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::rsb(data) => instructions_arm::rsb(cpu, data),
         ArmInstruction::sbc(data) => instructions_arm::sbc(cpu, data),
         ArmInstruction::stm_1(data) => instructions_arm::stm_1(cpu, data),
+        ArmInstruction::stm_2(data) => instructions_arm::stm_2(cpu, data),
         ArmInstruction::str(data) => instructions_arm::str(cpu, data),
         ArmInstruction::strb(data) => instructions_arm::strb(cpu, data),
         ArmInstruction::strd(data) => instructions_arm::strd(cpu, data),
         ArmInstruction::strh(data) => instructions_arm::strh(cpu, data),
         ArmInstruction::sub(data) => instructions_arm::sub(cpu, data),
+        ArmInstruction::swi(data) => instructions_arm::swi(cpu, data),
         ArmInstruction::teq(data) => instructions_arm::teq(cpu, data),
         ArmInstruction::tst(data) => instructions_arm::tst(cpu, data),
 

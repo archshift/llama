@@ -121,3 +121,25 @@ pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
 
     cpu::InstrStatus::InBlock
 }
+
+#[inline(always)]
+pub fn stm_2(cpu: &mut Cpu, data: arm::stm_2::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let (mut addr, _) = decode_addressing_mode(data.raw(), cpu);
+    let register_list = bf!(data.register_list);
+
+    let current_mode = cpu::Mode::from_num(bf!((cpu.cpsr).mode));
+    cpu.regs.swap(cpu::Mode::Usr);
+    for i in 0..16 {
+        if bit!(register_list, i) == 1 {
+            cpu.memory.write::<u32>(addr, cpu.regs[i]);
+            addr += 4;
+        }
+    }
+    cpu.regs.swap(current_mode);
+
+    return cpu::InstrStatus::InBlock;
+}
