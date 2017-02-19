@@ -3,6 +3,16 @@ use cpu::Cpu;
 use cpu::decoder_arm as arm;
 use cpu::decoder_thumb as thumb;
 
+pub fn ldmia(cpu: &mut Cpu, data: thumb::ldmia::InstrDesc) -> cpu::InstrStatus {
+    // W = (rn not in register list) ? 1 : 0
+    let w_bit = bf!(data.register_list) & (1 << bf!(data.rn)) == 0;
+    let arminst: u32 = 0b1110100010_0_1_0000_00000000_00000000
+                                    | ((w_bit as u32) << 21)
+                                        | ((bf!(data.rn) as u32) << 16)
+                                                      | ((bf!(data.register_list) as u32) << 0);
+    cpu::instructions_arm::ldm_1(cpu, arm::ldm_1::InstrDesc::new(arminst))
+}
+
 pub fn ldr_1(cpu: &mut Cpu, data: thumb::ldr_1::InstrDesc) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed_5 = bf!(data.immed_5) as u32;

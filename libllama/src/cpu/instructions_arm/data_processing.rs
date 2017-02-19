@@ -364,8 +364,49 @@ pub fn orr(cpu: &mut Cpu, data: arm::orr::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn mla(cpu: &mut Cpu, data: arm::mla::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
+    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
+    let accumulated = cpu.regs[bf!(data.rn) as usize] as u64;
+    let val = (base_val * multiplier + accumulated) as u32;
+
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    if bf!(data.s_bit) == 1 {
+        bf!((cpu.cpsr).n_bit = bit!(val, 31));
+        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    };
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
 pub fn mov(cpu: &mut Cpu, data: arm::mov::InstrDesc) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
+}
+
+#[inline(always)]
+pub fn mul(cpu: &mut Cpu, data: arm::mul::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
+    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
+    let val = (base_val * multiplier) as u32;
+
+    cpu.regs[bf!(data.rd) as usize] = val;
+
+    if bf!(data.s_bit) == 1 {
+        bf!((cpu.cpsr).n_bit = bit!(val, 31));
+        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    };
+
+    cpu::InstrStatus::InBlock
 }
 
 #[inline(always)]
@@ -399,19 +440,20 @@ pub fn tst(cpu: &mut Cpu, data: arm::tst::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
-pub fn mul(cpu: &mut Cpu, data: arm::mul::InstrDesc) -> cpu::InstrStatus {
+pub fn umull(cpu: &mut Cpu, data: arm::umull::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
     let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
-    let val = (base_val * multiplier) as u32;
+    let val = base_val.wrapping_mul(multiplier);
 
-    cpu.regs[bf!(data.rd) as usize] = val;
+    cpu.regs[bf!(data.rd_hi) as usize] = (val >> 32) as u32;
+    cpu.regs[bf!(data.rd_lo) as usize] = val as u32;
 
     if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val, 31));
+        bf!((cpu.cpsr).n_bit = bit!(val, 63) as u32);
         bf!((cpu.cpsr).z_bit = (val == 0) as u32);
     };
 

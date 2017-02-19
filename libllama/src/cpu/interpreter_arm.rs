@@ -71,6 +71,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::ldrsh(data) => instructions_arm::ldrsh(cpu, data),
         ArmInstruction::mcr(data) => InstrStatus::InBlock,
         ArmInstruction::mrc(data) => InstrStatus::InBlock,
+        ArmInstruction::mla(data) => instructions_arm::mla(cpu, data),
         ArmInstruction::mov(data) => instructions_arm::mov(cpu, data),
         ArmInstruction::mrs(data) => instructions_arm::mrs(cpu, data),
         ArmInstruction::msr_1(data) => instructions_arm::msr_1(cpu, data),
@@ -90,6 +91,7 @@ pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
         ArmInstruction::swi(data) => instructions_arm::swi(cpu, data),
         ArmInstruction::teq(data) => instructions_arm::teq(cpu, data),
         ArmInstruction::tst(data) => instructions_arm::tst(cpu, data),
+        ArmInstruction::umull(data) => instructions_arm::umull(cpu, data),
 
         ArmInstruction::mod_blx(data) => instructions_arm::mod_blx(cpu, data),
 

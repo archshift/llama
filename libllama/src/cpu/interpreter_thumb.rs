@@ -26,6 +26,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::cmp_2(data) => instructions_thumb::cmp_2(cpu, data),
         ThumbInstruction::cmp_3(data) => instructions_thumb::cmp_3(cpu, data),
         ThumbInstruction::eor(data) => instructions_thumb::eor(cpu, data),
+        ThumbInstruction::ldmia(data) => instructions_thumb::ldmia(cpu, data),
         ThumbInstruction::ldr_1(data) => instructions_thumb::ldr_1(cpu, data),
         ThumbInstruction::ldr_2(data) => instructions_thumb::ldr_2(cpu, data),
         ThumbInstruction::ldr_3(data) => instructions_thumb::ldr_3(cpu, data),
