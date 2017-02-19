@@ -7,9 +7,10 @@ use ldr;
 use mem;
 use io;
 
-fn map_memory_regions() -> (mem::MemController, mem::MemController) {
+fn map_memory_regions() -> (mem::MemController, mem::MemController, mem::MemController) {
     let arm9_itcm = mem::MemoryBlock::make_ram(0x20);
     let axi_wram = mem::MemoryBlock::make_ram(0x200);
+    let fcram = mem::MemoryBlock::make_ram(0x20000);
 
     let mut controller9 = mem::MemController::new();
     for i in 0..0x1000 {
@@ -21,14 +22,18 @@ fn map_memory_regions() -> (mem::MemController, mem::MemController) {
     controller9.map_region(0x18000000, mem::MemoryBlock::make_ram(0x1800)); // VRAM
     controller9.map_region(0x1FF00000, mem::MemoryBlock::make_ram(0x200)); // DSP
     controller9.map_region(0x1FF80000, axi_wram.clone()); // AXI WRAM
-    controller9.map_region(0x20000000, mem::MemoryBlock::make_ram(0x20000)); // FCRAM
+    controller9.map_region(0x20000000, fcram.clone()); // FCRAM
     controller9.map_region(0xFFF00000, mem::MemoryBlock::make_ram(0x10)); // DTCM
     controller9.map_region(0xFFFF0000, mem::MemoryBlock::make_ram(0x40)); // Bootrom
 
     let mut controller11 = mem::MemController::new();
     controller11.map_region(0x1FF80000, axi_wram.clone()); // AXI WRAM
+    controller11.map_region(0x20000000, fcram.clone()); // FCRAM
 
-    return (controller9, controller11);
+    let mut controller_pica = mem::MemController::new();
+    controller_pica.map_region(0x20000000, fcram.clone()); // FCRAM
+
+    return (controller9, controller11, controller_pica);
 }
 
 pub struct Hardware9 {
@@ -54,11 +59,13 @@ pub struct HwCore {
 
     hardware_task: Option<task::Task>,
     arm11_handshake_task: Option<task::Task>,
+
+    mem_pica: mem::MemController,
 }
 
 impl HwCore {
     pub fn new<L: ldr::Loader>(loader: L) -> HwCore {
-        let (mut mem9, mem11) = map_memory_regions();
+        let (mut mem9, mem11, mem_pica) = map_memory_regions();
         loader.load(&mut mem9);
 
         let mut cpu = cpu::Cpu::new(mem9);
@@ -74,6 +81,7 @@ impl HwCore {
             })),
             hardware_task: None,
             arm11_handshake_task: None,
+            mem_pica: mem_pica,
         }
     }
 
@@ -174,4 +182,21 @@ impl HwCore {
         // Will panic if already running
         self.hardware9.try_write().unwrap()
     }
+
+    pub fn copy_framebuffers(&mut self, fbs: &mut Framebuffers) {
+        fbs.top_screen.resize({ let (w, h, d) = fbs.top_screen_size; w*h*d }, 0);
+        fbs.bot_screen.resize({ let (w, h, d) = fbs.bot_screen_size; w*h*d }, 0);
+
+        self.mem_pica.read_buf(0x20000000u32, fbs.top_screen.as_mut_slice());
+        // self.mem_pica.read_buf(0x20046500u32, ..);
+        self.mem_pica.read_buf(0x2008CA00u32, fbs.bot_screen.as_mut_slice());
+        // self.mem_pica.read_buf(0x200C4E00u32, ..);
+    }
+}
+
+pub struct Framebuffers {
+    pub top_screen: Vec<u8>,
+    pub bot_screen: Vec<u8>,
+    pub top_screen_size: (usize, usize, usize),
+    pub bot_screen_size: (usize, usize, usize),
 }

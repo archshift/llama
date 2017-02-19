@@ -8,6 +8,7 @@ matrix:
   allow_failures:
     - rust: nightly
 
+dist: trusty
 sudo: required
 
 install:
@@ -16,3 +17,4 @@ install:
   - pushd capstone-3.0.4
   - ./make.sh && sudo ./make.sh install
   - popd
+  - sudo apt-get install -y libsdl2-dev

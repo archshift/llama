@@ -4,8 +4,10 @@ extern crate capstone;
 extern crate env_logger;
 extern crate libc;
 extern crate libllama;
+extern crate sdl2;
 
 mod commands;
+mod gui;
 
 use std::env;
 use std::io::{stdin, stdout, Write};
@@ -61,6 +63,12 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
     let mut debugger = dbgcore::DbgCore::bind(hwcore);
     debugger.ctx().hwcore_mut().start();
 
+    let mut gui = gui::Gui::new();
+    let mut fbs = hwcore::Framebuffers {
+        top_screen: Vec::new(), bot_screen: Vec::new(),
+        top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
+    };
+
     sigint_trap();
     let mut is_paused = false;
     loop {
@@ -91,10 +99,16 @@ fn run_emulator<L: ldr::Loader>(loader: L) {
 
             sigint_trap();
         } else {
+            gui.handle_events();
+
             if debugger.ctx().hwcore_mut().try_wait() {
                 is_paused = true;
             }
-            std::thread::sleep(Duration::from_millis(100));
+
+            debugger.ctx().hwcore_mut().copy_framebuffers(&mut fbs);
+            gui.render_framebuffers(&fbs);
+
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
 
