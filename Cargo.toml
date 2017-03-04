@@ -2,15 +2,17 @@
 name = "llama"
 version = "0.1.0"
 authors = ["archshift <gh@archshift.com>"]
+build = "build.rs"
 
 [[bin]]
-name = "llama-cli"
-path = "llama-cli/main.rs"
+name = "llama-ui"
+path = "llama-ui/main.rs"
 
 [dependencies]
 capstone = "0.0"
-env_logger = "0.3"
+# env_logger = "0.3"
+lgl = { git = "https://github.com/archshift/lgl" }
+lglc = { path = "lglc" }
 libc = "0.2"
 libllama = { path = "libllama" }
 log = "0.3"
-sdl2 = "0.28"

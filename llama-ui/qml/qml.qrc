@@ -1,0 +1,10 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+
+<qresource prefix="/">
+    <file>DbgConsole.qml</file>
+    <file>main.qml</file>
+    <file>ScreenView.qml</file>
+</qresource>
+
+</RCC>
