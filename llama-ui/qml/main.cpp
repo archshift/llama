@@ -18,25 +18,33 @@ class ConsoleManager: public QObject
 {
     Q_OBJECT
 
+    QObject *dbg_console;
+    Backend *backend;
+    FrontendCallbacks *callbacks;
+
     QTimer *text_poll_timer;
-    QObject *dbg_console_text;
     std::vector<char> text_buf;
 public slots:
     void fillLog() {
         LogBufferView view = lgl_buffer({ &text_buf[0], text_buf.size() });
         QString txt = QString::fromUtf8(view.buf_ptr, view.buf_size);
+        QObject *dbg_console_text = qvariant_cast<QObject*>(QQmlProperty::read(dbg_console, "text"));
         dbg_console_text->setProperty("text", txt);
     }
 
     void runCommand(const QString &msg) {
-        qDebug() << "Ran command:" << msg;
+        QByteArray utf8 = msg.toUtf8();
+        callbacks->run_command(backend, utf8.constData(), utf8.size());
     }
 
 public:
-    ConsoleManager(QObject *textedit):
-            dbg_console_text(textedit),
-            text_buf(lgl_buffer_size()) {
-        text_poll_timer = new QTimer(this);
+    ConsoleManager(QObject *dbg_console, Backend *backend, FrontendCallbacks *callbacks):
+            dbg_console(dbg_console),
+            backend(backend),
+            callbacks(callbacks),
+            text_poll_timer(new QTimer(this)),
+            text_buf(lgl_buffer_size())
+    {
         QObject::connect(text_poll_timer, &QTimer::timeout, this, &ConsoleManager::fillLog);
         text_poll_timer->start(10);
     }
@@ -83,8 +91,7 @@ extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
     QTimer *scrn_update_timer = createScreenRepainter(scrn_view, backend, callbacks);
     scrn_update_timer->start(16); // TODO: not ideal
 
-    QObject *dbg_console_text = qvariant_cast<QObject*>(QQmlProperty::read(dbg_console, "text"));
-    ConsoleManager consmgr(dbg_console_text);
+    ConsoleManager consmgr(dbg_console, backend, callbacks);
     QObject::connect(dbg_console, SIGNAL(commandRun(QString)),
                      &consmgr, SLOT(runCommand(QString)));
 

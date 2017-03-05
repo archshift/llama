@@ -29,14 +29,14 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
         match cs.disasm(&inst_bytes, pause_addr as u64, 1) {
             Some(insts) => {
                 let inst = insts.iter().next().unwrap();
-                println!("{:X}: {} {}", pause_addr,
-                                        inst.mnemonic().unwrap(),
-                                        inst.op_str().unwrap())
+                info!("{:X}: {} {}", pause_addr,
+                                     inst.mnemonic().unwrap(),
+                                     inst.op_str().unwrap())
             }
-            None => println!("Error: failed to disassemble instruction at 0x{:X}", pause_addr),
+            None => error!("Failed to disassemble instruction at 0x{:X}", pause_addr),
         }
     } else {
-        println!("Error: could not initialize capstone!");
+        error!("Could not initialize capstone!");
     }
 }
 
@@ -50,13 +50,13 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     let addr_str = match args.next() {
         Some(arg) => from_hex(arg),
-        None => { println!("Usage: `brk <addr>"); return }
+        None => { info!("Usage: `brk <addr>"); return }
     };
 
     // Check for from_hex errors
     let addr = match addr_str {
         Ok(x) => x,
-        _ => { println!("Error: could not parse hex value!"); return }
+        _ => { error!("Could not parse hex value!"); return }
     };
 
     info!("Toggling breakpoint at 0x{:X}", addr);
@@ -83,14 +83,14 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let arg_res = match (args.next(), args.next()) {
         (Some(ss), Some(ns)) => from_hex(ss).and_then(|s| Ok((s, from_hex(ns)?))),
         (Some(ss), None) => from_hex(ss).and_then(|s| Ok((s, 1))),
-        (None, _) => { println!("Usage: `mem <start> [num]"); return }
+        (None, _) => { info!("Usage: `mem <start> [num]"); return }
     };
 
     // Check for from_hex errors, validate `num` input
     let (start, num) = match arg_res {
         Ok((s, n)) if n > 0 => (s, n),
         Ok((s, _)) => (s, 1),
-        _ => { println!("Error: could not parse hex value!"); return }
+        _ => { error!("Could not parse hex value!"); return }
     };
 
     trace!("Printing {} bytes of RAM starting at 0x{:08X}", num, start);
@@ -101,11 +101,12 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let mut mem_bytes = vec![0u8; num as usize];
     hw.read_mem(start, &mut mem_bytes);
 
-    print!("{:02X}", mem_bytes[0]);
+    let mut strbuf = String::new();
+    strbuf.push_str(&format!("{:02X}", mem_bytes[0]));
     for i in 1 .. num as usize {
-        print!(" {:02X}", mem_bytes[i]);
+        strbuf.push_str(&format!(" {:02X}", mem_bytes[i]));
     }
-    println!("");
+    info!("{}", &strbuf);
 }
 
 /// Prints registers to the screen based on provided register name
@@ -117,7 +118,7 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let mut ctx = debugger.ctx();
     let hw = ctx.hw();
 
-    let print_reg = |reg_num| println!("R{} = 0x{:08X}", reg_num, hw.read_reg(reg_num));
+    let print_reg = |reg_num| info!("R{} = 0x{:08X}", reg_num, hw.read_reg(reg_num));
 
     let reg_str = match args.next() {
         Some(arg) => arg.to_owned().to_lowercase(),
@@ -146,7 +147,7 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
         "sp" | "r13" => print_reg(13),
         "lr" | "r14" => print_reg(14),
         "pc" | "r15" => print_reg(15),
-        _ => println!("Error: Unrecognized register!"),
+        _ => error!("Unrecognized register!"),
     }
 }
 
@@ -166,12 +167,11 @@ fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Controls debugger behavior based on user-provided commands
 ///
 /// `command`: Iterator over &str items
-pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It) -> bool
+pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It)
     where It: Iterator<Item=&'a str> {
-    let mut is_paused = true;
 
     match command.next() {
-        Some("run") => { debugger.ctx().resume(); is_paused = false; },
+        Some("run") => { debugger.ctx().resume() },
         Some("brk") => cmd_brk(debugger, command),
         Some("asm") => cmd_asm(debugger, command),
         Some("mem") => cmd_mem(debugger, command),
@@ -183,8 +183,6 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It) -> bool
             exit(0);
         }
         None => {},
-        Some(unk_cmd @ _) => println!("Error: Unrecognized command `{}`", unk_cmd),
+        Some(unk_cmd @ _) => error!("Unrecognized command `{}`", unk_cmd),
     }
-
-    return is_paused;
 }

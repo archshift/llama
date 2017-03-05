@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate capstone;
+extern crate lgl;
 extern crate libc;
 extern crate libllama;
 
@@ -8,6 +9,8 @@ mod commands;
 mod uilog;
 
 use std::env;
+use std::slice;
+use std::str;
 
 use libllama::{dbgcore, hwcore, ldr};
 
@@ -22,6 +25,7 @@ struct FrontendCallbacks {
     is_running: extern fn(*mut Backend) -> bool,
     top_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
     bot_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
+    run_command: extern fn(*mut Backend, *const u8, usize),
 }
 
 extern {
@@ -55,6 +59,21 @@ extern fn backend_bot_screen(backend: *mut Backend, buf_size_out: *mut usize) ->
         backend.fbs.bot_screen.as_ptr()
     }
 }
+extern fn backend_run_command(backend: *mut Backend, str_buf: *const u8, str_len: usize) {
+    let backend = unsafe { &mut *backend };
+    let input = unsafe {
+        let slice = slice::from_raw_parts(str_buf, str_len);
+        str::from_utf8(slice).unwrap()
+    };
+
+    for cmd in input.split(';') {
+        use lgl;
+        lgl::log("> ");
+        lgl::log(cmd);
+        lgl::log("\n");
+        commands::handle(&mut backend.debugger, cmd.split_whitespace());
+    }
+}
 
 fn main() {
     uilog::init().unwrap();
@@ -67,6 +86,7 @@ fn main() {
         is_running: backend_is_running,
         top_screen: backend_top_screen,
         bot_screen: backend_bot_screen,
+        run_command: backend_run_command,
     };
 
     let fbs = hwcore::Framebuffers {
