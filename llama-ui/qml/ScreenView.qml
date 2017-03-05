@@ -2,6 +2,8 @@ import QtQuick 2.8
 import QtQuick.Controls 2.1
 import QtQuick.Layouts 1.3
 
+import Screens 1.0
+
 Item {
     implicitWidth: 480
     implicitHeight: 480
@@ -11,6 +13,9 @@ Item {
     signal reloaded()
     signal fullscreenActivated()
     signal configOpened()
+
+    property TopScreen topScreen: topScreen
+    property BotScreen botScreen: botScreen
 
     Rectangle {
         id: topScreenDecor
@@ -37,20 +42,18 @@ Item {
             height: 256.0/480.0 * contents.height
             color: "#00000000"
         }
-        Rectangle {
+        TopScreen {
             id: topScreen
             anchors.horizontalCenter: parent.horizontalCenter
             width: 400.0/480.0 * parent.width
             height: 240.0/480.0 * parent.height
-            color: "black"
         }
-        Rectangle {
+        BotScreen {
             id: botScreen
             anchors.top: topScreen.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             width: 320.0/480.0 * parent.width
             height: 240.0/480.0 * parent.height
-            color: "black"
         }
 
         ColumnLayout {

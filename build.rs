@@ -13,8 +13,11 @@ fn find_deps_staticlib(name: &str) -> Vec<PathBuf> {
     let entry_filter = |path: &PathBuf| {
         let filename = path.file_name().unwrap()
                            .to_str().unwrap();
-        filename.starts_with(&format!("lib{}", name))
-            && filename.ends_with(".a")
+        let plain = filename == format!("lib{}.a", name);
+        let hashed = filename.starts_with(&format!("lib{}-", name))
+            && filename.ends_with(".a");
+
+        plain || hashed
     };
 
     let entries = lib_dir.read_dir().unwrap();

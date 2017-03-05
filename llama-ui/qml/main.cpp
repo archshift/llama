@@ -7,17 +7,12 @@
 
 #include <cassert>
 #include <cstdio>
-#include <mutex>
-#include <memory>
 #include <vector>
 
 #include <lgl.h>
 
-struct Backend;
-struct FrontendCallbacks {
-    void(*set_running)(Backend*, bool);
-    bool(*is_running)(Backend*);
-};
+#include "interop.hpp"
+#include "screens.hpp"
 
 class ConsoleManager: public QObject
 {
@@ -42,7 +37,7 @@ public:
             dbg_console_text(textedit),
             text_buf(lgl_buffer_size()) {
         text_poll_timer = new QTimer(this);
-        QObject::connect(text_poll_timer, SIGNAL(timeout()), this, SLOT(fillLog()));
+        QObject::connect(text_poll_timer, &QTimer::timeout, this, &ConsoleManager::fillLog);
         text_poll_timer->start(10);
     }
 };
@@ -70,6 +65,9 @@ extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
     int argc = 0;
     QGuiApplication app(argc, nullptr);
 
+    qmlRegisterType<TopScreen>("Screens", 1, 0, "TopScreen");
+    qmlRegisterType<BotScreen>("Screens", 1, 0, "BotScreen");
+
     QQuickView view(QUrl("qrc:/main.qml"));
     view.setResizeMode(QQuickView::SizeRootObjectToView);
     QObject *item = view.rootObject();
@@ -81,6 +79,9 @@ extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
 
     ScreenManager scrnmgr(scrn_view, backend, callbacks);
     QObject::connect(scrn_view, SIGNAL(pauseToggled()), &scrnmgr, SLOT(togglePaused()));
+
+    QTimer *scrn_update_timer = createScreenRepainter(scrn_view, backend, callbacks);
+    scrn_update_timer->start(16); // TODO: not ideal
 
     QObject *dbg_console_text = qvariant_cast<QObject*>(QQmlProperty::read(dbg_console, "text"));
     ConsoleManager consmgr(dbg_console_text);
