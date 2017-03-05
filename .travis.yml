@@ -8,6 +8,9 @@ matrix:
   allow_failures:
     - rust: nightly
 
+env:
+  - QT_SELECT=5
+
 dist: trusty
 sudo: required
 
@@ -17,4 +20,4 @@ install:
   - pushd capstone-3.0.4
   - ./make.sh && sudo ./make.sh install
   - popd
-  - sudo apt-get install -y libsdl2-dev
+  - sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qt5-qmake
