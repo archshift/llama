@@ -11,7 +11,6 @@ path = "llama-ui/main.rs"
 [dependencies]
 capstone = "0.0"
 lgl = { git = "https://github.com/archshift/lgl" }
-lglc = { path = "lglc" }
 libc = "0.2"
 libllama = { path = "libllama" }
 log = "0.3"

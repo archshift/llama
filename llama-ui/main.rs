@@ -9,18 +9,16 @@ mod commands;
 mod uilog;
 
 use std::env;
-use std::slice;
-use std::str;
 
 use libllama::{dbgcore, hwcore, ldr};
 
-struct Backend {
+pub struct Backend {
     debugger: dbgcore::DbgCore,
     fbs: hwcore::Framebuffers
 }
 
 #[repr(C)]
-struct FrontendCallbacks {
+pub struct FrontendCallbacks {
     set_running: extern fn(*mut Backend, bool),
     is_running: extern fn(*mut Backend) -> bool,
     top_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
@@ -33,45 +31,57 @@ extern {
 }
 
 
-extern fn backend_set_running(backend: *mut Backend, state: bool) {
-    if state {
-        unsafe { (*backend).debugger.ctx().resume(); }
-    } else {
-        unsafe { (*backend).debugger.ctx().pause(); }
-    }
-}
-extern fn backend_is_running(backend: *mut Backend) -> bool {
-    unsafe { !(*backend).debugger.ctx().hwcore_mut().try_wait() }
-}
-extern fn backend_top_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
-    let backend = unsafe { &mut *backend };
-    backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
-    unsafe {
-        *buf_size_out = backend.fbs.top_screen.len();
-        backend.fbs.top_screen.as_ptr()
-    }
-}
-extern fn backend_bot_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
-    let backend = unsafe { &mut *backend };
-    backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
-    unsafe {
-        *buf_size_out = backend.fbs.bot_screen.len();
-        backend.fbs.bot_screen.as_ptr()
-    }
-}
-extern fn backend_run_command(backend: *mut Backend, str_buf: *const u8, str_len: usize) {
-    let backend = unsafe { &mut *backend };
-    let input = unsafe {
-        let slice = slice::from_raw_parts(str_buf, str_len);
-        str::from_utf8(slice).unwrap()
-    };
+mod cbs {
+    use std::slice;
+    use std::str;
 
-    for cmd in input.split(';') {
-        use lgl;
-        lgl::log("> ");
-        lgl::log(cmd);
-        lgl::log("\n");
-        commands::handle(&mut backend.debugger, cmd.split_whitespace());
+    use commands;
+    use Backend;
+
+    pub extern fn set_running(backend: *mut Backend, state: bool) {
+        if state {
+            unsafe { (*backend).debugger.ctx().resume(); }
+        } else {
+            unsafe { (*backend).debugger.ctx().pause(); }
+        }
+    }
+
+    pub extern fn is_running(backend: *mut Backend) -> bool {
+        unsafe { !(*backend).debugger.ctx().hwcore_mut().try_wait() }
+    }
+
+    pub extern fn top_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
+        let backend = unsafe { &mut *backend };
+        backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
+        unsafe {
+            *buf_size_out = backend.fbs.top_screen.len();
+            backend.fbs.top_screen.as_ptr()
+        }
+    }
+
+    pub extern fn bot_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
+        let backend = unsafe { &mut *backend };
+        backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
+        unsafe {
+            *buf_size_out = backend.fbs.bot_screen.len();
+            backend.fbs.bot_screen.as_ptr()
+        }
+    }
+
+    pub extern fn run_command(backend: *mut Backend, str_buf: *const u8, str_len: usize) {
+        let backend = unsafe { &mut *backend };
+        let input = unsafe {
+            let slice = slice::from_raw_parts(str_buf, str_len);
+            str::from_utf8(slice).unwrap()
+        };
+
+        for cmd in input.split(';') {
+            use lgl;
+            lgl::log("> ");
+            lgl::log(cmd);
+            lgl::log("\n");
+            commands::handle(&mut backend.debugger, cmd.split_whitespace());
+        }
     }
 }
 
@@ -82,11 +92,11 @@ fn main() {
     let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();
 
     let callbacks = FrontendCallbacks {
-        set_running: backend_set_running,
-        is_running: backend_is_running,
-        top_screen: backend_top_screen,
-        bot_screen: backend_bot_screen,
-        run_command: backend_run_command,
+        set_running: cbs::set_running,
+        is_running: cbs::is_running,
+        top_screen: cbs::top_screen,
+        bot_screen: cbs::bot_screen,
+        run_command: cbs::run_command,
     };
 
     let fbs = hwcore::Framebuffers {

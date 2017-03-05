@@ -1,42 +1,65 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
-fn find_deps_staticlib(name: &str) -> Vec<PathBuf> {
+enum Profile {
+    Release,
+    Debug,
+}
+
+impl Profile {
+    fn from_str(name: &str) -> Profile {
+        match name {
+            "release" => Profile::Release,
+            "debug" => Profile::Debug,
+            unk => panic!("Unknown build profile '{}'!", unk)
+        }
+    }
+}
+
+struct StaticCrateLib {
+    pub lib_dir: PathBuf,
+    pub lib_name: String,
+}
+
+fn build_static_crate(crate_dir: &Path, crate_name: &str) -> Result<StaticCrateLib, ()> {
     let out_dir = env::var("OUT_DIR").unwrap();
-    let mut lib_dir = PathBuf::from(out_dir);
-        lib_dir.pop();
-        lib_dir.pop();
-        lib_dir.pop();
-        lib_dir.push("deps");
+    let profile = env::var("PROFILE").unwrap();
 
-    let entry_filter = |path: &PathBuf| {
-        let filename = path.file_name().unwrap()
-                           .to_str().unwrap();
-        let plain = filename == format!("lib{}.a", name);
-        let hashed = filename.starts_with(&format!("lib{}-", name))
-            && filename.ends_with(".a");
+    let lib_out_dir = PathBuf::from(&out_dir).join(crate_name);
 
-        plain || hashed
-    };
+    let mut cmd = process::Command::new("cargo");
+    cmd.current_dir(crate_dir)
+        .arg("build")
+        .env("CARGO_TARGET_DIR", &lib_out_dir);
 
-    let entries = lib_dir.read_dir().unwrap();
-    entries.map(|file| file.unwrap().path())
-           .filter(entry_filter)
-           .collect()
+    if let Profile::Release = Profile::from_str(&profile) {
+        cmd.arg("--release");
+    }
+
+    let status = cmd.spawn()
+        .expect("failed to start cargo")
+        .wait()
+        .unwrap();
+
+    assert!(status.success(), "failed to execute cargo");
+
+    Ok(StaticCrateLib {
+        lib_dir: lib_out_dir.join(profile),
+        lib_name: crate_name.to_string(),
+    })
 }
 
 fn main() {
     let base_dir = env::current_dir().unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let ref mut lgl_static_file = find_deps_staticlib("lglc")[0];
-    let lgl_static_filename = lgl_static_file.file_name().unwrap()
-                                             .to_str().unwrap();
+    let lglc_dir = PathBuf::from(&base_dir).join("lglc");
+    let lib_desc = build_static_crate(&lglc_dir, "lglc").unwrap();
 
-    env::set_var("LGL_INC_DIR", base_dir.join("lglc").join("include"));
-    env::set_var("LGL_LIB_DIR", lgl_static_file.parent().unwrap());
-    env::set_var("LGL_LIB", &lgl_static_filename[3..lgl_static_filename.len()-2]);
+    env::set_var("LGL_LIB_DIR", lib_desc.lib_dir);
+    env::set_var("LGL_LIB", lib_desc.lib_name);
+    env::set_var("LGL_INC_DIR", lglc_dir.join("include"));
 
     let qml_dir = base_dir.join("llama-ui/qml");
 

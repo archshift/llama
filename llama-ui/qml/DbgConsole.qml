@@ -28,7 +28,7 @@ ColumnLayout {
             padding: 4
 
             font.family: "Source Code Pro"
-            font.pointSize: 12
+            font.pixelSize: 12
             wrapMode: Text.WrapAnywhere
             verticalAlignment: Text.AlignBottom
 
@@ -50,7 +50,7 @@ ColumnLayout {
             id: input
             anchors.fill: parent
             font.family: "Source Code Pro"
-            font.pointSize: 12
+            font.pixelSize: 12
             padding: 4
 
             onAccepted: {
