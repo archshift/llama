@@ -115,6 +115,15 @@ pub fn asr_1(cpu: &mut Cpu, data: thumb::asr_1::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn asr_2(cpu: &mut Cpu, data: thumb::asr_2::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110000110110000_0000_0000_0101_0000
+                                          | ((bf!(data.rd) as u32) << 12)
+                                               | ((bf!(data.rs) as u32) << 8)
+                                                         | ((bf!(data.rd) as u32) << 0);
+    cpu::instructions_arm::mov(cpu, arm::mov::InstrDesc::new(arminst))
+}
+
+#[inline(always)]
 pub fn bic(cpu: &mut Cpu, data: thumb::bic::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AND_NOT)
 }
@@ -211,6 +220,15 @@ pub fn lsr_1(cpu: &mut Cpu, data: thumb::lsr_1::InstrDesc) -> cpu::InstrStatus {
     cpu.regs[bf!(data.rd) as usize] = val;
 
     cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn lsr_2(cpu: &mut Cpu, data: thumb::lsr_2::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110000110110000_0000_0000_0011_0000
+                                          | ((bf!(data.rd) as u32) << 12)
+                                               | ((bf!(data.rs) as u32) << 8)
+                                                         | ((bf!(data.rd) as u32) << 0);
+    cpu::instructions_arm::mov(cpu, arm::mov::InstrDesc::new(arminst))
 }
 
 #[inline(always)]
