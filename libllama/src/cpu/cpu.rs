@@ -114,9 +114,11 @@ impl Cpu {
             }
 
             if bf!((self.cpsr).thumb_bit) == 0 {
+                assert_eq!(addr & 0b11, 0);
                 let instr = ArmInstruction::decode(self.memory.read::<u32>(addr));
                 cpu::interpret_arm(self, instr);
             } else {
+                assert_eq!(addr & 0b1, 0);
                 let instr = ThumbInstruction::decode(self.memory.read::<u16>(addr));
                 cpu::interpret_thumb(self, instr);
             }
