@@ -8,7 +8,7 @@ macro_rules! wrapping_sum {
 macro_rules! checked_sum {
     ($a:expr, $b:expr $(, $rest:expr)*) => (
         $a.checked_add($b)
-            $(.map(|x| x.checked_add($rest)))*
+            $(.and_then(|x| x.checked_add($rest)))*
     )
 }
 
@@ -22,6 +22,6 @@ macro_rules! wrapping_diff {
 macro_rules! checked_diff {
     ($a:expr, $b:expr $(, $rest:expr)*) => (
         $a.checked_sub($b)
-            $(.map(|x| x.checked_sub($rest)))*
+            $(.and_then(|x| x.checked_sub($rest)))*
     )
 }

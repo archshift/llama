@@ -479,9 +479,9 @@ pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize] as i64;
-    let multiplier = cpu.regs[bf!(data.rs) as usize] as i64;
-    let val = base_val.wrapping_mul(multiplier) as u64;
+    let base_val = cpu.regs[bf!(data.rm) as usize] as i32;
+    let multiplier = cpu.regs[bf!(data.rs) as usize] as i32;
+    let val = (base_val as i64).wrapping_mul(multiplier as i64);
 
     cpu.regs[bf!(data.rd_hi) as usize] = (val >> 32) as u32;
     cpu.regs[bf!(data.rd_lo) as usize] = val as u32;
