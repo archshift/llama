@@ -15,7 +15,16 @@ fn shifter_lsl(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
     }
 }
 
-fn shifter_lsr(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
+fn shifter_lsr_imm(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
+    if amount == 0 {
+        (0, bit!(pre_shift, 31) == 1)
+    } else {
+        let res = pre_shift >> amount;
+        (res, bit!(pre_shift, (amount - 1) as usize) == 1)
+    }
+}
+
+fn shifter_lsr_reg(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
     if amount == 0 {
         (pre_shift, c_bit)
     } else if amount < 32 {
@@ -108,7 +117,6 @@ fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
         return BarrelShifterOut { val: res, has_carry: carry, pc_advanced: false }
     }
 
-    let pre_shift: u32 = cpu.regs[bits!(shifter_bits, 0 => 3) as usize];
     let is_reg_shift = bit!(shifter_bits, 4) == 1;
 
     let amount = if !is_reg_shift {
@@ -117,10 +125,12 @@ fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
         let reg = bits!(shifter_bits, 8 => 11) as usize;
         getreg(cpu, is_reg_shift, reg) as usize
     };
+    let pre_shift = getreg(cpu, is_reg_shift, bits!(shifter_bits, 0 => 3) as usize);
 
     let shift_fn = match bits!(shifter_bits, 4 => 6) {
         0b000 | 0b001 => shifter_lsl,
-        0b010 | 0b011 => shifter_lsr,
+        0b010 => shifter_lsr_imm,
+        0b011 => shifter_lsr_reg,
         0b100 => shifter_asr_imm,
         0b101 => shifter_asr_reg,
         0b110 => shifter_ror_imm,
@@ -229,48 +239,42 @@ fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogic
 
     let (val, carry_bit, overflow_bit) = match op {
         ProcessInstrLogicalOp::ADD => {
-            let val = base_val.wrapping_add(shift_out.val);
-            let u_overflow = base_val.checked_add(shift_out.val).is_none();
-            let s_overflow = (base_val as i32).checked_add(shift_out.val as i32).is_none();
+            let val = wrapping_sum!(base_val, shift_out.val);
+            let u_overflow = checked_sum!(base_val, shift_out.val).is_none();
+            let s_overflow = checked_sum!(base_val as i32, shift_out.val as i32).is_none();
             (val, u_overflow, s_overflow)
         },
         ProcessInstrLogicalOp::ADD_CARRY => {
             let carry = bf!((cpu.cpsr).c_bit) as u32;
-            let val = base_val.wrapping_add(shift_out.val).wrapping_add(carry);
-            let u_overflow = base_val.checked_add(shift_out.val)
-                                     .map(|x| x.checked_add(carry)).is_none();
-            let s_overflow = (base_val as i32).checked_add(shift_out.val as i32)
-                                              .map(|x| x.checked_add(carry as i32)).is_none();
+            let val = wrapping_sum!(base_val, shift_out.val, carry);
+            let u_overflow = checked_sum!(base_val, shift_out.val, carry).is_none();
+            let s_overflow = checked_sum!(base_val as i32, shift_out.val as i32, carry as i32).is_none();
             (val, u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::REVERSE_SUB => {
-            let val = shift_out.val.wrapping_sub(base_val);
-            let u_overflow = shift_out.val.checked_sub(base_val).is_none();
-            let s_overflow = (shift_out.val as i32).checked_sub(base_val as i32).is_none();
+            let val = wrapping_diff!(shift_out.val, base_val);
+            let u_overflow = checked_diff!(shift_out.val, base_val).is_none();
+            let s_overflow = checked_diff!(shift_out.val as i32, base_val as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::REVERSE_SUB_CARRY => {
             let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
-            let val = shift_out.val.wrapping_sub(base_val).wrapping_sub(ncarry);
-            let u_overflow = shift_out.val.checked_sub(base_val)
-                                     .map(|x| x.checked_sub(ncarry)).is_none();
-            let s_overflow = (shift_out.val as i32).checked_sub(base_val as i32)
-                                              .map(|x| x.checked_sub(ncarry as i32)).is_none();
+            let val = wrapping_diff!(shift_out.val, base_val, ncarry);
+            let u_overflow = checked_diff!(shift_out.val, base_val, ncarry).is_none();
+            let s_overflow = checked_diff!(shift_out.val as i32, base_val as i32, ncarry as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::SUB => {
-            let val = base_val.wrapping_sub(shift_out.val);
-            let u_overflow = base_val.checked_sub(shift_out.val).is_none();
-            let s_overflow = (base_val as i32).checked_sub(shift_out.val as i32).is_none();
+            let val = wrapping_diff!(base_val, shift_out.val);
+            let u_overflow = checked_diff!(base_val, shift_out.val).is_none();
+            let s_overflow = checked_diff!(base_val as i32, shift_out.val as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::SUB_CARRY => {
             let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
-            let val = base_val.wrapping_sub(shift_out.val).wrapping_sub(ncarry);
-            let u_overflow = base_val.checked_sub(shift_out.val)
-                                     .map(|x| x.checked_sub(ncarry)).is_none();
-            let s_overflow = (base_val as i32).checked_sub(shift_out.val as i32)
-                                              .map(|x| x.checked_sub(ncarry as i32)).is_none();
+            let val = wrapping_diff!(base_val, shift_out.val, ncarry);
+            let u_overflow = checked_diff!(base_val, shift_out.val, ncarry).is_none();
+            let s_overflow = checked_diff!(base_val as i32, shift_out.val as i32, ncarry as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
     };
