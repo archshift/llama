@@ -266,3 +266,37 @@ pub fn strd(cpu: &mut Cpu, data: arm::strd::InstrDesc) -> cpu::InstrStatus {
 pub fn strh(cpu: &mut Cpu, data: arm::strh::InstrDesc) -> cpu::InstrStatus {
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
+
+#[inline(always)]
+pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    let addr = cpu.regs[bf!(data.rn) as usize];
+    let new_val = cpu.regs[bf!(data.rm) as usize];
+
+    let tmp = cpu.memory.read::<u32>(addr);
+    cpu.memory.write::<u32>(addr, new_val);
+    cpu.regs[bf!(data.rd) as usize] = tmp;
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
+pub fn swpb(cpu: &mut Cpu, data: arm::swpb::InstrDesc) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    let addr = cpu.regs[bf!(data.rn) as usize];
+    let new_val = cpu.regs[bf!(data.rm) as usize];
+
+    let tmp = cpu.memory.read::<u8>(addr);
+    cpu.memory.write::<u8>(addr, new_val as u8);
+    cpu.regs[bf!(data.rd) as usize] = tmp as u32;
+
+    cpu::InstrStatus::InBlock
+}

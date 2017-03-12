@@ -334,6 +334,40 @@ fn instr_move(cpu: &mut Cpu, data: arm::mov::InstrDesc, negate: bool) -> cpu::In
 }
 
 #[inline(always)]
+pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::umlal::InstrDesc, signed: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let rd_hi = bf!(data.rd_hi) as usize;
+    let rd_lo = bf!(data.rd_lo) as usize;
+
+    let base_val = cpu.regs[bf!(data.rm) as usize];
+    let multiplier = cpu.regs[bf!(data.rs) as usize];
+
+    let mul_val = if signed {
+        // Double cast to ensure sign extension
+        ((base_val as i32) as i64).wrapping_mul((multiplier as i32) as i64) as u64
+    } else {
+        (base_val as u64).wrapping_mul(multiplier as u64)
+    };
+
+    let val_lo = wrapping_sum!(mul_val as u32, cpu.regs[rd_lo]);
+    let val_lo_carry = checked_sum!(mul_val as u32, cpu.regs[rd_lo]).is_none();
+    let val_hi = wrapping_sum!((mul_val >> 32) as u32, cpu.regs[rd_hi], val_lo_carry as u32);
+
+    cpu.regs[rd_hi] = val_hi;
+    cpu.regs[rd_lo] = val_lo;
+
+    if bf!(data.s_bit) == 1 {
+        bf!((cpu.cpsr).n_bit = bit!(val_hi, 31) as u32);
+        bf!((cpu.cpsr).z_bit = (val_lo == 0 && val_hi == 0) as u32);
+    };
+
+    cpu::InstrStatus::InBlock
+}
+
+#[inline(always)]
 fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -474,6 +508,11 @@ pub fn sbc(cpu: &mut Cpu, data: arm::sbc::InstrDesc) -> cpu::InstrStatus {
 }
 
 #[inline(always)]
+pub fn smlal(cpu: &mut Cpu, data: arm::smlal::InstrDesc) -> cpu::InstrStatus {
+    instr_mul64_accumulate(cpu, arm::umlal::InstrDesc::new(data.raw()), true)
+}
+
+#[inline(always)]
 pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -481,7 +520,7 @@ pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
 
     let base_val = cpu.regs[bf!(data.rm) as usize] as i32;
     let multiplier = cpu.regs[bf!(data.rs) as usize] as i32;
-    let val = (base_val as i64).wrapping_mul(multiplier as i64);
+    let val = (base_val as i64).wrapping_mul(multiplier as i64) as u64;
 
     cpu.regs[bf!(data.rd_hi) as usize] = (val >> 32) as u32;
     cpu.regs[bf!(data.rd_lo) as usize] = val as u32;
@@ -507,6 +546,11 @@ pub fn teq(cpu: &mut Cpu, data: arm::teq::InstrDesc) -> cpu::InstrStatus {
 #[inline(always)]
 pub fn tst(cpu: &mut Cpu, data: arm::tst::InstrDesc) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
+}
+
+#[inline(always)]
+pub fn umlal(cpu: &mut Cpu, data: arm::umlal::InstrDesc) -> cpu::InstrStatus {
+    instr_mul64_accumulate(cpu, data, false)
 }
 
 #[inline(always)]
