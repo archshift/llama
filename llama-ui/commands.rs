@@ -1,11 +1,12 @@
 use std::process::exit;
 
 use libllama::dbgcore;
+use libllama::utils::from_hex;
 
 /// Prints disassembly for the next instruction
-/// Command format: "asm"
+/// Command format: "asm [address hex]"
 ///
-/// `args`: Unused
+/// `args`: Iterator over &str items
 fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
@@ -15,7 +16,12 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let mut ctx = debugger.ctx();
     let hw = ctx.hw();
 
-    let pause_addr = hw.pause_addr();
+    let pause_addr = match args.next().map(from_hex) {
+        Some(Ok(x)) => x,
+        Some(Err(_)) => { error!("Could not parse hex value!"); return }
+        None => hw.pause_addr(),
+    };
+
     let cpu_mode = if hw.is_thumb() {
         CsMode::MODE_THUMB
     } else {
@@ -46,7 +52,6 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// `args`: Iterator over &str items
 fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
-    use libllama::utils::from_hex;
 
     let addr_str = match args.next() {
         Some(arg) => from_hex(arg),

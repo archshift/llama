@@ -57,7 +57,7 @@ Llama will not automatically begin running the ctr9 package upon opening. To run
 Llama has a semi-useful built-in debugger controlled with textual commands.
 
 - `run`: Unpauses the loaded program.
-- `asm`: Prints disassembly for the current instruction.
+- `asm [address hex]`: Prints disassembly for the current instruction.
 - `brk <address hex>`: Adds a CPU breakpoint at the specified address.
 - `mem <start address hex> [# bytes hex]`: Prints n bytes of memory from the specified address.
 - `reg [register name]`: Prints specified register, or all registers if none specified.
