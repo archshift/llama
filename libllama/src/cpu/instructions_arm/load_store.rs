@@ -124,7 +124,8 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
     let val = if byte {
         cpu.memory.read::<u8>(addr.0) as u32
     } else {
-        cpu.memory.read::<u32>(addr.0.rotate_right(8 * bits!(addr.0, 0 => 1)))
+        cpu.memory.read::<u32>(addr.0 & !0b11)
+            .rotate_right(8 * bits!(addr.0, 0 => 1))
     };
 
     // Writeback
@@ -186,7 +187,7 @@ fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::Ins
     if byte {
         cpu.memory.write::<u8>(addr.0, val as u8);
     } else {
-        cpu.memory.write::<u32>(addr.0, val);
+        cpu.memory.write::<u32>(addr.0 & !0b11, val);
     };
 
     cpu::InstrStatus::InBlock

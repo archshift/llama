@@ -133,7 +133,7 @@ pub fn cmp_1(cpu: &mut Cpu, data: thumb::cmp_1::InstrDesc) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed = bf!(data.immed_8) as u32;
 
-    let val = base_val - immed;
+    let val = base_val.wrapping_sub(immed);
     let carry_bit = !base_val.checked_sub(immed).is_none();
     let overflow_bit = (base_val as i32).checked_sub(immed as i32).is_none();
 
