@@ -37,6 +37,10 @@ public slots:
         callbacks->run_command(backend, utf8.constData(), utf8.size());
     }
 
+    void useTraceLogs(bool trace) {
+        callbacks->use_trace_logs(backend, trace);
+    }
+
 public:
     ConsoleManager(QObject *dbg_console, Backend *backend, FrontendCallbacks *callbacks):
             dbg_console(dbg_console),
@@ -94,6 +98,8 @@ extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
     ConsoleManager consmgr(dbg_console, backend, callbacks);
     QObject::connect(dbg_console, SIGNAL(commandRun(QString)),
                      &consmgr, SLOT(runCommand(QString)));
+    QObject::connect(dbg_console, SIGNAL(traceToggled(bool)),
+                     &consmgr, SLOT(useTraceLogs(bool)));
 
     view.show();
     int result = app.exec();

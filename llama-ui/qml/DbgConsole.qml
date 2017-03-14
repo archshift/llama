@@ -8,6 +8,7 @@ ColumnLayout {
     spacing: 4
 
     signal commandRun(string cmd)
+    signal traceToggled(bool trace)
     property TextEdit text: txtTxt
 
     Rectangle {
@@ -37,25 +38,50 @@ ColumnLayout {
         }
     }
 
-    Rectangle {
-        radius: 3
-        border.width: 1
-        border.color: "#AAAAAA"
-        color: "#EEEEEE"
-
-        Layout.preferredHeight: 20
+    Item {
         Layout.fillWidth: true
+        Layout.preferredHeight: 20
 
-        TextInput {
-            id: input
+        RowLayout {
             anchors.fill: parent
-            font.family: "Source Code Pro"
-            font.pixelSize: 12
-            padding: 4
+            spacing: 4
 
-            onAccepted: {
-                dbg_console.commandRun(text)
-                clear()
+            Rectangle {
+                radius: 3
+                border.width: 1
+                border.color: "#AAAAAA"
+                color: "#EEEEEE"
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                TextInput {
+                    id: input
+                    anchors.fill: parent
+                    font.family: "Source Code Pro"
+                    font.pixelSize: 12
+                    padding: 4
+
+                    onAccepted: {
+                        dbg_console.commandRun(text)
+                        clear()
+                    }
+                }
+            }
+
+            Button {
+                text: "T"
+
+                property bool active: false
+
+                Layout.preferredWidth: 20
+                Layout.fillHeight: true
+
+                onClicked: {
+                    active ^= true
+                    down = active
+                    dbg_console.traceToggled(active)
+                }
             }
         }
     }

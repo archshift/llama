@@ -24,6 +24,7 @@ pub struct FrontendCallbacks {
     top_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
     bot_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
     run_command: extern fn(*mut Backend, *const u8, usize),
+    use_trace_logs: extern fn(*mut Backend, bool),
 }
 
 extern {
@@ -36,6 +37,7 @@ mod cbs {
     use std::str;
 
     use commands;
+    use uilog;
     use Backend;
 
     pub extern fn set_running(backend: *mut Backend, state: bool) {
@@ -83,10 +85,14 @@ mod cbs {
             commands::handle(&mut backend.debugger, cmd.split_whitespace());
         }
     }
+
+    pub extern fn use_trace_logs(_: *mut Backend, val: bool) {
+        uilog::allow_trace(val);
+    }
 }
 
 fn main() {
-    uilog::init().unwrap();
+    let logger = uilog::init().unwrap();
 
     let path = env::args().nth(1).unwrap();
     let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();
@@ -97,6 +103,7 @@ fn main() {
         top_screen: cbs::top_screen,
         bot_screen: cbs::bot_screen,
         run_command: cbs::run_command,
+        use_trace_logs: cbs::use_trace_logs,
     };
 
     let fbs = hwcore::Framebuffers {
