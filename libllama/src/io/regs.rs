@@ -57,15 +57,20 @@ pub trait IoRegAccess {
 macro_rules! __iodevice__ {
     ($name:ident, {
         $(internal_state: $instate:path;)*
-        regs:
-        $(
+        regs: {$(
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 default = $reg_default:expr;
                 write_bits = $reg_wb:expr;
                 read_effect = $reg_reff:expr;
                 write_effect = $reg_weff:expr;
             }
-        )*
+        )*}
+        ranges: {$(
+            $range_offs:expr;$range_size:expr => {
+                read_effect = $range_reff:expr;
+                write_effect = $range_weff:expr;
+            }
+        )*}
     }) => (
         #[derive(Debug)]
         pub struct $name {
@@ -73,23 +78,13 @@ macro_rules! __iodevice__ {
             $(_internal_state: $instate,)*
         }
 
-        impl ::std::default::Default for $name {
-            #[allow(unused_mut)]
-            fn default() -> $name {
-                let mut s = $name {
-                    $( $reg_name: $crate::io::regs::IoReg::new($reg_default, $reg_wb), )*
-                    $(_internal_state: unsafe { ::std::mem::uninitialized::<$instate>() }, )*
-                };
-                // Get around pesky inability to call $path::default() (curse the macro expander)
-                $(unsafe { ::std::ptr::write::<$instate>(&mut s._internal_state, ::std::default::Default::default()) }; )*
-                s
-            }
-        }
-
         impl $name {
             #[allow(dead_code)]
-            pub fn new() -> $name {
-                ::std::default::Default::default()
+            pub fn new($(_internal_state: $instate)*) -> $name {
+                $name {
+                    $( $reg_name: $crate::io::regs::IoReg::new($reg_default, $reg_wb), )*
+                    $(_internal_state: { let val: $instate = _internal_state; val }, )*
+                }
             }
         }
 
@@ -101,6 +96,12 @@ macro_rules! __iodevice__ {
                         $reg_reff(&mut *self);
                         self.$reg_name.mem_load(buf, buf_size);
                     })*
+
+                    $( _ if offset >= $range_offs && offset < $range_offs+$range_size => {
+                        assert!(offset + buf_size <= $range_offs + $range_size);
+                        $range_reff(&mut *self, offset-$range_offs, ::std::slice::from_raw_parts_mut(buf, buf_size));
+                    })*
+
                     o @ _ => panic!("Unhandled {} register read: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
             }
@@ -112,6 +113,12 @@ macro_rules! __iodevice__ {
                         self.$reg_name.mem_save(buf, buf_size);
                         $reg_weff(&mut *self);
                     })*
+
+                    $( _ if offset >= $range_offs && offset < $range_offs+$range_size => {
+                        assert!(offset + buf_size <= $range_offs + $range_size);
+                        $range_weff(&mut *self, offset-$range_offs, ::std::slice::from_raw_parts(buf, buf_size));
+                    })*
+
                     o @ _ => panic!("Unhandled {} register write: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
             }
@@ -129,36 +136,51 @@ macro_rules! __iodevice_desc_wb__ {
     () => (!0);
 }
 
-macro_rules! __iodevice_desc_eff__ {
+macro_rules! __iodevice_desc_reg_eff__ {
     ($val:expr) => ($val);
     () => (|_|{});
+}
+
+macro_rules! __iodevice_desc_range_eff__ {
+    ($val:expr) => ($val);
+    () => (|_, _, _|{});
 }
 
 #[macro_export]
 macro_rules! iodevice {
     ($name:ident, {
         $(internal_state: $instate:path;)*
-        regs:
-        $(
+        regs: {$(
             $reg_offs:expr => $reg_name:ident: $reg_ty:ty {
                 $(default = $reg_default:expr;)*
                 $(write_bits = $reg_wb:expr;)*
                 $(read_effect = $reg_reff:expr;)*
                 $(write_effect = $reg_weff:expr;)*
             }
-        )*
+        )*}
+        $(ranges: {$(
+            $range_offs:expr;$range_size:expr => {
+                $(read_effect = $range_reff:expr;)*
+                $(write_effect = $range_weff:expr;)*
+            }
+        )*})*
     }) => (
         __iodevice__!($name, {
             $(internal_state: $instate;)*
-            regs:
-            $(
+            regs: {$(
                 $reg_offs => $reg_name: $reg_ty {
                     default = __iodevice_desc_default__!($($reg_default),*);
                     write_bits = __iodevice_desc_wb__!($($reg_wb),*);
-                    read_effect = __iodevice_desc_eff__!($($reg_reff),*);
-                    write_effect = __iodevice_desc_eff__!($($reg_weff),*);
+                    read_effect = __iodevice_desc_reg_eff__!($($reg_reff),*);
+                    write_effect = __iodevice_desc_reg_eff__!($($reg_weff),*);
                 }
-            )*
+            )*}
+            ranges: {$($(
+                $range_offs;$range_size => {
+                    read_effect = __iodevice_desc_range_eff__!($($range_reff),*);
+                    write_effect = __iodevice_desc_range_eff__!($($range_weff),*);
+                }
+            )*)*}
         });
     );
 }
@@ -169,12 +191,13 @@ mod test {
     use super::*;
 
     iodevice!(MMCRegs, {
-        regs:
-        0x000 => reg0: u16 { }
-        0x002 => reg2: u16 {
-            write_effect = |dev| { panic!("while writing") };
+        regs: {
+            0x000 => reg0: u16 { }
+            0x002 => reg2: u16 {
+                write_effect = |dev| { panic!("while writing") };
+            }
+            0x004 => reg4: u16 { write_bits = 0; }
         }
-        0x004 => reg4: u16 { write_bits = 0; }
     });
 
     #[test]

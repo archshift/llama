@@ -60,6 +60,7 @@ impl MemoryBlock {
             },
             MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
                 io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
+                io::IoRegion::Shared(ref mut x) => x.read_reg(offset, buf, buf_size),
                 _ => unimplemented!(),
             },
         }
@@ -88,6 +89,7 @@ impl MemoryBlock {
             MemoryBlock::Rom(_) => panic!("Attempted to write to ROM!"),
             MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
                 io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
+                io::IoRegion::Shared(ref mut x) => x.write_reg(offset, buf, buf_size),
                 _ => unimplemented!(),
             },
         }
