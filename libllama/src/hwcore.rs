@@ -17,8 +17,8 @@ fn map_memory_regions() -> (mem::MemController, mem::MemController, mem::MemCont
         controller9.map_region(i * 0x8000, arm9_itcm.clone()); // ITCM
     }
     controller9.map_region(0x08000000, mem::MemoryBlock::make_ram(0x400)); // ARM9 RAM
-    controller9.map_region(0x10000000, mem::MemoryBlock::make_io(io::IoRegion::Arm9(Default::default()), 0x400)); // ARM9 IO
-    controller9.map_region(0x10100000, mem::MemoryBlock::make_io(io::IoRegion::Arm9(Default::default()), 0x400)); // Shared IO
+    controller9.map_region(0x10000000, mem::MemoryBlock::make_io(io::IoRegion::Arm9(io::IoRegsArm9::new()), 0x400)); // ARM9 IO
+    controller9.map_region(0x10100000, mem::MemoryBlock::make_io(io::IoRegion::Shared(io::IoRegsShared::new()), 0x400)); // Shared IO
     controller9.map_region(0x18000000, mem::MemoryBlock::make_ram(0x1800)); // VRAM
     controller9.map_region(0x1FF00000, mem::MemoryBlock::make_ram(0x200)); // DSP
     controller9.map_region(0x1FF80000, axi_wram.clone()); // AXI WRAM

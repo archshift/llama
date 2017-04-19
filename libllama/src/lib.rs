@@ -15,4 +15,3 @@ pub mod hwcore;
 mod io;
 pub mod ldr;
 mod mem;
-mod state;
