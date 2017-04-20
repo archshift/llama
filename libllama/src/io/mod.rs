@@ -7,6 +7,7 @@ mod irq;
 mod sha;
 mod xdma;
 
+use std::ptr;
 use std::default::Default;
 
 pub enum IoRegion {
@@ -104,7 +105,12 @@ impl IoRegsShared {
 
     pub unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
         let device: &mut regs::IoRegAccess = match bits!(offset, 12 => 23) {
-            _ => { error!("Unimplemented IO register read at offset 0x{:X}", offset); return },
+            _ => {
+                error!("Unimplemented IO register read at offset 0x{:X}", offset);
+                // If we can't find a register for it, just read zero bytes
+                ptr::write_bytes(buf, 0, buf_size);
+                return
+            }
         };
         device.read_reg(offset & 0xFFF, buf, buf_size);
     }

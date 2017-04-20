@@ -53,7 +53,7 @@ enum Status1 {
     IllAccess   = (1 << 15),
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TransferType {
     Read,
     Write
@@ -72,6 +72,7 @@ pub struct EmmcDeviceState {
     expect_appcmd: bool,
 
     sd_file: Option<File>,
+    nand_file: Option<File>,
     transfer: Option<ActiveTransfer>,
 }
 
@@ -87,15 +88,70 @@ fn use_32bit(dev: &EmmcDevice) -> bool {
     && bf!((dev.data32_ctl.get()) @ RegData32Ctl::use_32bit) == 1
 }
 
+fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
+    let file_offset = get_params_u32(&*dev);
+
+    {
+        let opt_file = if dev.port_select.get() & 1 == 0 {
+            &mut dev._internal_state.sd_file
+        } else {
+            &mut dev._internal_state.nand_file
+        };
+        if let Some(ref mut file) = *opt_file {
+            file.seek(SeekFrom::Start(file_offset as u64));
+            trace!("Seeking SDMMC pointer to offset 0x{:08X}!", file_offset);
+        } else {
+            return
+        }
+    }
+
+    let transfer = if use_32bit(dev) {
+        let ctl = match ttype {
+            TransferType::Read => bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1),
+            TransferType::Write => dev.data32_ctl.get() // TODO: Why is this?
+        };
+        dev.data32_ctl.set_unchecked(ctl);
+
+        ActiveTransfer {
+            ty: ttype,
+            blocks_left: dev.data32_blk_cnt.get(),
+            fifo_pos: 0,
+            fifo_size: dev.data32_blk_len.get(),
+        }
+    } else {
+        match ttype {
+            TransferType::Read => dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16),
+            TransferType::Write => dev.irq_status1.bitadd_unchecked(Status1::TxRq as u16)
+        }
+        ActiveTransfer {
+            ty: ttype,
+            blocks_left: dev.data16_blk_cnt.get(),
+            fifo_pos: 0,
+            fifo_size: dev.data16_blk_len.get(),
+        }
+    };
+    info!("Starting SDMMC transfer ({}): {:?}", if ttype == TransferType::Read { "read" } else { "write" }, transfer);
+    dev._internal_state.transfer = Some(transfer);
+}
+
 fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
     match cmd_index {
         0 => {
-            let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.fat");
-            dev._internal_state.sd_file = match OpenOptions::new().read(true).write(true)
-                                                                  .open(&filename) {
-                Ok(file) => Some(file),
-                Err(x) => panic!("Failed to open SD card file `{}`; {:?}", filename, x)
-            };
+            if dev.port_select.get() & 1 == 0 {
+                let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.fat");
+                dev._internal_state.sd_file = match OpenOptions::new().read(true).write(true)
+                                                                    .open(&filename) {
+                    Ok(file) => Some(file),
+                    Err(x) => panic!("Failed to open SD card file `{}`; {:?}", filename, x)
+                };
+            } else {
+                let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-nand.fat");
+                dev._internal_state.nand_file = match OpenOptions::new().read(true).write(true)
+                                                                    .open(&filename) {
+                    Ok(file) => Some(file),
+                    Err(x) => panic!("Failed to open NAND file `{}`; {:?}", filename, x)
+                };
+            }
 
             warn!("STUBBED: SDMMC CMD0 GO_IDLE_STATE!");
         }
@@ -149,62 +205,10 @@ fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
             warn!("STUBBED: SDMMC CMD16 SET_BLOCKLEN!");
         }
         18 => {
-            let file_offset = get_params_u32(&*dev);
-            if let Some(ref mut file) = dev._internal_state.sd_file {
-                file.seek(SeekFrom::Start(file_offset as u64));
-                trace!("Seeking SD pointer to offset 0x{:08X}!", file_offset);
-            } else {
-                return
-            }
-
-            let transfer = if use_32bit(dev) {
-                let ctl = bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1);
-                dev.data32_ctl.set_unchecked(ctl);
-
-                ActiveTransfer {
-                    ty: TransferType::Read,
-                    blocks_left: dev.data32_blk_cnt.get(),
-                    fifo_pos: 0,
-                    fifo_size: dev.data32_blk_len.get(),
-                }
-            } else {
-                dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
-                ActiveTransfer {
-                    ty: TransferType::Read,
-                    blocks_left: dev.data16_blk_cnt.get(),
-                    fifo_pos: 0,
-                    fifo_size: dev.data16_blk_len.get(),
-                }
-            };
-            trace!("Starting SD transfer (read): {:?}", transfer);
-            dev._internal_state.transfer = Some(transfer);
-
-            warn!("STUBBED: SDMMC CMD18 READ_MULTIPLE_BLOCK!");
+            prepare_multi_transfer(dev, TransferType::Read);
         }
         25 => {
-            let file_offset = get_params_u32(&*dev);
-            if let Some(ref mut file) = dev._internal_state.sd_file {
-                file.seek(SeekFrom::Start(file_offset as u64));
-                trace!("Seeking SD pointer to offset 0x{:08X}!", file_offset);
-            } else {
-                return
-            }
-
-            let transfer = if use_32bit(dev) {
-                unimplemented!()
-            } else {
-                dev.irq_status1.bitadd_unchecked(Status1::TxRq as u16);
-                ActiveTransfer {
-                    ty: TransferType::Write,
-                    blocks_left: dev.data16_blk_cnt.get(),
-                    fifo_pos: 0,
-                    fifo_size: dev.data16_blk_len.get(),
-                }
-            };
-            trace!("Starting SD transfer (write): {:?}", transfer);
-            dev._internal_state.transfer = Some(transfer);
-
-            warn!("STUBBED: SDMMC CMD25 WRITE_MULTIPLE_BLOCK!");
+            prepare_multi_transfer(dev, TransferType::Write);
         }
         55 => {
             dev._internal_state.expect_appcmd = true;
@@ -232,7 +236,7 @@ fn handle_acmd(dev: &mut EmmcDevice, acmd_index: u16) {
 fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
     let index = bf!((dev.cmd.get()) @ RegCmd::command_index);
 
-    dev.irq_status0.set_unchecked(0);
+    dev.irq_status0.set(0);
 
     if dev._internal_state.expect_appcmd {
         assert_eq!(bf!((dev.cmd.get()) @ RegCmd::command_type), 1);
@@ -245,9 +249,16 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
 
 fn reg_fifo16_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
     let should_stop = {
-        let file = match dev._internal_state.sd_file {
-            Some(ref mut f) => f,
-            None => return
+        let file = {
+            let opt_file = if dev.port_select.get() & 1 == 0 {
+                &mut dev._internal_state.sd_file
+            } else {
+                &mut dev._internal_state.nand_file
+            };
+            match *opt_file {
+                Some(ref mut f) => f,
+                None => return
+            }
         };
         let transfer = match dev._internal_state.transfer {
             Some(ref mut t) => t,
@@ -260,7 +271,6 @@ fn reg_fifo16_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
         let status_out = match transfer_type {
             TransferType::Read => {
                 file.read_exact(&mut buf16).unwrap();
-
                 dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
                 Status1::RxReady
@@ -296,9 +306,16 @@ fn reg_fifo16_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
 
 fn reg_fifo32_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
     let should_stop = {
-        let file = match dev._internal_state.sd_file {
-            Some(ref mut f) => f,
-            None => return
+        let file = {
+            let opt_file = if dev.port_select.get() & 1 == 0 {
+                &mut dev._internal_state.sd_file
+            } else {
+                &mut dev._internal_state.nand_file
+            };
+            match *opt_file {
+                Some(ref mut f) => f,
+                None => return
+            }
         };
         let transfer = match dev._internal_state.transfer {
             Some(ref mut t) => t,
@@ -315,11 +332,16 @@ fn reg_fifo32_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
 
                 bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1)
             }
-            TransferType::Write => unimplemented!()
+            TransferType::Write => {
+                buf32 = unsafe { mem::transmute(dev.data32_fifo.get()) };
+                file.write_all(&buf32).unwrap();
+
+                dev.data32_ctl.get() // TODO: Why is this?
+            }
         };
 
-        trace!("{} to SD FIFO32! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X} {:02X} {:02X}",
-               match transfer_type { TransferType::Read => "Reading", TransferType::Write => "Writing"},
+        info!("{} SD FIFO32! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X} {:02X} {:02X}",
+               match transfer_type { TransferType::Read => "Reading from", TransferType::Write => "Writing to"},
                transfer.blocks_left, transfer.fifo_pos, buf32[0], buf32[1], buf32[2], buf32[3]);
 
         // Hack to keep the client reading even after acknowledging
@@ -336,6 +358,7 @@ fn reg_fifo32_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
     if should_stop {
         dev.irq_status0.bitadd_unchecked(Status0::DataEnd as u16);
         handle_cmd(dev, 12); // STOP_TRANSMISSION
+        info!("FIFO32 transmission stopped! irq_status0: 0x{:08X}", dev.irq_status0.get());
     }
 }
 
@@ -358,7 +381,11 @@ iodevice!(EmmcDevice, {
         0x016 => response5: u16 { write_bits = 0; }
         0x018 => response6: u16 { write_bits = 0; }
         0x01A => response7: u16 { write_bits = 0; }
-        0x01C => irq_status0: u16 { }
+        0x01C => irq_status0: u16 {
+            // We want SIGSTATE to be 1 always (indicating SD card is inserted)
+            default = 0b00000000_00100000;
+            write_bits = !0b00000000_00100000;
+        }
         0x01E => irq_status1: u16 { }
         0x020 => irq_mask0: u16 { }
         0x022 => irq_mask1: u16 { }
@@ -386,7 +413,7 @@ iodevice!(EmmcDevice, {
         0x108 => data32_blk_cnt: u16 { }
         0x10C => data32_fifo: u32 {
             read_effect = |dev: &mut EmmcDevice| reg_fifo32_mod(dev, TransferType::Read);
-            write_effect = |dev: &mut EmmcDevice| unimplemented!();
+            write_effect = |dev: &mut EmmcDevice| reg_fifo32_mod(dev, TransferType::Write);
         }
     }
 });
