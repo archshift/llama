@@ -28,18 +28,18 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
         CsMode::MODE_LITTLE_ENDIAN
     };
 
-    if let Some(cs) = Capstone::new(CsArch::ARCH_ARM, cpu_mode) {
+    if let Ok(cs) = Capstone::new(CsArch::ARCH_ARM, cpu_mode) {
         let mut inst_bytes = [0u8; 4];
         hw.read_mem(pause_addr, &mut inst_bytes);
 
         match cs.disasm(&inst_bytes, pause_addr as u64, 1) {
-            Some(insts) => {
+            Ok(insts) => {
                 let inst = insts.iter().next().unwrap();
                 info!("{:X}: {} {}", pause_addr,
                                      inst.mnemonic().unwrap(),
                                      inst.op_str().unwrap())
             }
-            None => error!("Failed to disassemble instruction at 0x{:X}", pause_addr),
+            Err(_) => error!("Failed to disassemble instruction at 0x{:X}", pause_addr),
         }
     } else {
         error!("Could not initialize capstone!");
