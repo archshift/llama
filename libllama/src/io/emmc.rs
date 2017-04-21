@@ -130,7 +130,7 @@ fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
             fifo_size: dev.data16_blk_len.get(),
         }
     };
-    info!("Starting SDMMC transfer ({}): {:?}", if ttype == TransferType::Read { "read" } else { "write" }, transfer);
+    trace!("Starting SDMMC transfer ({}): {:?}", if ttype == TransferType::Read { "read" } else { "write" }, transfer);
     dev._internal_state.transfer = Some(transfer);
 }
 
@@ -247,7 +247,7 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
     }
 }
 
-fn reg_fifo16_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
+fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: bool) {
     let should_stop = {
         let file = {
             let opt_file = if dev.port_select.get() & 1 == 0 {
@@ -268,86 +268,42 @@ fn reg_fifo16_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
         assert_eq!(transfer.ty, transfer_type);
 
         let mut buf16 = [0u8; 2];
-        let status_out = match transfer_type {
-            TransferType::Read => {
+        let mut buf32 = [0u8; 4];
+        match (transfer_type, is_32bit) {
+            (TransferType::Read, false) => {
                 file.read_exact(&mut buf16).unwrap();
                 dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
-                Status1::RxReady
+                // Setting these flags: hack to keep the client reading even after acknowledging
+                dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
             }
-            TransferType::Write => {
+            (TransferType::Write, false) => {
                 buf16 = unsafe { mem::transmute(dev.data16_fifo.get()) };
                 file.write_all(&buf16).unwrap();
 
-                Status1::TxRq
+                dev.irq_status1.bitadd_unchecked(Status1::TxRq as u16);
             }
-        };
-
-        trace!("{} to SD FIFO16! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X}",
-               match transfer_type { TransferType::Read => "Reading", TransferType::Write => "Writing"},
-               transfer.blocks_left, transfer.fifo_pos, buf16[0], buf16[1]);
-
-        // Hack to keep the client reading even after acknowledging
-        dev.irq_status1.bitadd_unchecked(status_out as u16);
-
-        transfer.fifo_pos += 2;
-        if transfer.fifo_pos >= transfer.fifo_size {
-            transfer.blocks_left -= 1;
-            transfer.fifo_pos = 0;
-        }
-        transfer.blocks_left == 0
-    };
-
-    if should_stop {
-        dev.irq_status0.bitadd_unchecked(Status0::DataEnd as u16);
-        handle_cmd(dev, 12); // STOP_TRANSMISSION
-    }
-}
-
-fn reg_fifo32_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
-    let should_stop = {
-        let file = {
-            let opt_file = if dev.port_select.get() & 1 == 0 {
-                &mut dev._internal_state.sd_file
-            } else {
-                &mut dev._internal_state.nand_file
-            };
-            match *opt_file {
-                Some(ref mut f) => f,
-                None => return
-            }
-        };
-        let transfer = match dev._internal_state.transfer {
-            Some(ref mut t) => t,
-            None => return
-        };
-
-        assert_eq!(transfer.ty, transfer_type);
-
-        let mut buf32 = [0u8; 4];
-        let status_out = match transfer_type {
-            TransferType::Read => {
+            (TransferType::Read, true) => {
                 file.read_exact(&mut buf32).unwrap();
                 dev.data32_fifo.set_unchecked(unsafe { mem::transmute(buf32) });
 
-                bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1)
+                let new_ctl = bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1);
+                dev.data32_ctl.set_unchecked(new_ctl);
             }
-            TransferType::Write => {
+            (TransferType::Write, true) => {
                 buf32 = unsafe { mem::transmute(dev.data32_fifo.get()) };
                 file.write_all(&buf32).unwrap();
 
-                dev.data32_ctl.get() // TODO: Why is this?
+                // Don't set flags. TODO: Why is this?
             }
         };
 
-        info!("{} SD FIFO32! blocks left: {}, fifo pos: {}, buf: {:02X} {:02X} {:02X} {:02X}",
+        trace!("{} SD FIFO! blocks left: {}, fifo pos: {}",
                match transfer_type { TransferType::Read => "Reading from", TransferType::Write => "Writing to"},
-               transfer.blocks_left, transfer.fifo_pos, buf32[0], buf32[1], buf32[2], buf32[3]);
+               transfer.blocks_left, transfer.fifo_pos);
 
-        // Hack to keep the client reading even after acknowledging
-        dev.data32_ctl.set_unchecked(status_out);
+        transfer.fifo_pos += if is_32bit { 4 } else { 2 };
 
-        transfer.fifo_pos += 4;
         if transfer.fifo_pos >= transfer.fifo_size {
             transfer.blocks_left -= 1;
             transfer.fifo_pos = 0;
@@ -358,7 +314,6 @@ fn reg_fifo32_mod(dev: &mut EmmcDevice, transfer_type: TransferType) {
     if should_stop {
         dev.irq_status0.bitadd_unchecked(Status0::DataEnd as u16);
         handle_cmd(dev, 12); // STOP_TRANSMISSION
-        info!("FIFO32 transmission stopped! irq_status0: 0x{:08X}", dev.irq_status0.get());
     }
 }
 
@@ -395,8 +350,8 @@ iodevice!(EmmcDevice, {
         0x02C => err_status0: u16 { }
         0x02E => err_status1: u16 { }
         0x030 => data16_fifo: u16 {
-            read_effect = |dev: &mut EmmcDevice| reg_fifo16_mod(dev, TransferType::Read);
-            write_effect = |dev: &mut EmmcDevice| reg_fifo16_mod(dev, TransferType::Write);
+            read_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Read, false);
+            write_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Write, false);
         }
         0x0D8 => data16_ctl: u16 {
             default = 0b00010000_00010000;
@@ -412,8 +367,8 @@ iodevice!(EmmcDevice, {
         0x104 => data32_blk_len: u16 { }
         0x108 => data32_blk_cnt: u16 { }
         0x10C => data32_fifo: u32 {
-            read_effect = |dev: &mut EmmcDevice| reg_fifo32_mod(dev, TransferType::Read);
-            write_effect = |dev: &mut EmmcDevice| reg_fifo32_mod(dev, TransferType::Write);
+            read_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Read, true);
+            write_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Write, true);
         }
     }
 });
