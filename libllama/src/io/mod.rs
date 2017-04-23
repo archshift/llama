@@ -4,6 +4,7 @@ mod regs;
 mod config;
 mod emmc;
 mod irq;
+mod timer;
 mod sha;
 mod xdma;
 
@@ -20,7 +21,7 @@ pub struct IoRegsArm9 {
     config: config::ConfigDevice,
     irq: irq::IrqDevice,
     // ndma,
-    // timer,
+    timer: timer::TimerDevice,
     // ctrcard,
     emmc: emmc::EmmcDevice,
     // pxi9,
@@ -41,6 +42,7 @@ impl IoRegsArm9 {
             config: config::ConfigDevice::new(),
             irq: irq::IrqDevice::new(),
             emmc: emmc::EmmcDevice::new(Default::default()),
+            timer: timer::TimerDevice::new(Default::default()),
             sha: sha::ShaDevice::new(Default::default()),
             xdma: xdma::XdmaDevice::new(),
             config_ext: config::ConfigExtDevice::new(),
@@ -51,11 +53,17 @@ impl IoRegsArm9 {
         let device: &mut regs::IoRegAccess = match bits!(offset, 12 => 23) {
             0x00 => &mut self.config,
             0x01 => &mut self.irq,
+            0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
             0x0C => &mut self.xdma,
             0x10 => &mut self.config_ext,
-            _ => { error!("Unimplemented IO register read at offset 0x{:X}", offset); return },
+            _ => {
+                error!("Unimplemented IO register read at offset 0x{:X}", offset);
+                // If we can't find a register for it, just read zero bytes
+                ptr::write_bytes(buf, 0, buf_size);
+                return
+            }
         };
         device.read_reg(offset & 0xFFF, buf, buf_size);
     }
@@ -64,6 +72,7 @@ impl IoRegsArm9 {
         let device: &mut regs::IoRegAccess = match bits!(offset, 12 => 23) {
             0x00 => &mut self.config,
             0x01 => &mut self.irq,
+            0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
             0x0C => &mut self.xdma,
