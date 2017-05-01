@@ -21,3 +21,10 @@ install:
   - ./make.sh && sudo ./make.sh install
   - popd
   - sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qt5-qmake
+
+script:
+  - cargo build --verbose
+  - pushd libllama
+  - cargo test --verbose
+  - popd
+  - cargo test --verbose
