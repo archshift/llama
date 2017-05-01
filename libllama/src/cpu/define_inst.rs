@@ -147,16 +147,19 @@ mod test {
 
     #[test]
     fn decode_add1() {
-        assert!(add_1::try_decode(0b0001110000000000).is_some());
-        assert!(add_1::try_decode(0b0011110000000000).is_none());
+        assert!(add_1::decodable(0b0001110000000000));
+        assert!(!add_1::decodable(0b0011110000000000));
     }
 
     #[test]
     fn decode_ldrh() {
-        let desc = ldrh::try_decode(0b11100000110101001001000010110100).unwrap();
+        let ldrh_bits = 0b11100000110101001001000010110100;
+        assert!(ldrh::decodable(ldrh_bits));
+
+        let desc = ldrh::InstrDesc::new(0b11100000110101001001000010110100);
         assert_eq!(bf!(desc.cond), 0b1110);
         assert_eq!(bf!(desc.rn), 4);
         assert_eq!(bf!(desc.rd), 9);
-        assert!(ldrh::try_decode(0b11100000110101001001000011110100).is_none());
+        assert!(!ldrh::decodable(0b11100000110101001001000011110100));
     }
 }
