@@ -95,6 +95,7 @@ impl Cpu {
 
     pub fn spsr_make_current(&mut self) {
         self.cpsr = self.get_current_spsr().clone();
+        self.regs.swap(cpu::Mode::from_num(bf!((self.cpsr).mode)));
     }
 
     #[inline(always)]
