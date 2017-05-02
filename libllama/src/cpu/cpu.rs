@@ -1,4 +1,5 @@
 use cpu;
+use cpu::coproc;
 use cpu::regs::{GpRegs, Psr};
 use mem;
 
@@ -39,6 +40,8 @@ pub struct Cpu {
     pub spsr_abt: Psr,
     pub spsr_und: Psr,
 
+    coproc_syscnt: coproc::SysControl,
+
     pub memory: mem::MemController,
     pub breakpoints: HashMap<u32, bool> // addr, is_triggered
 }
@@ -58,6 +61,8 @@ impl Cpu {
             spsr_svc: Psr::new(0),
             spsr_abt: Psr::new(0),
             spsr_und: Psr::new(0),
+
+            coproc_syscnt: coproc::SysControl::new(),
 
             memory: memory,
             breakpoints: HashMap::new()
@@ -79,6 +84,13 @@ impl Cpu {
             4
         } else {
             8
+        }
+    }
+
+    pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor {
+        match cp_index {
+            15 => &mut self.coproc_syscnt,
+            _ => panic!("Tried to access unknown CP{}", cp_index),
         }
     }
 

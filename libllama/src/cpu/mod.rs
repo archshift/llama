@@ -5,6 +5,7 @@ mod define_inst;
 pub mod decoder_arm;
 pub mod decoder_thumb;
 
+mod coproc;
 mod interpreter_arm;
 mod interpreter_thumb;
 
