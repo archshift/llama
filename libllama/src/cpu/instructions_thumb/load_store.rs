@@ -84,6 +84,22 @@ pub fn ldrh_2(cpu: &mut Cpu, data: thumb::ldrh_2::InstrDesc) -> cpu::InstrStatus
     cpu::instructions_arm::ldrh(cpu, arm::ldrh::InstrDesc::new(arminst))
 }
 
+pub fn ldrsb(cpu: &mut Cpu, data: thumb::ldrsb::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000011001_0000_0000_00001101_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::ldrsb(cpu, arm::ldrsb::InstrDesc::new(arminst))
+}
+
+pub fn ldrsh(cpu: &mut Cpu, data: thumb::ldrsh::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000011001_0000_0000_00001111_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                           | ((bf!(data.rd) as u32) << 12)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::ldrsh(cpu, arm::ldrsh::InstrDesc::new(arminst))
+}
+
 pub fn pop(cpu: &mut Cpu, data: thumb::pop::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110100010111101_0_0000000_00000000
                                           | ((bf!(data.r_bit) as u32) << 15)

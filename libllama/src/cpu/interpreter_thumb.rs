@@ -36,6 +36,8 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::ldrb_2(data) => instructions_thumb::ldrb_2(cpu, data),
         ThumbInstruction::ldrh_1(data) => instructions_thumb::ldrh_1(cpu, data),
         ThumbInstruction::ldrh_2(data) => instructions_thumb::ldrh_2(cpu, data),
+        ThumbInstruction::ldrsb(data) => instructions_thumb::ldrsb(cpu, data),
+        ThumbInstruction::ldrsh(data) => instructions_thumb::ldrsh(cpu, data),
         ThumbInstruction::lsl_1(data) => instructions_thumb::lsl_1(cpu, data),
         ThumbInstruction::lsl_2(data) => instructions_thumb::lsl_2(cpu, data),
         ThumbInstruction::lsr_1(data) => instructions_thumb::lsr_1(cpu, data),
