@@ -5,6 +5,7 @@ mod config;
 mod emmc;
 mod irq;
 mod ndma;
+mod otp;
 mod timer;
 mod sha;
 mod xdma;
@@ -33,7 +34,7 @@ pub struct IoRegsArm9 {
     // spicard,
     config_ext: config::ConfigExtDevice,
     // prng,
-    // otp,
+    otp: otp::OtpDevice,
     // arm7,
 }
 
@@ -44,6 +45,7 @@ impl IoRegsArm9 {
             irq: irq::IrqDevice::new(),
             emmc: emmc::EmmcDevice::new(Default::default()),
             ndma: ndma::NdmaDevice::new(Default::default()),
+            otp: otp::OtpDevice::new(Default::default()),
             timer: timer::TimerDevice::new(Default::default()),
             sha: sha::ShaDevice::new(Default::default()),
             xdma: xdma::XdmaDevice::new(),
@@ -61,6 +63,7 @@ impl IoRegsArm9 {
             0x0A => &mut self.sha,
             0x0C => &mut self.xdma,
             0x10 => &mut self.config_ext,
+            0x12 => &mut self.otp,
             _ => {
                 error!("Unimplemented IO register read at offset 0x{:X}", offset);
                 // If we can't find a register for it, just read zero bytes
@@ -81,6 +84,7 @@ impl IoRegsArm9 {
             0x0A => &mut self.sha,
             0x0C => &mut self.xdma,
             0x10 => &mut self.config_ext,
+            0x12 => &mut self.otp,
             _ => { error!("Unimplemented IO register write at offset 0x{:X}", offset); return },
         };
         device.write_reg(offset & 0xFFF, buf, buf_size);
