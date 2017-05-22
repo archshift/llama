@@ -4,6 +4,7 @@ mod regs;
 mod config;
 mod emmc;
 mod irq;
+mod ndma;
 mod timer;
 mod sha;
 mod xdma;
@@ -20,7 +21,7 @@ pub enum IoRegion {
 pub struct IoRegsArm9 {
     config: config::ConfigDevice,
     irq: irq::IrqDevice,
-    // ndma,
+    ndma: ndma::NdmaDevice,
     timer: timer::TimerDevice,
     // ctrcard,
     emmc: emmc::EmmcDevice,
@@ -42,6 +43,7 @@ impl IoRegsArm9 {
             config: config::ConfigDevice::new(),
             irq: irq::IrqDevice::new(),
             emmc: emmc::EmmcDevice::new(Default::default()),
+            ndma: ndma::NdmaDevice::new(Default::default()),
             timer: timer::TimerDevice::new(Default::default()),
             sha: sha::ShaDevice::new(Default::default()),
             xdma: xdma::XdmaDevice::new(),
@@ -53,6 +55,7 @@ impl IoRegsArm9 {
         let device: &mut regs::IoRegAccess = match bits!(offset, 12 => 23) {
             0x00 => &mut self.config,
             0x01 => &mut self.irq,
+            0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
@@ -72,6 +75,7 @@ impl IoRegsArm9 {
         let device: &mut regs::IoRegAccess = match bits!(offset, 12 => 23) {
             0x00 => &mut self.config,
             0x01 => &mut self.irq,
+            0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
