@@ -33,10 +33,6 @@ QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, FrontendCall
     QTimer *scrn_update_timer = new QTimer(scrn_view);
 
     QObject::connect(scrn_update_timer, &QTimer::timeout, [=] {
-        if (!callbacks->is_running(backend)) {
-            return;
-        }
-
         size_t buf_size = 0;
 
         const uint8_t *top_buf = callbacks->top_screen(backend, &buf_size);

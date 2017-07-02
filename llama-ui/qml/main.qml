@@ -6,8 +6,8 @@ Item {
     width: 880
     height: 480
 
-    property ScreenView scrnView: scrnView
-    property DbgConsole dbgConsole: dbgConsole
+    property alias scrnView: scrnView
+    property alias dbgConsole: dbgConsole
 
     RowLayout {
         anchors.fill: parent

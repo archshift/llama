@@ -73,7 +73,7 @@ pub struct HwCore {
 }
 
 impl HwCore {
-    pub fn new<L: ldr::Loader>(loader: L) -> HwCore {
+    pub fn new(loader: &ldr::Loader) -> HwCore {
         let (mut mem9, mem11, mem_pica) = map_memory_regions(io::IoRegsArm9::new(), io::IoRegsShared::new());
         loader.load(&mut mem9);
 

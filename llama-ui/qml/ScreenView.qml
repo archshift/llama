@@ -14,8 +14,8 @@ Item {
     signal fullscreenActivated()
     signal configOpened()
 
-    property TopScreen topScreen: topScreen
-    property BotScreen botScreen: botScreen
+    property alias topScreen: topScreen
+    property alias botScreen: botScreen
 
     Rectangle {
         id: topScreenDecor

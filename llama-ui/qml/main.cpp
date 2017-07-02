@@ -67,6 +67,10 @@ public slots:
         callbacks->set_running(backend, val);
     }
 
+    void reloadGame() {
+        callbacks->reload_game(backend);
+    }
+
 public:
     ScreenManager(QObject *screen_view, Backend *backend, FrontendCallbacks *callbacks):
             screen_view(screen_view), backend(backend), callbacks(callbacks) { }
@@ -91,6 +95,7 @@ extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
 
     ScreenManager scrnmgr(scrn_view, backend, callbacks);
     QObject::connect(scrn_view, SIGNAL(pauseToggled()), &scrnmgr, SLOT(togglePaused()));
+    QObject::connect(scrn_view, SIGNAL(reloaded()), &scrnmgr, SLOT(reloadGame()));
 
     QTimer *scrn_update_timer = createScreenRepainter(scrn_view, backend, callbacks);
     scrn_update_timer->start(16); // TODO: not ideal

@@ -9,7 +9,7 @@ ColumnLayout {
 
     signal commandRun(string cmd)
     signal traceToggled(bool trace)
-    property TextEdit text: txtTxt
+    property alias text: txtTxt
 
     Rectangle {
         id: txtRect

@@ -12,7 +12,8 @@ use std::env;
 
 use libllama::{dbgcore, hwcore, ldr};
 
-pub struct Backend {
+pub struct Backend<'a> {
+    loader: &'a ldr::Loader,
     debugger: dbgcore::DbgCore,
     fbs: hwcore::Framebuffers
 }
@@ -25,6 +26,8 @@ pub struct FrontendCallbacks {
     bot_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
     run_command: extern fn(*mut Backend, *const u8, usize),
     use_trace_logs: extern fn(*mut Backend, bool),
+
+    reload_game: extern fn(*mut Backend),
 }
 
 extern {
@@ -89,6 +92,16 @@ mod cbs {
     pub extern fn use_trace_logs(_: *mut Backend, val: bool) {
         uilog::allow_trace(val);
     }
+
+    pub extern fn reload_game(backend: *mut Backend) {
+        let backend = unsafe { &mut *backend };
+        backend.debugger = super::load_game(backend.loader);
+    }
+}
+
+fn load_game(loader: &ldr::Loader) -> dbgcore::DbgCore {
+    let hwcore = hwcore::HwCore::new(loader);
+    dbgcore::DbgCore::bind(hwcore)
 }
 
 fn main() {
@@ -104,6 +117,8 @@ fn main() {
         bot_screen: cbs::bot_screen,
         run_command: cbs::run_command,
         use_trace_logs: cbs::use_trace_logs,
+
+        reload_game: cbs::reload_game,
     };
 
     let fbs = hwcore::Framebuffers {
@@ -111,9 +126,9 @@ fn main() {
         top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
     };
 
-    let hwcore = hwcore::HwCore::new(loader);
     let mut backend = Backend {
-        debugger: dbgcore::DbgCore::bind(hwcore),
+        loader: &loader,
+        debugger: load_game(&loader),
         fbs: fbs
     };
 
