@@ -6,8 +6,9 @@ mod emmc;
 mod irq;
 mod ndma;
 mod otp;
-mod timer;
+mod rsa;
 mod sha;
+mod timer;
 mod xdma;
 
 use std::ptr;
@@ -29,7 +30,7 @@ pub struct IoRegsArm9 {
     // pxi9,
     // aes,
     sha: sha::ShaDevice,
-    // rsa,
+    rsa: rsa::RsaDevice,
     xdma: xdma::XdmaDevice,
     // spicard,
     config_ext: config::ConfigExtDevice,
@@ -48,6 +49,7 @@ impl IoRegsArm9 {
             otp: otp::OtpDevice::new(Default::default()),
             timer: timer::TimerDevice::new(Default::default()),
             sha: sha::ShaDevice::new(Default::default()),
+            rsa: rsa::RsaDevice::new(Default::default()),
             xdma: xdma::XdmaDevice::new(),
             config_ext: config::ConfigExtDevice::new(),
         }
@@ -61,6 +63,7 @@ impl IoRegsArm9 {
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
+            0x0B => &mut self.rsa,
             0x0C => &mut self.xdma,
             0x10 => &mut self.config_ext,
             0x12 => &mut self.otp,
@@ -82,6 +85,7 @@ impl IoRegsArm9 {
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
             0x0A => &mut self.sha,
+            0x0B => &mut self.rsa,
             0x0C => &mut self.xdma,
             0x10 => &mut self.config_ext,
             0x12 => &mut self.otp,
