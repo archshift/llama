@@ -72,9 +72,9 @@ fn get_keydata(dev: &RsaDevice, keyslot: usize) -> (u32, u32) {
 }
 
 fn reg_slot_cnt_update(dev: &mut RsaDevice, keyslot: usize) {
-    let (slot_cnt, slot_len) = get_keydata(dev, keyslot);
+    let (slot_cnt, _) = get_keydata(dev, keyslot);
     if bf!(slot_cnt @ RegSlotCnt::key_set) == 1 {
-        assert_eq!(dev._internal_state.slots[keyslot].write_pos, (slot_len * 4) as usize);
+        assert_eq!(dev._internal_state.slots[keyslot].write_pos, 0x100);
     } else {
         dev._internal_state.slots[keyslot].write_pos = 0;
     }
@@ -84,8 +84,6 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
     let cnt = dev.cnt.get();
     trace!("Wrote 0x{:08X} to RSA CNT register!", cnt);
 
-    assert_eq!(bf!(cnt @ RegCnt::little_endian), 1);
-    assert_eq!(bf!(cnt @ RegCnt::normal_order), 1);
     if bf!(cnt @ RegCnt::busy) == 1 {
         let keyslot = bf!(cnt @ RegCnt::keyslot) as usize;
         let (slot_cnt, _) = get_keydata(dev, keyslot);
@@ -93,9 +91,23 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
 
         info!("Performing RSA arithmetic!");
 
-        let base = bn::BigNum::from_slice(&dev._internal_state.message[..]).unwrap();
+        let mut base_buf = [0u8; 0x100];
+        base_buf.copy_from_slice(&dev._internal_state.message[..]);
+        let mut modulus_buf = [0u8; 0x100];
+        modulus_buf.copy_from_slice(&dev._internal_state.modulus[..]);
+
+        match (bf!(cnt @ RegCnt::little_endian), bf!(cnt @ RegCnt::normal_order)) {
+            (1, 1) => {},
+            (0, 0) => {
+                base_buf.reverse();
+                modulus_buf.reverse();
+            }
+            _ => unimplemented!()
+        }
+
+        let base = bn::BigNum::from_slice(&base_buf[..]).unwrap();
         let exponent = bn::BigNum::from_slice(&dev._internal_state.slots[keyslot].buf[..]).unwrap();
-        let modulus = bn::BigNum::from_slice(&dev._internal_state.modulus[..]).unwrap();
+        let modulus = bn::BigNum::from_slice(&modulus_buf[..]).unwrap();
 
         let mut res = bn::BigNum::new().unwrap();
         res.mod_exp(&base, &exponent, &modulus, &mut bn::BigNumContext::new().unwrap()).unwrap();
@@ -137,9 +149,8 @@ fn reg_txt_write(dev: &mut RsaDevice, buf_pos: usize, src: &[u8]) {
 
 fn reg_exp_fifo_write(dev: &mut RsaDevice) {
     let keyslot = bf!((dev.cnt.get()) @ RegCnt::keyslot) as usize;
-    let (slot_cnt, slot_len) = get_keydata(dev, keyslot);
+    let (slot_cnt, _) = get_keydata(dev, keyslot);
 
-    assert_eq!(slot_len, 0x40);
     assert_eq!(bf!(slot_cnt @ RegSlotCnt::key_set), 0);
     assert_eq!(bf!(slot_cnt @ RegSlotCnt::key_prot), 0);
 
@@ -174,6 +185,7 @@ iodevice!(RsaDevice, {
         0x200 => exp_fifo: u32 { write_effect = reg_exp_fifo_write; }
     }
     ranges: {
+        0x204;0xFC => { } // A bug in bootrom causes it to write all over this area
         0x400;0x100 => {
             read_effect = reg_mod_read;
             write_effect = reg_mod_write;
