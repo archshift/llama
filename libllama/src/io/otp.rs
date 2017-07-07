@@ -1,4 +1,7 @@
+use std::env;
 use std::fmt;
+use std::fs::OpenOptions;
+use std::io::Read;
 
 pub struct OtpDeviceState {
     otp: [u8; 0x100]
@@ -12,8 +15,16 @@ impl fmt::Debug for OtpDeviceState {
 
 impl Default for OtpDeviceState {
     fn default() -> OtpDeviceState {
+        let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-otp.bin");
+        let mut file = OpenOptions::new().read(true).write(true).open(&filename)
+            .expect(&format!("Failed to open OTP file `{}`", filename));
+
+        let mut otp = [0u8; 0x100];
+        file.read_exact(&mut otp[..])
+            .expect(&format!("Failed to read 256 bytes from OTP file `{}`", filename));
+
         OtpDeviceState {
-            otp: [0; 0x100]
+            otp: otp
         }
     }
 }
