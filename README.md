@@ -14,7 +14,7 @@ Llama most certainly cannot run any 3DS games. Don't even try.
 
 See for yourself!
 
-![Llama's GUI](https://i.imgur.com/DfY2NAc.png)
+![Llama's GUI, running Hourglass9](https://i.imgur.com/4HGJFdo.png)
 
 Much like the emulator itself, llama's GUI is currently incomplete and probably not super nice to use.
 
