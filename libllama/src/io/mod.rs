@@ -1,6 +1,7 @@
 #[macro_use]
 mod regs;
 
+mod aes;
 mod config;
 mod emmc;
 mod irq;
@@ -28,7 +29,7 @@ pub struct IoRegsArm9 {
     // ctrcard,
     emmc: emmc::EmmcDevice,
     // pxi9,
-    // aes,
+    aes: aes::AesDevice,
     sha: sha::ShaDevice,
     rsa: rsa::RsaDevice,
     xdma: xdma::XdmaDevice,
@@ -48,6 +49,7 @@ impl IoRegsArm9 {
             ndma: ndma::NdmaDevice::new(Default::default()),
             otp: otp::OtpDevice::new(Default::default()),
             timer: timer::TimerDevice::new(Default::default()),
+            aes: aes::AesDevice::new(Default::default()),
             sha: sha::ShaDevice::new(Default::default()),
             rsa: rsa::RsaDevice::new(Default::default()),
             xdma: xdma::XdmaDevice::new(),
@@ -62,6 +64,7 @@ impl IoRegsArm9 {
             0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
+            0x09 => &mut self.aes,
             0x0A => &mut self.sha,
             0x0B => &mut self.rsa,
             0x0C => &mut self.xdma,
@@ -84,6 +87,7 @@ impl IoRegsArm9 {
             0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
+            0x09 => &mut self.aes,
             0x0A => &mut self.sha,
             0x0B => &mut self.rsa,
             0x0C => &mut self.xdma,
