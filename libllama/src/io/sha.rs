@@ -33,13 +33,15 @@ unsafe impl Send for ShaDeviceState {} // TODO: Not good!
 // more hardware testing to determine the source of errors.
 
 fn reg_cnt_update(dev: &mut ShaDevice) {
-    let cnt = dev.cnt.get();
+    let mut cnt = dev.cnt.get();
     trace!("Wrote 0x{:08X} to SHA CNT register!", cnt);
 
     if bf!(cnt @ RegCnt::final_round) == 1 && bf!(cnt @ RegCnt::busy) == 0 {
+        info!("Reached end of final round!");
         if let Some(ref mut h) = dev._internal_state.hasher {
             dev._internal_state.hash = h.finish().unwrap();
         }
+        bf!(cnt @ RegCnt::final_round = 0);
     }
 
     else if bf!(cnt @ RegCnt::clear_fifo) == 1 {
@@ -62,7 +64,8 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
         dev._internal_state.hasher = Some(Hasher::new(mode).unwrap());
     }
 
-    dev.cnt.set_unchecked(bf!(cnt @ RegCnt::busy as 0));
+    bf!(cnt @ RegCnt::busy = 0);
+    dev.cnt.set_unchecked(cnt);
 }
 
 fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
