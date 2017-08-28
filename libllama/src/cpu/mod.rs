@@ -13,6 +13,7 @@ pub use self::cpu::*;
 pub use self::interpreter_arm::*;
 pub use self::interpreter_thumb::*;
 
+pub mod dummy11;
 pub mod instructions_arm;
 pub mod instructions_thumb;
 pub mod regs;

@@ -6,6 +6,7 @@ authors = ["archshift <gh@archshift.com>"]
 [dependencies]
 bitutils = { git = "https://github.com/archshift/bitutils-rs" }
 error-chain = "0.7"
+indextree = "1.0"
 json = "0.11"
 log = "0.3"
 openssl = "0.9"

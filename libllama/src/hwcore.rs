@@ -50,16 +50,7 @@ pub struct Hardware9 {
 }
 
 pub struct Hardware11 {
-    handshake_pos: HandshakePos,
-    pub mem: mem::MemController
-}
-
-#[derive(Debug)]
-enum HandshakePos {
-    NotStarted,
-    Finished1,
-    Finished2,
-    Finished3
+    pub dummy11: cpu::dummy11::Dummy11
 }
 
 pub struct HwCore {
@@ -85,8 +76,7 @@ impl HwCore {
                 arm9: cpu
             })),
             hardware11: sync::Arc::new(sync::RwLock::new(Hardware11 {
-                handshake_pos: HandshakePos::NotStarted,
-                mem: mem11
+                dummy11: cpu::dummy11::Dummy11::new(mem11, cpu::dummy11::modes::kernel())
             })),
             hardware_task: None,
             arm11_handshake_task: None,
@@ -115,28 +105,15 @@ impl HwCore {
         // the two processors synchronize over AXI WRAM address 0x1FFFFFF0.
         // Until the ARM11 is emulated, manually doing this will allow FIRM to boot.
         self.arm11_handshake_task = Some(task::Task::spawn(move |running| {
-            use std::thread;
-
             // Nobody else can access the hardware while the thread runs
             let mut hardware = hardware11.write().unwrap();
-            let sync_addr = 0x1FFFFFF0u32;
 
-            if let HandshakePos::NotStarted = hardware.handshake_pos {
-                hardware.mem.write::<u8>(sync_addr, 1);
-                hardware.handshake_pos = HandshakePos::Finished1;
-            }
+            use std::{thread, time};
 
-            if let HandshakePos::Finished1 = hardware.handshake_pos {
-                while hardware.mem.read::<u8>(sync_addr) != 2 {
-                    if !running.load(atomic::Ordering::SeqCst) { return }
-                    thread::yield_now();
+            while running.load(atomic::Ordering::SeqCst) {
+                if let cpu::BreakReason::Breakpoint = hardware.dummy11.step() {
+                    thread::sleep(time::Duration::from_millis(10));
                 }
-                hardware.handshake_pos = HandshakePos::Finished2;
-            }
-
-            if let HandshakePos::Finished2 = hardware.handshake_pos {
-                hardware.mem.write::<u8>(sync_addr, 3);
-                hardware.handshake_pos = HandshakePos::Finished3;
             }
         }));
     }
