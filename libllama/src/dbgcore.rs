@@ -51,7 +51,7 @@ impl<'a> DbgContext<'a> {
 }
 
 pub struct DbgHwContext<'a> {
-    hw: sync::RwLockWriteGuard<'a, hwcore::Hardware9>
+    hw: &'a mut hwcore::Hardware9
 }
 
 impl<'a> DbgHwContext<'a> {

@@ -1,4 +1,5 @@
 use std::marker::Send;
+use std::mem;
 use std::sync::{self, atomic};
 use std::thread;
 
@@ -33,15 +34,27 @@ impl Drop for RunningMarker {
     }
 }
 
-pub struct Task {
-    running: sync::Arc<atomic::AtomicBool>,
-    running_internal: sync::Arc<atomic::AtomicBool>,
-    handle: Option<thread::JoinHandle<()>>,
+pub enum ReturnVal<T> {
+    Waiting(thread::JoinHandle<T>),
+    Ready(T),
+    None
 }
 
-impl Task {
-    pub fn spawn<F>(f: F) -> Task
-        where F: FnOnce(sync::Arc<atomic::AtomicBool>), F: Send + 'static {
+impl<T> ReturnVal<T> {
+    pub fn take(&mut self) -> ReturnVal<T> {
+        mem::replace(self, ReturnVal::None)
+    }
+}
+
+pub struct Task<T> {
+    running: sync::Arc<atomic::AtomicBool>,
+    running_internal: sync::Arc<atomic::AtomicBool>,
+    pub ret: ReturnVal<T>,
+}
+
+impl<T> Task<T> {
+    pub fn spawn<F>(f: F) -> Task<T>
+        where T: Send + 'static, F: FnOnce(sync::Arc<atomic::AtomicBool>) -> T, F: Send + 'static {
 
         let running = sync::Arc::new(atomic::AtomicBool::new(true));
         let running_t = running.clone();
@@ -52,18 +65,18 @@ impl Task {
 
         let handle = thread::spawn(move || {
             let running_marker = marker;
-            f(running_t);
+            f(running_t)
         });
 
         Task {
             running: running,
             running_internal: running_internal,
-            handle: Some(handle),
+            ret: ReturnVal::Waiting(handle),
         }
     }
 }
 
-impl TaskMgmt for Task {
+impl<T> TaskMgmt for Task<T> {
     fn try_join(&mut self) -> Result<JoinStatus, ()> {
         if self.running_internal.load(atomic::Ordering::SeqCst) {
             Ok(JoinStatus::NotReady)
@@ -73,12 +86,13 @@ impl TaskMgmt for Task {
     }
 
     fn stop(&mut self) -> Result<StopStatus, ()> {
-        if let Some(handle) = self.handle.take() {
+        if let ReturnVal::Waiting(handle) = self.ret.take() {
             self.running.store(false, atomic::Ordering::SeqCst);
-            if handle.join().is_err() {
-                Err(())
-            } else {
+            if let Ok(x) = handle.join() {
+                self.ret = ReturnVal::Ready(x);
                 Ok(StopStatus::Stopped)
+            } else {
+                Err(())
             }
         } else {
             Ok(StopStatus::NotRunning)
@@ -86,7 +100,7 @@ impl TaskMgmt for Task {
     }
 }
 
-impl Drop for Task {
+impl<T> Drop for Task<T> {
     fn drop(&mut self) {
         self.stop();
     }
@@ -99,13 +113,13 @@ pub enum EndBehavior {
 }
 
 pub struct TaskUnion<'a> (
-    pub &'a mut [(&'a mut Option<Task>, EndBehavior)]
+    pub &'a mut [(Option<&'a mut TaskMgmt>, EndBehavior)]
 );
 
 impl<'a> TaskMgmt for TaskUnion<'a> {
     fn try_join(&mut self) -> Result<JoinStatus, ()> {
-        let make_has_stopped = |tu: &mut (&'a mut Option<Task>, EndBehavior)| {
-            match tu.0.as_mut() {
+        let make_has_stopped = |tu: &mut (Option<&'a mut TaskMgmt>, EndBehavior)| {
+            match tu.0 {
                 Some(ref mut task) => Ok(task.try_join()? == JoinStatus::Joined),
                 None => Ok(true)
             }
