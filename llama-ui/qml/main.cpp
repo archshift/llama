@@ -9,8 +9,6 @@
 #include <cstdio>
 #include <vector>
 
-#include <lgl.h>
-
 #include "interop.hpp"
 #include "screens.hpp"
 
@@ -26,7 +24,7 @@ class ConsoleManager: public QObject
     std::vector<char> text_buf;
 public slots:
     void fillLog() {
-        LogBufferView view = lgl_buffer({ &text_buf[0], text_buf.size() });
+        LogBufferView view = callbacks->buffer({ &text_buf[0], text_buf.size() });
         QString txt = QString::fromUtf8(view.buf_ptr, view.buf_size);
         QObject *dbg_console_text = qvariant_cast<QObject*>(QQmlProperty::read(dbg_console, "text"));
         dbg_console_text->setProperty("text", txt);
@@ -47,7 +45,7 @@ public:
             backend(backend),
             callbacks(callbacks),
             text_poll_timer(new QTimer(this)),
-            text_buf(lgl_buffer_size())
+            text_buf(callbacks->buffer_size())
     {
         QObject::connect(text_poll_timer, &QTimer::timeout, this, &ConsoleManager::fillLog);
         text_poll_timer->start(10);

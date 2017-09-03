@@ -1,6 +1,17 @@
 #pragma once
 
 struct Backend;
+
+struct LogBufferView {
+    const char* buf_ptr;
+    size_t buf_size;
+};
+
+struct LogBufferMutView {
+    char* buf_ptr;
+    size_t buf_size;
+};
+
 struct FrontendCallbacks {
     void(*set_running)(Backend*, bool);
     bool(*is_running)(Backend*);
@@ -10,4 +21,8 @@ struct FrontendCallbacks {
     void(*use_trace_logs)(Backend*, bool);
 
     void(*reload_game)(Backend*);
+
+    void(*log)(LogBufferView);
+    LogBufferView(*buffer)(LogBufferMutView);
+    size_t(*buffer_size)();
 };

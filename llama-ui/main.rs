@@ -28,6 +28,22 @@ pub struct FrontendCallbacks {
     use_trace_logs: extern fn(*mut Backend, bool),
 
     reload_game: extern fn(*mut Backend),
+
+    log: extern fn(LogBufferView),
+    buffer: extern fn(LogBufferMutView) -> LogBufferView,
+    buffer_size: extern fn() -> usize,
+}
+
+#[repr(C)]
+pub struct LogBufferView {
+    buf_ptr: *const u8,
+    buf_size: usize
+}
+
+#[repr(C)]
+pub struct LogBufferMutView {
+    buf_ptr: *mut u8,
+    buf_size: usize
 }
 
 extern {
@@ -42,6 +58,9 @@ mod cbs {
     use commands;
     use uilog;
     use Backend;
+
+    use lgl;
+    use {LogBufferView, LogBufferMutView};
 
     pub extern fn set_running(backend: *mut Backend, state: bool) {
         if state {
@@ -97,6 +116,25 @@ mod cbs {
         let backend = unsafe { &mut *backend };
         backend.debugger = super::load_game(backend.loader);
     }
+
+    pub extern fn log(buf: LogBufferView) {
+        let s = unsafe {
+            let slice = slice::from_raw_parts(buf.buf_ptr, buf.buf_size);
+            str::from_utf8(slice).unwrap()
+        };
+        lgl::log(s)
+    }
+
+    pub extern fn buffer(buf: LogBufferMutView) -> LogBufferView {
+        let new_slice = unsafe {
+            lgl::buffer(slice::from_raw_parts_mut(buf.buf_ptr, buf.buf_size))
+        };
+        LogBufferView { buf_ptr: new_slice.as_ptr(), buf_size: new_slice.len() }
+    }
+
+    pub extern fn buffer_size() -> usize {
+        lgl::BUFFER_SIZE
+    }
 }
 
 fn load_game(loader: &ldr::Loader) -> dbgcore::DbgCore {
@@ -119,6 +157,10 @@ fn main() {
         use_trace_logs: cbs::use_trace_logs,
 
         reload_game: cbs::reload_game,
+
+        log: cbs::log,
+        buffer: cbs::buffer,
+        buffer_size: cbs::buffer_size,
     };
 
     let fbs = hwcore::Framebuffers {
