@@ -9,38 +9,38 @@ use io;
 
 fn map_memory_regions(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared)
         -> (mem::MemController, mem::MemController, mem::MemController) {
-    let arm9_itcm = mem::MemoryBlock::make_ram(0x20);
-    let arm9_ram = mem::MemoryBlock::make_ram(0x400);
-    let arm9_io = mem::MemoryBlock::make_io(io::IoRegion::Arm9(arm9_io), 0x400);
-    let arm9_dtcm = mem::MemoryBlock::make_ram(0x10);
-    let arm9_bootrom = mem::MemoryBlock::make_ram(0x40);
+    let arm9_itcm = mem::SharedMemoryBlock::new(0x20);
+    let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
+    let arm9_io = mem::IoMemoryBlock::new(io::IoRegion::Arm9(arm9_io), 0x400);
+    let arm9_dtcm = mem::UniqueMemoryBlock::new(0x10);
+    let arm9_bootrom = mem::UniqueMemoryBlock::new(0x40);
 
-    let shared_io = mem::MemoryBlock::make_io(io::IoRegion::Shared(shared_io), 0x400);
-    let vram = mem::MemoryBlock::make_ram(0x1800);
-    let dsp_ram = mem::MemoryBlock::make_ram(0x200);
-    let axi_wram = mem::MemoryBlock::make_ram(0x200);
-    let fcram = mem::MemoryBlock::make_ram(0x20000);
+    let shared_io = mem::IoMemoryBlock::new(io::IoRegion::Shared(shared_io), 0x400);
+    let vram = mem::SharedMemoryBlock::new(0x1800);
+    let dsp_ram = mem::SharedMemoryBlock::new(0x200);
+    let axi_wram = mem::SharedMemoryBlock::new(0x200);
+    let fcram = mem::SharedMemoryBlock::new(0x20000);
 
     let mut controller9 = mem::MemController::new();
     for i in 0..0x1000 {
-        controller9.map_region(i * 0x8000, arm9_itcm.clone());
+        controller9.map_region(i * 0x8000, mem::AddressBlock::SharedRam(arm9_itcm.clone()));
     }
-    controller9.map_region(0x08000000, arm9_ram.clone());
-    controller9.map_region(0x10000000, arm9_io.clone());
-    controller9.map_region(0x10100000, shared_io.clone());
-    controller9.map_region(0x18000000, vram.clone());
-    controller9.map_region(0x1FF00000, dsp_ram.clone());
-    controller9.map_region(0x1FF80000, axi_wram.clone());
-    controller9.map_region(0x20000000, fcram.clone());
-    controller9.map_region(0xFFF00000, arm9_dtcm.clone());
-    controller9.map_region(0xFFFF0000, arm9_bootrom.clone());
+    controller9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram));
+    controller9.map_region(0x10000000, mem::AddressBlock::Io(arm9_io));
+    controller9.map_region(0x10100000, mem::AddressBlock::Io(shared_io));
+    controller9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
+    controller9.map_region(0x1FF00000, mem::AddressBlock::SharedRam(dsp_ram.clone()));
+    controller9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
+    controller9.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+    controller9.map_region(0xFFF00000, mem::AddressBlock::UniqueRam(arm9_dtcm));
+    controller9.map_region(0xFFFF0000, mem::AddressBlock::UniqueRam(arm9_bootrom));
 
     let mut controller11 = mem::MemController::new();
-    controller11.map_region(0x1FF80000, axi_wram.clone());
-    controller11.map_region(0x20000000, fcram.clone());
+    controller11.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
+    controller11.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
 
     let mut controller_pica = mem::MemController::new();
-    controller_pica.map_region(0x20000000, fcram.clone());
+    controller_pica.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
 
     return (controller9, controller11, controller_pica);
 }

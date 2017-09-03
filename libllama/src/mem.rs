@@ -1,4 +1,5 @@
 use std;
+use std::cell;
 use std::cmp;
 use std::ptr;
 use std::sync;
@@ -6,98 +7,160 @@ use std::sync;
 use io;
 
 const KB_SIZE: usize = 1024;
-pub type MemoryNode = sync::RwLock<[u8; KB_SIZE]>;
+pub type SharedMemoryNode = sync::RwLock<[u8; KB_SIZE]>;
 
-#[derive(Clone)]
-pub enum MemoryBlock {
-    Ram(sync::Arc<Vec<MemoryNode>>),
-    Rom(sync::Arc<Vec<MemoryNode>>),
-    Io(sync::Arc<(usize, sync::Mutex<io::IoRegion>)>),
+trait MemoryBlock {
+    fn get_bytes(&self) -> u32;
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize);
+    unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize);
 }
 
-impl MemoryBlock {
-    pub fn make_ram(kbs: usize) -> MemoryBlock {
-        let mut inner: Vec<MemoryNode> = Vec::new();
+pub struct UniqueMemoryBlock(cell::UnsafeCell<Vec<u8>>);
+impl UniqueMemoryBlock {
+    pub fn new(kbs: usize) -> UniqueMemoryBlock {
+        UniqueMemoryBlock(cell::UnsafeCell::new(vec![0u8; kbs*KB_SIZE]))
+    }
+}
+impl MemoryBlock for UniqueMemoryBlock {
+    fn get_bytes(&self) -> u32 {
+        unsafe { (*self.0.get()).len() as u32 }
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        let vec = &*self.0.get();
+        assert!(offset + buf_size <= vec.len());
+        ptr::copy_nonoverlapping(vec.as_ptr().offset(offset as isize), buf, buf_size);
+    }
+
+    unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
+        let vec = &mut *self.0.get();
+        assert!(offset + buf_size <= vec.len());
+        ptr::copy_nonoverlapping(buf, vec.as_mut_ptr().offset(offset as isize), buf_size);
+    }
+}
+
+#[derive(Clone)]
+pub struct SharedMemoryBlock(sync::Arc<Vec<SharedMemoryNode>>);
+impl SharedMemoryBlock {
+    pub fn new(kbs: usize) -> SharedMemoryBlock {
+        let mut inner: Vec<SharedMemoryNode> = Vec::new();
         for _ in 0..kbs {
             inner.push(sync::RwLock::new([0; KB_SIZE]))
         }
 
-        MemoryBlock::Ram(sync::Arc::new(inner))
+        SharedMemoryBlock(sync::Arc::new(inner))
+    }
+}
+impl MemoryBlock for SharedMemoryBlock {
+    fn get_bytes(&self) -> u32 {
+        let nodes = &self.0;
+        (nodes.len() * KB_SIZE) as u32
     }
 
-    pub fn make_io(variant: io::IoRegion, kbs: usize) -> MemoryBlock {
-        MemoryBlock::Io(sync::Arc::new((kbs, sync::Mutex::new(variant))))
-    }
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        let nodes = &self.0;
+        let mut buf_remaining = buf_size;
+        let mut node_index = offset / KB_SIZE;
+        let mut node_pos = offset % KB_SIZE;
 
-    pub fn get_bytes(&self) -> u32 {
-        match *self {
-            MemoryBlock::Ram(ref nodes) | MemoryBlock::Rom(ref nodes) => {
-                (nodes.len() * KB_SIZE) as u32
-            },
-            MemoryBlock::Io(ref region) => (region.0 * KB_SIZE) as u32,
+        while buf_remaining > 0 {
+            assert!(node_index < nodes.len());
+            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
+            {
+                let node_ptr = nodes[node_index].read().unwrap().as_ptr();
+                let buf_pos = buf_size - buf_remaining;
+                ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
+            }
+            buf_remaining -= copy_amount;
+            node_index += 1;
+            node_pos = 0;
         }
     }
 
-    pub unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        match *self {
-            MemoryBlock::Ram(ref nodes) | MemoryBlock::Rom(ref nodes) => {
-                let mut buf_remaining = buf_size;
-                let mut node_index = offset / KB_SIZE;
-                let mut node_pos = offset % KB_SIZE;
+    unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
+        let nodes = &self.0;
+        let mut buf_remaining = buf_size;
+        let mut node_index = offset / KB_SIZE;
+        let mut node_pos = offset % KB_SIZE;
 
-                while buf_remaining > 0 {
-                    assert!(node_index < nodes.len());
-                    let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-                    {
-                        let node_ptr = nodes[node_index].read().unwrap().as_ptr();
-                        let buf_pos = buf_size - buf_remaining;
-                        ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
-                    }
-                    buf_remaining -= copy_amount;
-                    node_index += 1;
-                    node_pos = 0;
-                }
-            },
-            MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
-                io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
-                io::IoRegion::Shared(ref mut x) => x.read_reg(offset, buf, buf_size),
-                _ => unimplemented!(),
-            },
+        while buf_remaining > 0 {
+            assert!(node_index < nodes.len());
+            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
+            {
+                let node_ptr = nodes[node_index].write().unwrap().as_mut_ptr();
+                let buf_pos = buf_size - buf_remaining;
+                ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
+            }
+            buf_remaining -= copy_amount;
+            node_index += 1;
+            node_pos = 0;
+        }
+    }
+}
+
+pub struct IoMemoryBlock(sync::Arc<(usize, sync::Mutex<io::IoRegion>)>);
+impl IoMemoryBlock {
+    pub fn new(variant: io::IoRegion, kbs: usize) -> IoMemoryBlock {
+        IoMemoryBlock(sync::Arc::new((kbs, sync::Mutex::new(variant))))
+    }
+}
+impl MemoryBlock for IoMemoryBlock {
+    fn get_bytes(&self) -> u32 {
+        ((self.0).0 * KB_SIZE) as u32
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        let (_, ref region) = *self.0;
+        match *region.lock().unwrap() {
+            io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
+            io::IoRegion::Shared(ref mut x) => x.read_reg(offset, buf, buf_size),
+            _ => unimplemented!(),
         }
     }
 
-    pub unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
-        match *self {
-            MemoryBlock::Ram(ref nodes) => {
-                let mut buf_remaining = buf_size;
-                let mut node_index = offset / KB_SIZE;
-                let mut node_pos = offset % KB_SIZE;
+    unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
+        let (_, ref region) = *self.0;
+        match *region.lock().unwrap() {
+            io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
+            io::IoRegion::Shared(ref mut x) => x.write_reg(offset, buf, buf_size),
+            _ => unimplemented!(),
+        }
+    }
+}
 
-                while buf_remaining > 0 {
-                    assert!(node_index < nodes.len());
-                    let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-                    {
-                        let node_ptr = nodes[node_index].write().unwrap().as_mut_ptr();
-                        let buf_pos = buf_size - buf_remaining;
-                        ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
-                    }
-                    buf_remaining -= copy_amount;
-                    node_index += 1;
-                    node_pos = 0;
-                }
-            },
-            MemoryBlock::Rom(_) => panic!("Attempted to write to ROM!"),
-            MemoryBlock::Io(ref region) => match *region.1.lock().unwrap() {
-                io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
-                io::IoRegion::Shared(ref mut x) => x.write_reg(offset, buf, buf_size),
-                _ => unimplemented!(),
-            },
+pub enum AddressBlock {
+    UniqueRam(UniqueMemoryBlock),
+    SharedRam(SharedMemoryBlock),
+    Io(IoMemoryBlock),
+}
+impl MemoryBlock for AddressBlock {
+    fn get_bytes(&self) -> u32 {
+        match *self {
+            AddressBlock::UniqueRam(ref inner) => inner.get_bytes(),
+            AddressBlock::SharedRam(ref inner) => inner.get_bytes(),
+            AddressBlock::Io(ref inner) => inner.get_bytes(),
+        }
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        match *self {
+            AddressBlock::UniqueRam(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
+            AddressBlock::SharedRam(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
+            AddressBlock::Io(ref inner) => inner.read_to_ptr(offset, buf, buf_size)
+        }
+    }
+
+    unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
+        match *self {
+            AddressBlock::UniqueRam(ref inner) => inner.write_from_ptr(offset, buf, buf_size),
+            AddressBlock::SharedRam(ref inner) => inner.write_from_ptr(offset, buf, buf_size),
+            AddressBlock::Io(ref inner) => inner.write_from_ptr(offset, buf, buf_size)
         }
     }
 }
 
 pub struct MemController {
-    regions: Vec<(u32, MemoryBlock)>,
+    regions: Vec<(u32, AddressBlock)>,
 }
 
 impl MemController {
@@ -111,7 +174,7 @@ impl MemController {
         self.regions.binary_search_by(|&(addr, _)| addr.cmp(&address))
     }
 
-    fn match_address(&self, address: u32) -> Option<(u32, MemoryBlock)> {
+    fn match_address<'a>(&'a self, address: u32) -> Option<(u32, &'a AddressBlock)> {
         let index = match self.search_region(address) {
             Ok(a) => a,
             Err(a) => a - 1,
@@ -122,12 +185,12 @@ impl MemController {
 
         let (block_addr, ref block) = self.regions[index];
         if (address >= block_addr) && (address <= block_addr + block.get_bytes() - 1) {
-            return Some((block_addr, block.clone()));
+            return Some((block_addr, block));
         }
         None
     }
 
-    pub fn map_region(&mut self, address: u32, region: MemoryBlock) {
+    pub fn map_region(&mut self, address: u32, region: AddressBlock) {
         let insert_index = self.search_region(address).unwrap_err();
         self.regions.insert(insert_index, (address, region));
     }
@@ -136,8 +199,8 @@ impl MemController {
         let (block_addr, block) = self.match_address(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
         unsafe {
-            let t: T = std::mem::uninitialized();
-            block.read_to_ptr((addr - block_addr) as usize, std::mem::transmute(&t), std::mem::size_of::<T>());
+            let mut t: T = std::mem::uninitialized();
+            block.read_to_ptr((addr - block_addr) as usize, std::mem::transmute(&mut t), std::mem::size_of::<T>());
             t
         }
     }
@@ -174,12 +237,9 @@ mod test {
 
     #[test]
     fn write_intra_block() {
-        let block = MemoryBlock::make_ram(1);
+        let block = SharedMemoryBlock::new(1);
         assert_eq!(block.get_bytes(), 0x400);
-        let nodes = match block {
-            MemoryBlock::Ram(ref n) => n,
-            _ => panic!("make_ram() did not make a Ram block!"),
-        };
+        let nodes = &block.0;
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
@@ -194,12 +254,9 @@ mod test {
 
     #[test]
     fn read_intra_block() {
-        let block = MemoryBlock::make_ram(1);
+        let block = SharedMemoryBlock::new(1);
         assert_eq!(block.get_bytes(), 0x400);
-        let nodes = match block {
-            MemoryBlock::Ram(ref n) => n,
-            _ => panic!("make_ram() did not make a Ram block!"),
-        };
+        let nodes = &block.0;
 
         // Write data directly to memory
         {
@@ -220,12 +277,9 @@ mod test {
 
     #[test]
     fn write_inter_block() {
-        let block = MemoryBlock::make_ram(2);
+        let block = SharedMemoryBlock::new(2);
         assert_eq!(block.get_bytes(), 0x800);
-        let nodes = match block {
-            MemoryBlock::Ram(ref n) => n,
-            _ => panic!("make_ram() did not make a Ram block!"),
-        };
+        let nodes = &block.0;
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
@@ -242,12 +296,9 @@ mod test {
 
     #[test]
     fn read_inter_block() {
-        let block = MemoryBlock::make_ram(2);
+        let block = SharedMemoryBlock::new(2);
         assert_eq!(block.get_bytes(), 0x800);
-        let nodes = match block {
-            MemoryBlock::Ram(ref n) => n,
-            _ => panic!("make_ram() did not make a Ram block!"),
-        };
+        let nodes = &block.0;
 
         // Write data directly to memory
         {
