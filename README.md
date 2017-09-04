@@ -41,7 +41,8 @@ The `desc.json` file describes how llama will load your ARM9 binaries. `desc.jso
     "entryPoint": "0x0801B01C",
     "binFiles": [
         { "bin": "firm_2_08006800.bin", "vAddr": "0x08006800" }
-    ]
+    ],
+    "arm11State": "kernelSync"
 }
 ```
 
@@ -49,6 +50,10 @@ The `desc.json` file describes how llama will load your ARM9 binaries. `desc.jso
 - `binFiles`: Array of binaries found within the ctr9 package.
   - `bin`: The binary filename.
   - `vAddr`: Address where llama will copy the binary.
+- `arm11State` (defaults to `none`): String that describes how the ARM11 will be emulated. Possible values are:
+  - `kernelSync`: Performs ARM9<=>ARM11 handshake that allows kernel to run
+  - `bootSync`: Performs ARM9<=>ARM11 handshake that allows bootloader to run
+  - `none`: Does not attempt any ARM11 emulation
 
 #### Debugger
 

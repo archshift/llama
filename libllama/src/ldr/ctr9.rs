@@ -5,6 +5,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use ldr;
+use hwcore;
 use mem;
 use utils;
 
@@ -67,12 +68,17 @@ impl ldr::Loader for Ctr9Loader {
             }
         }
     }
+
+    fn arm11_state(&self) -> hwcore::Arm11State {
+        self.desc.arm11_state
+    }
 }
 
 
 struct Desc {
     entrypoint: u32,
     binfiles: Vec<DescBinfile>,
+    arm11_state: hwcore::Arm11State,
 }
 
 impl Desc {
@@ -91,9 +97,18 @@ impl Desc {
             bail!(ErrorKind::JsonItemError("binfiles[]".to_owned(), DESC_FILENAME.to_owned()))
         }
 
+        let arm11_state_str = json["arm11State"].as_str();
+        let arm11_state = match arm11_state_str {
+            Some("bootSync") => Ok(hwcore::Arm11State::BootSync),
+            Some("kernelSync") => Ok(hwcore::Arm11State::KernelSync),
+            Some("none") | None => Ok(hwcore::Arm11State::None),
+            Some(_) => Err(ErrorKind::JsonItemError("arm11State".to_owned(), DESC_FILENAME.to_owned()))
+        };
+
         Ok(Desc {
             entrypoint: entrypoint?,
             binfiles: binfiles,
+            arm11_state: arm11_state?
         })
     }
 }

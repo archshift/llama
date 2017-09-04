@@ -40,6 +40,31 @@ pub mod modes {
         BoxedSteppable(Box::new(program))
     }
 
+    pub fn boot() -> BoxedSteppable {
+        let mut program = Program::<()>::new(());
+        {
+            let (a, bn) = (&mut program.arena, program.base_node);
+
+            const PXI_SYNC_ADDR: u32 = 0x10163000;
+            fn pxisync_read(hw: &Dummy11HW) -> u8 {
+                (hw.memory.read::<u32>(PXI_SYNC_ADDR) >> 8) as u8
+            }
+            fn pxisync_write(hw: &mut Dummy11HW, val: u8) {
+                let current = hw.memory.read::<u32>(PXI_SYNC_ADDR);
+                let new = current & 0xFFFFFF00 | val as u32;
+                hw.memory.write::<u32>(PXI_SYNC_ADDR, new);
+            }
+
+            let while_node = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 9));
+            {
+                dmnode!(in a, while_node; do |_, _| Ok(thread::yield_now()));
+            }
+
+            dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 11)));
+        }
+        BoxedSteppable(Box::new(program))
+    }
+
     pub fn kernel() -> BoxedSteppable {
         let mut program = Program::<()>::new(());
         {

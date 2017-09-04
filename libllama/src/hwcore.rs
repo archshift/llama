@@ -27,7 +27,7 @@ fn map_memory_regions(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared)
     }
     controller9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram));
     controller9.map_region(0x10000000, mem::AddressBlock::Io(arm9_io));
-    controller9.map_region(0x10100000, mem::AddressBlock::Io(shared_io));
+    controller9.map_region(0x10100000, mem::AddressBlock::Io(shared_io.clone()));
     controller9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
     controller9.map_region(0x1FF00000, mem::AddressBlock::SharedRam(dsp_ram.clone()));
     controller9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
@@ -36,6 +36,7 @@ fn map_memory_regions(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared)
     controller9.map_region(0xFFFF0000, mem::AddressBlock::UniqueRam(arm9_bootrom));
 
     let mut controller11 = mem::MemController::new();
+    controller11.map_region(0x10100000, mem::AddressBlock::Io(shared_io.clone()));
     controller11.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
     controller11.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
 
@@ -63,20 +64,36 @@ pub struct HwCore {
     mem_pica: mem::MemController,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Arm11State {
+    BootSync,
+    KernelSync,
+    None
+}
+
 impl HwCore {
     pub fn new(loader: &ldr::Loader) -> HwCore {
-        let (mut mem9, mem11, mem_pica) = map_memory_regions(io::IoRegsArm9::new(), io::IoRegsShared::new());
+        let (io9, io11) = io::new_devices();
+        let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
         loader.load(&mut mem9);
 
         let mut cpu = cpu::Cpu::new(mem9);
         cpu.reset(loader.entrypoint());
+
+        let arm11_state = loader.arm11_state();
+        info!("Creating system with ARM11 mode {:?}...", arm11_state);
+        let dummy11_mode = match arm11_state {
+            Arm11State::BootSync => cpu::dummy11::modes::boot(),
+            Arm11State::KernelSync => cpu::dummy11::modes::kernel(),
+            Arm11State::None => cpu::dummy11::modes::idle()
+        };
 
         HwCore {
             hardware9: Some(Hardware9 {
                 arm9: cpu
             }),
             hardware11: Some(Hardware11 {
-                dummy11: cpu::dummy11::Dummy11::new(mem11, cpu::dummy11::modes::kernel())
+                dummy11: cpu::dummy11::Dummy11::new(mem11, dummy11_mode)
             }),
             hardware_task: None,
             arm11_handshake_task: None,

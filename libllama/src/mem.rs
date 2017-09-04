@@ -98,6 +98,7 @@ impl MemoryBlock for SharedMemoryBlock {
     }
 }
 
+#[derive(Clone)]
 pub struct IoMemoryBlock(sync::Arc<(usize, sync::Mutex<io::IoRegion>)>);
 impl IoMemoryBlock {
     pub fn new(variant: io::IoRegion, kbs: usize) -> IoMemoryBlock {
