@@ -160,7 +160,7 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "step"
 ///
 /// `args`: Unused
-fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, args: It)
     where It: Iterator<Item=&'a str> {
     let _ = args;
     let mut ctx = debugger.ctx();

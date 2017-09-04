@@ -5,13 +5,13 @@ use indextree::{Arena, NodeId};
 use cpu::BreakReason;
 use mem;
 
-type BoxedSteppable = Box<Steppable + Send + Sync>;
+pub struct BoxedSteppable(Box<Steppable + Send + Sync>);
 
 pub mod modes {
     use std::time;
     use std::thread;
 
-    use super::{Program, BoxedSteppable};
+    use super::{Dummy11HW, Program, BoxedSteppable};
 
     macro_rules! dmnode_inner {
         ($arena:expr, $base_node:expr, $op:expr, $dbg:expr) => ({
@@ -32,18 +32,16 @@ pub mod modes {
             ( dmnode_inner!($arena, $base_node, super::ProgramOp::Nop, "nop"); )
     }
 
-    struct IdleState;
     pub fn idle() -> BoxedSteppable {
-        let mut program = Program::<IdleState>::new(IdleState);
+        let mut program = Program::<()>::new(());
         dmnode!(in &mut program.arena, program.base_node; do
             |_, _| Ok(thread::sleep(time::Duration::from_millis(10)))
         );
-        Box::new(program)
+        BoxedSteppable(Box::new(program))
     }
 
-    struct KernelState;
     pub fn kernel() -> BoxedSteppable {
-        let mut program = Program::<KernelState>::new(KernelState);
+        let mut program = Program::<()>::new(());
         {
             let (a, bn) = (&mut program.arena, program.base_node);
 
@@ -60,9 +58,8 @@ pub mod modes {
 
             dmnode!(in a, bn; do |_, hw| Ok(hw.memory.write::<u8>(SYNC_ADDR, 3)));
         }
-        Box::new(program)
+        BoxedSteppable(Box::new(program))
     }
-
 }
 
 struct Dummy11HW {
@@ -85,7 +82,7 @@ impl Dummy11 {
     }
 
     pub fn step(&mut self) -> BreakReason {
-        self.program.step(&mut self.hw);
+        self.program.0.step(&mut self.hw);
         BreakReason::LimitReached
     }
 }
@@ -93,7 +90,7 @@ impl Dummy11 {
 type OpFn<State> = fn(&mut State, &mut Dummy11HW) -> Result<(), ()>;
 type CondFn<State> = fn(&State, &Dummy11HW) -> Result<bool, ()>;
 
-pub enum ProgramOp<State> {
+enum ProgramOp<State> {
     Nop,
     Block,
     Stmt(OpFn<State>),
@@ -101,7 +98,7 @@ pub enum ProgramOp<State> {
     While(CondFn<State>)
 }
 
-pub struct Program<State> {
+struct Program<State> {
     arena: Arena<ProgramNodeInner<State>>,
     base_node: NodeId,
     state: State,
@@ -109,7 +106,7 @@ pub struct Program<State> {
 }
 
 impl<State> Program<State> {
-    pub fn new(state: State) -> Program<State> {
+    fn new(state: State) -> Program<State> {
         let mut arena = Arena::new();
         let base_node = arena.new_node(ProgramNodeInner::new(ProgramOp::Block, "{}"));
         Program {
@@ -121,14 +118,14 @@ impl<State> Program<State> {
     }
 }
 
-pub trait Steppable {
+trait Steppable {
     fn step(&mut self, hardware: &mut Dummy11HW) -> BreakReason;
 }
 
 impl<State> Steppable for Program<State> {
     fn step(&mut self, hardware: &mut Dummy11HW) -> BreakReason {
         run_node(&mut self.state, hardware, &mut self.arena, self.active_node).unwrap();
-        if let Some(n) = next_node(&mut self.arena, self.active_node, false) {
+        if let Some(n) = next_node(&mut self.arena, self.active_node) {
             self.active_node = n;
             BreakReason::LimitReached
         } else {
@@ -181,8 +178,7 @@ fn run_node<State>(state: &mut State, hw: &mut Dummy11HW,
     Ok(())
 }
 
-fn next_node<State>(arena: &Arena<ProgramNodeInner<State>>, node_id: NodeId,
-                        at_end: bool) -> Option<NodeId> {
+fn next_node<State>(arena: &Arena<ProgramNodeInner<State>>, node_id: NodeId) -> Option<NodeId> {
     let node = &arena[node_id];
 
     if node.data.enter_body.get() {

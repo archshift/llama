@@ -4,10 +4,10 @@ use cpu::decoder_arm as arm;
 use cpu::decoder_thumb as thumb;
 
 enum ProcessInstrBitOp {
-    AND,
-    AND_NOT,
-    OR,
-    XOR,
+    And,
+    AndNot,
+    Or,
+    Xor,
 }
 
 #[inline(always)]
@@ -16,10 +16,10 @@ fn instr_bitwise(cpu: &mut Cpu, data: thumb::and::InstrDesc, op: ProcessInstrBit
     let rm = cpu.regs[bf!(data.rm) as usize];
 
     let val = match op {
-        ProcessInstrBitOp::AND => base_val & rm,
-        ProcessInstrBitOp::AND_NOT => base_val & !rm,
-        ProcessInstrBitOp::OR => base_val | rm,
-        ProcessInstrBitOp::XOR => base_val ^ rm,
+        ProcessInstrBitOp::And => base_val & rm,
+        ProcessInstrBitOp::AndNot => base_val & !rm,
+        ProcessInstrBitOp::Or => base_val | rm,
+        ProcessInstrBitOp::Xor => base_val ^ rm,
     };
 
     bf!((cpu.cpsr).n_bit = bit!(val, 31));
@@ -102,7 +102,7 @@ pub fn add_7(cpu: &mut Cpu, data: thumb::add_7::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn and(cpu: &mut Cpu, data: thumb::and::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
+    instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
 #[inline(always)]
@@ -125,7 +125,7 @@ pub fn asr_2(cpu: &mut Cpu, data: thumb::asr_2::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn bic(cpu: &mut Cpu, data: thumb::bic::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AND_NOT)
+    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AndNot)
 }
 
 #[inline(always)]
@@ -174,7 +174,7 @@ pub fn cmp_3(cpu: &mut Cpu, data: thumb::cmp_3::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn eor(cpu: &mut Cpu, data: thumb::eor::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::XOR)
+    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Xor)
 }
 
 #[inline(always)]
@@ -302,7 +302,7 @@ pub fn neg(cpu: &mut Cpu, data: thumb::neg::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn orr(cpu: &mut Cpu, data: thumb::orr::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::OR)
+    instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Or)
 }
 
 #[inline(always)]

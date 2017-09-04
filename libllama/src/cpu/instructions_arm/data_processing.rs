@@ -15,7 +15,7 @@ fn shifter_lsl(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
     }
 }
 
-fn shifter_lsr_imm(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
+fn shifter_lsr_imm(pre_shift: u32, amount: usize, _: bool) -> (u32, bool) {
     if amount == 0 {
         (0, bit!(pre_shift, 31) == 1)
     } else {
@@ -37,7 +37,7 @@ fn shifter_lsr_reg(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
     }
 }
 
-fn shifter_asr_imm(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
+fn shifter_asr_imm(pre_shift: u32, amount: usize, _: bool) -> (u32, bool) {
     if amount == 0 {
         if bit!(pre_shift, 31) == 0 {
             (0, false)
@@ -143,10 +143,10 @@ fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
 }
 
 enum ProcessInstrBitOp {
-    AND,
-    AND_NOT,
-    OR,
-    XOR,
+    And,
+    AndNot,
+    Or,
+    Xor,
 }
 
 #[inline(always)]
@@ -161,10 +161,10 @@ fn instr_bitwise(cpu: &mut Cpu, data: arm::and::InstrDesc, op: ProcessInstrBitOp
     let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
 
     let val = match op {
-        ProcessInstrBitOp::AND => base_val & shift_out.val,
-        ProcessInstrBitOp::AND_NOT => base_val & !shift_out.val,
-        ProcessInstrBitOp::OR => base_val | shift_out.val,
-        ProcessInstrBitOp::XOR => base_val ^ shift_out.val,
+        ProcessInstrBitOp::And => base_val & shift_out.val,
+        ProcessInstrBitOp::AndNot => base_val & !shift_out.val,
+        ProcessInstrBitOp::Or => base_val | shift_out.val,
+        ProcessInstrBitOp::Xor => base_val ^ shift_out.val,
     };
 
     if s_bit {
@@ -217,12 +217,12 @@ fn instr_compare(cpu: &mut Cpu, data: arm::cmp::InstrDesc, negative: bool) -> cp
 }
 
 enum ProcessInstrLogicalOp {
-    ADD,
-    ADD_CARRY,
-    REVERSE_SUB,
-    REVERSE_SUB_CARRY,
-    SUB,
-    SUB_CARRY,
+    Add,
+    AddCarry,
+    ReverseSub,
+    ReverseSubCarry,
+    Sub,
+    SubCarry,
 }
 
 #[inline(always)]
@@ -238,39 +238,39 @@ fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogic
     let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
 
     let (val, carry_bit, overflow_bit) = match op {
-        ProcessInstrLogicalOp::ADD => {
+        ProcessInstrLogicalOp::Add => {
             let val = wrapping_sum!(base_val, shift_out.val);
             let u_overflow = checked_sum!(base_val, shift_out.val).is_none();
             let s_overflow = checked_sum!(base_val as i32, shift_out.val as i32).is_none();
             (val, u_overflow, s_overflow)
         },
-        ProcessInstrLogicalOp::ADD_CARRY => {
+        ProcessInstrLogicalOp::AddCarry => {
             let carry = bf!((cpu.cpsr).c_bit) as u32;
             let val = wrapping_sum!(base_val, shift_out.val, carry);
             let u_overflow = checked_sum!(base_val, shift_out.val, carry).is_none();
             let s_overflow = checked_sum!(base_val as i32, shift_out.val as i32, carry as i32).is_none();
             (val, u_overflow, s_overflow)
         }
-        ProcessInstrLogicalOp::REVERSE_SUB => {
+        ProcessInstrLogicalOp::ReverseSub => {
             let val = wrapping_diff!(shift_out.val, base_val);
             let u_overflow = checked_diff!(shift_out.val, base_val).is_none();
             let s_overflow = checked_diff!(shift_out.val as i32, base_val as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
-        ProcessInstrLogicalOp::REVERSE_SUB_CARRY => {
+        ProcessInstrLogicalOp::ReverseSubCarry => {
             let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
             let val = wrapping_diff!(shift_out.val, base_val, ncarry);
             let u_overflow = checked_diff!(shift_out.val, base_val, ncarry).is_none();
             let s_overflow = checked_diff!(shift_out.val as i32, base_val as i32, ncarry as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
-        ProcessInstrLogicalOp::SUB => {
+        ProcessInstrLogicalOp::Sub => {
             let val = wrapping_diff!(base_val, shift_out.val);
             let u_overflow = checked_diff!(base_val, shift_out.val).is_none();
             let s_overflow = checked_diff!(base_val as i32, shift_out.val as i32).is_none();
             (val, !u_overflow, s_overflow)
         }
-        ProcessInstrLogicalOp::SUB_CARRY => {
+        ProcessInstrLogicalOp::SubCarry => {
             let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
             let val = wrapping_diff!(base_val, shift_out.val, ncarry);
             let u_overflow = checked_diff!(base_val, shift_out.val, ncarry).is_none();
@@ -391,22 +391,22 @@ fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::Ins
 
 #[inline(always)]
 pub fn adc(cpu: &mut Cpu, data: arm::adc::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ADD_CARRY)
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::AddCarry)
 }
 
 #[inline(always)]
 pub fn add(cpu: &mut Cpu, data: arm::add::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, data, ProcessInstrLogicalOp::ADD)
+    instr_logical(cpu, data, ProcessInstrLogicalOp::Add)
 }
 
 #[inline(always)]
 pub fn and(cpu: &mut Cpu, data: arm::and::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, data, ProcessInstrBitOp::AND)
+    instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
 #[inline(always)]
 pub fn bic(cpu: &mut Cpu, data: arm::bic::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AND_NOT)
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AndNot)
 }
 
 #[inline(always)]
@@ -433,12 +433,12 @@ pub fn cmp(cpu: &mut Cpu, data: arm::cmp::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn eor(cpu: &mut Cpu, data: arm::eor::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::XOR)
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Xor)
 }
 
 #[inline(always)]
 pub fn orr(cpu: &mut Cpu, data: arm::orr::InstrDesc) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::OR)
+    instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Or)
 }
 
 #[inline(always)]
@@ -494,17 +494,17 @@ pub fn mvn(cpu: &mut Cpu, data: arm::mvn::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn rsb(cpu: &mut Cpu, data: arm::rsb::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::REVERSE_SUB)
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ReverseSub)
 }
 
 #[inline(always)]
 pub fn rsc(cpu: &mut Cpu, data: arm::rsc::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::REVERSE_SUB_CARRY)
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ReverseSubCarry)
 }
 
 #[inline(always)]
 pub fn sbc(cpu: &mut Cpu, data: arm::sbc::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SUB_CARRY)
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SubCarry)
 }
 
 #[inline(always)]
@@ -535,7 +535,7 @@ pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
 
 #[inline(always)]
 pub fn sub(cpu: &mut Cpu, data: arm::sub::InstrDesc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SUB)
+    instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::Sub)
 }
 
 #[inline(always)]

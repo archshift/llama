@@ -8,7 +8,7 @@ struct UILogger;
 static TRACE_ENABLED: AtomicBool = ATOMIC_BOOL_INIT;
 
 impl log::Log for UILogger {
-    fn enabled(&self, metadata: &log::LogMetadata) -> bool {
+    fn enabled(&self, _: &log::LogMetadata) -> bool {
         true
     }
 

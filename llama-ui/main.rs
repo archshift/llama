@@ -143,7 +143,7 @@ fn load_game(loader: &ldr::Loader) -> dbgcore::DbgCore {
 }
 
 fn main() {
-    let logger = uilog::init().unwrap();
+    let _logger = uilog::init().unwrap();
 
     let path = env::args().nth(1).unwrap();
     let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();

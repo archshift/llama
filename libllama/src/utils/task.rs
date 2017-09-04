@@ -64,7 +64,7 @@ impl<T> Task<T> {
         let marker = RunningMarker::mark(running_internal_t);
 
         let handle = thread::spawn(move || {
-            let running_marker = marker;
+            let _running_marker = marker;
             f(running_t)
         });
 
@@ -102,7 +102,7 @@ impl<T> TaskMgmt for Task<T> {
 
 impl<T> Drop for Task<T> {
     fn drop(&mut self) {
-        self.stop();
+        let _ = self.stop();
     }
 }
 
