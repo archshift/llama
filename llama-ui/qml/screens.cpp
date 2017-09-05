@@ -27,7 +27,7 @@ void Screen::paint(QPainter *painter) {
     painter->drawPixmap(dst, pix_buffer, src);
 }
 
-QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, FrontendCallbacks *callbacks) {
+QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const FrontendCallbacks *callbacks) {
     QObject *top_screen = qvariant_cast<QObject*>(QQmlProperty::read(scrn_view, "topScreen"));
     QObject *bot_screen = qvariant_cast<QObject*>(QQmlProperty::read(scrn_view, "botScreen"));
     QTimer *scrn_update_timer = new QTimer(scrn_view);

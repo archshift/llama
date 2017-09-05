@@ -1,4 +1,7 @@
+extern crate bindgen;
+
 use std::env;
+use std::path;
 use std::process;
 
 fn main() {
@@ -28,4 +31,11 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}", out_dir);
     println!("cargo:rustc-link-lib=dylib={}", "llamagui");
+
+    bindgen::Builder::default()
+        .header("llama-ui/qml/interop.h")
+        .generate()
+        .expect("Unable to generate bindings")
+        .write_to_file(path::PathBuf::from(out_dir).join("qml_interop.rs"))
+        .expect("Couldn't write bindings!");
 }

@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <vector>
 
-#include "interop.hpp"
+#include "interop.h"
 #include "screens.hpp"
 
 class ConsoleManager: public QObject
@@ -18,7 +18,7 @@ class ConsoleManager: public QObject
 
     QObject *dbg_console;
     Backend *backend;
-    FrontendCallbacks *callbacks;
+    const FrontendCallbacks *callbacks;
 
     QTimer *text_poll_timer;
     std::vector<char> text_buf;
@@ -40,7 +40,7 @@ public slots:
     }
 
 public:
-    ConsoleManager(QObject *dbg_console, Backend *backend, FrontendCallbacks *callbacks):
+    ConsoleManager(QObject *dbg_console, Backend *backend, const FrontendCallbacks *callbacks):
             dbg_console(dbg_console),
             backend(backend),
             callbacks(callbacks),
@@ -58,7 +58,7 @@ class ScreenManager: public QObject
 
     QObject *screen_view;
     Backend *backend;
-    FrontendCallbacks *callbacks;
+    const FrontendCallbacks *callbacks;
 public slots:
     void togglePaused() {
         bool val = !callbacks->is_running(backend);
@@ -70,12 +70,12 @@ public slots:
     }
 
 public:
-    ScreenManager(QObject *screen_view, Backend *backend, FrontendCallbacks *callbacks):
+    ScreenManager(QObject *screen_view, Backend *backend, const FrontendCallbacks *callbacks):
             screen_view(screen_view), backend(backend), callbacks(callbacks) { }
 };
 
 
-extern "C" int llama_open_gui(Backend *backend, FrontendCallbacks *callbacks) {
+extern "C" int llama_open_gui(Backend *backend, const FrontendCallbacks *callbacks) {
     int argc = 0;
     QGuiApplication app(argc, nullptr);
 

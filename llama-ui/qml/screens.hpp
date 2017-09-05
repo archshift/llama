@@ -3,7 +3,7 @@
 #include <QPixmap>
 #include <QtQuick/QQuickPaintedItem>
 
-#include "interop.hpp"
+#include "interop.h"
 
 class QQuickItem;
 class QPixmap;
@@ -30,4 +30,4 @@ public:
     BotScreen(QQuickItem *parent=Q_NULLPTR): Screen(320, 240, parent) { }
 };
 
-QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, FrontendCallbacks *callbacks);
+QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const FrontendCallbacks *callbacks);

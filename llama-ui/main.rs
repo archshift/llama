@@ -12,44 +12,26 @@ use std::env;
 
 use libllama::{dbgcore, hwcore, ldr};
 
-pub struct Backend<'a> {
+mod c {
+    #![allow(warnings)]
+    include!(concat!(env!("OUT_DIR"), "/qml_interop.rs"));
+}
+
+struct Backend<'a> {
     loader: &'a ldr::Loader,
     debugger: dbgcore::DbgCore,
     fbs: hwcore::Framebuffers
 }
 
-#[repr(C)]
-pub struct FrontendCallbacks {
-    set_running: extern fn(*mut Backend, bool),
-    is_running: extern fn(*mut Backend) -> bool,
-    top_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
-    bot_screen: extern fn(*mut Backend, *mut usize) -> *const u8,
-    run_command: extern fn(*mut Backend, *const u8, usize),
-    use_trace_logs: extern fn(*mut Backend, bool),
+impl<'a> Backend<'a> {
+    unsafe fn from_c<'b>(backend: *mut c::Backend) -> &'b mut Backend<'b> {
+        &mut *(backend as *mut Backend)
+    }
 
-    reload_game: extern fn(*mut Backend),
-
-    log: extern fn(LogBufferView),
-    buffer: extern fn(LogBufferMutView) -> LogBufferView,
-    buffer_size: extern fn() -> usize,
+    fn to_c(&mut self) -> *mut c::Backend {
+        (self as *mut Backend) as *mut c::Backend
+    }
 }
-
-#[repr(C)]
-pub struct LogBufferView {
-    buf_ptr: *const u8,
-    buf_size: usize
-}
-
-#[repr(C)]
-pub struct LogBufferMutView {
-    buf_ptr: *mut u8,
-    buf_size: usize
-}
-
-extern {
-    fn llama_open_gui(backend: *mut Backend, callbacks: *const FrontendCallbacks);
-}
-
 
 mod cbs {
     use std::slice;
@@ -57,45 +39,43 @@ mod cbs {
 
     use commands;
     use uilog;
-    use Backend;
+    use {Backend, c};
 
     use lgl;
-    use {LogBufferView, LogBufferMutView};
+    use c::{LogBufferView, LogBufferMutView};
 
-    pub extern fn set_running(backend: *mut Backend, state: bool) {
+    pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
+        let backend = Backend::from_c(backend);
         if state {
-            unsafe { (*backend).debugger.ctx().resume(); }
+            backend.debugger.ctx().resume();
         } else {
-            unsafe { (*backend).debugger.ctx().pause(); }
+            backend.debugger.ctx().pause();
         }
     }
 
-    pub extern fn is_running(backend: *mut Backend) -> bool {
-        unsafe { !(*backend).debugger.ctx().hwcore_mut().try_wait() }
+    pub unsafe extern fn is_running(backend: *mut c::Backend) -> bool {
+        let backend = Backend::from_c(backend);
+        !backend.debugger.ctx().hwcore_mut().try_wait()
     }
 
-    pub extern fn top_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
-        let backend = unsafe { &mut *backend };
+    pub unsafe extern fn top_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
+        let backend = Backend::from_c(backend);
         backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
-        unsafe {
-            *buf_size_out = backend.fbs.top_screen.len();
-            backend.fbs.top_screen.as_ptr()
-        }
+        *buf_size_out = backend.fbs.top_screen.len();
+        backend.fbs.top_screen.as_ptr()
     }
 
-    pub extern fn bot_screen(backend: *mut Backend, buf_size_out: *mut usize) -> *const u8 {
-        let backend = unsafe { &mut *backend };
+    pub unsafe extern fn bot_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
+        let backend = Backend::from_c(backend);
         backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
-        unsafe {
-            *buf_size_out = backend.fbs.bot_screen.len();
-            backend.fbs.bot_screen.as_ptr()
-        }
+        *buf_size_out = backend.fbs.bot_screen.len();
+        backend.fbs.bot_screen.as_ptr()
     }
 
-    pub extern fn run_command(backend: *mut Backend, str_buf: *const u8, str_len: usize) {
-        let backend = unsafe { &mut *backend };
-        let input = unsafe {
-            let slice = slice::from_raw_parts(str_buf, str_len);
+    pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const i8, str_len: usize) {
+        let backend = Backend::from_c(backend);
+        let input = {
+            let slice = slice::from_raw_parts(str_buf as *const u8, str_len);
             str::from_utf8(slice).unwrap()
         };
 
@@ -108,28 +88,26 @@ mod cbs {
         }
     }
 
-    pub extern fn use_trace_logs(_: *mut Backend, val: bool) {
+    pub unsafe extern fn use_trace_logs(_: *mut c::Backend, val: bool) {
         uilog::allow_trace(val);
     }
 
-    pub extern fn reload_game(backend: *mut Backend) {
-        let backend = unsafe { &mut *backend };
+    pub unsafe extern fn reload_game(backend: *mut c::Backend) {
+        let backend = Backend::from_c(backend);
         backend.debugger = super::load_game(backend.loader);
     }
 
-    pub extern fn log(buf: LogBufferView) {
-        let s = unsafe {
-            let slice = slice::from_raw_parts(buf.buf_ptr, buf.buf_size);
+    pub unsafe extern fn log(buf: LogBufferView) {
+        let s = {
+            let slice = slice::from_raw_parts(buf.buf_ptr as *const u8, buf.buf_size);
             str::from_utf8(slice).unwrap()
         };
         lgl::log(s)
     }
 
-    pub extern fn buffer(buf: LogBufferMutView) -> LogBufferView {
-        let new_slice = unsafe {
-            lgl::buffer(slice::from_raw_parts_mut(buf.buf_ptr, buf.buf_size))
-        };
-        LogBufferView { buf_ptr: new_slice.as_ptr(), buf_size: new_slice.len() }
+    pub unsafe extern fn buffer(buf: LogBufferMutView) -> LogBufferView {
+        let new_slice = lgl::buffer(slice::from_raw_parts_mut(buf.buf_ptr as *mut u8, buf.buf_size));
+        LogBufferView { buf_ptr: new_slice.as_ptr() as *const i8, buf_size: new_slice.len() }
     }
 
     pub extern fn buffer_size() -> usize {
@@ -148,19 +126,19 @@ fn main() {
     let path = env::args().nth(1).unwrap();
     let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();
 
-    let callbacks = FrontendCallbacks {
-        set_running: cbs::set_running,
-        is_running: cbs::is_running,
-        top_screen: cbs::top_screen,
-        bot_screen: cbs::bot_screen,
-        run_command: cbs::run_command,
-        use_trace_logs: cbs::use_trace_logs,
+    let callbacks = c::FrontendCallbacks {
+        set_running: Some(cbs::set_running),
+        is_running: Some(cbs::is_running),
+        reload_game: Some(cbs::reload_game),
 
-        reload_game: cbs::reload_game,
+        top_screen: Some(cbs::top_screen),
+        bot_screen: Some(cbs::bot_screen),
 
-        log: cbs::log,
-        buffer: cbs::buffer,
-        buffer_size: cbs::buffer_size,
+        run_command: Some(cbs::run_command),
+        use_trace_logs: Some(cbs::use_trace_logs),
+        log: Some(cbs::log),
+        buffer: Some(cbs::buffer),
+        buffer_size: Some(cbs::buffer_size),
     };
 
     let fbs = hwcore::Framebuffers {
@@ -174,5 +152,5 @@ fn main() {
         fbs: fbs
     };
 
-    unsafe { llama_open_gui(&mut backend, &callbacks) };
+    unsafe { c::llama_open_gui(backend.to_c(), &callbacks) };
 }

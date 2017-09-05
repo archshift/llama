@@ -14,3 +14,6 @@ lgl = { git = "https://github.com/archshift/lgl" }
 libc = "0.2"
 libllama = { path = "libllama" }
 log = "0.3"
+
+[build-dependencies]
+bindgen = "0.26"
