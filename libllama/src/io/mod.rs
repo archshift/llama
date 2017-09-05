@@ -13,10 +13,13 @@ mod sha;
 mod timer;
 mod xdma;
 
+pub mod hid;
+
 use std::ptr;
 use std::sync;
 use std::default::Default;
 
+use rt_data;
 use io::regs::IoRegAccess;
 
 pub enum IoRegion {
@@ -25,7 +28,7 @@ pub enum IoRegion {
     Arm11,
 }
 
-pub fn new_devices() -> (IoRegsArm9, IoRegsShared) {
+pub fn new_devices(rt_rx: rt_data::Rx) -> (IoRegsArm9, IoRegsShared) {
     let pxi_device = sync::Arc::new(sync::Mutex::new(pxi::PxiDevice::new()));
 
     (IoRegsArm9 {
@@ -43,6 +46,7 @@ pub fn new_devices() -> (IoRegsArm9, IoRegsShared) {
         config_ext: config::ConfigExtDevice::new(),
     },
     IoRegsShared {
+        hid: hid::HidDevice::new(rt_rx.hid_btn),
         pxi11: pxi_device.clone(),
     })
 }
@@ -126,7 +130,7 @@ pub struct IoRegsShared {
     // spi,
     // i2c,
     // codec,
-    // hid,
+    hid: hid::HidDevice,
     // gpio,
     // mic,
     pxi11: sync::Arc<sync::Mutex<pxi::PxiDevice>>,
@@ -137,6 +141,7 @@ pub struct IoRegsShared {
 impl IoRegsShared {
     pub unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
         let device: &mut IoRegAccess = match bits!(offset, 12 => 23) {
+            0x46 => &mut self.hid,
             0x63 => { self.pxi11.lock().unwrap().read_reg(offset & 0xFFF, buf, buf_size); return }
             _ => {
                 error!("Unimplemented IO register read at offset 0x{:X}", offset);
@@ -150,6 +155,7 @@ impl IoRegsShared {
 
     pub unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
         let device: &mut IoRegAccess = match bits!(offset, 12 => 23) {
+            0x46 => &mut self.hid,
             0x63 => { self.pxi11.lock().unwrap().write_reg(offset & 0xFFF, buf, buf_size); return }
             _ => { error!("Unimplemented IO register write at offset 0x{:X}", offset); return },
         };

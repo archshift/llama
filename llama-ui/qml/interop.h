@@ -16,6 +16,21 @@ typedef struct LogBufferMutView {
     size_t buf_size;
 } LogBufferMutView;
 
+enum Button {
+    BUTTON_A,
+    BUTTON_B,
+    BUTTON_X,
+    BUTTON_Y,
+    BUTTON_L,
+    BUTTON_R,
+    BUTTON_UP,
+    BUTTON_DOWN,
+    BUTTON_LEFT,
+    BUTTON_RIGHT,
+    BUTTON_SELECT,
+    BUTTON_START
+};
+
 typedef struct FrontendCallbacks {
     void(*set_running)(Backend*, bool);
     bool(*is_running)(Backend*);
@@ -23,6 +38,7 @@ typedef struct FrontendCallbacks {
 
     const uint8_t*(*top_screen)(Backend*, size_t*);
     const uint8_t*(*bot_screen)(Backend*, size_t*);
+    void(*mod_button)(Backend*, Button, bool);
 
     void(*run_command)(Backend*, const char*, size_t);
     void(*use_trace_logs)(Backend*, bool);

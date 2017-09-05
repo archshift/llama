@@ -42,7 +42,7 @@ mod cbs {
     use {Backend, c};
 
     use lgl;
-    use c::{LogBufferView, LogBufferMutView};
+    use libllama::io::hid;
 
     pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
         let backend = Backend::from_c(backend);
@@ -72,6 +72,28 @@ mod cbs {
         backend.fbs.bot_screen.as_ptr()
     }
 
+    pub unsafe extern fn mod_button(backend: *mut c::Backend, button: i32, pressed: bool) {
+        let backend = Backend::from_c(backend);
+        let button = match button {
+            _ if button == c::Button::BUTTON_A as i32 => hid::Button::A,
+            _ if button == c::Button::BUTTON_B as i32 => hid::Button::B,
+            _ if button == c::Button::BUTTON_X as i32 => hid::Button::X,
+            _ if button == c::Button::BUTTON_Y as i32 => hid::Button::Y,
+            _ if button == c::Button::BUTTON_L as i32 => hid::Button::L,
+            _ if button == c::Button::BUTTON_R as i32 => hid::Button::R,
+            _ if button == c::Button::BUTTON_UP as i32 => hid::Button::Up,
+            _ if button == c::Button::BUTTON_DOWN as i32 => hid::Button::Down,
+            _ if button == c::Button::BUTTON_LEFT as i32 => hid::Button::Left,
+            _ if button == c::Button::BUTTON_RIGHT as i32 => hid::Button::Right,
+            _ if button == c::Button::BUTTON_SELECT as i32 => hid::Button::Select,
+            _ if button == c::Button::BUTTON_START as i32 => hid::Button::Start,
+            _ => unreachable!()
+        };
+        let state = if pressed { hid::ButtonState::Pressed(button) }
+                    else { hid::ButtonState::Released(button) };
+        backend.debugger.ctx().hwcore_mut().rt_tx.hid_btn.send(state).unwrap();
+    }
+
     pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const i8, str_len: usize) {
         let backend = Backend::from_c(backend);
         let input = {
@@ -97,7 +119,7 @@ mod cbs {
         backend.debugger = super::load_game(backend.loader);
     }
 
-    pub unsafe extern fn log(buf: LogBufferView) {
+    pub unsafe extern fn log(buf: c::LogBufferView) {
         let s = {
             let slice = slice::from_raw_parts(buf.buf_ptr as *const u8, buf.buf_size);
             str::from_utf8(slice).unwrap()
@@ -105,9 +127,9 @@ mod cbs {
         lgl::log(s)
     }
 
-    pub unsafe extern fn buffer(buf: LogBufferMutView) -> LogBufferView {
+    pub unsafe extern fn buffer(buf: c::LogBufferMutView) -> c::LogBufferView {
         let new_slice = lgl::buffer(slice::from_raw_parts_mut(buf.buf_ptr as *mut u8, buf.buf_size));
-        LogBufferView { buf_ptr: new_slice.as_ptr() as *const i8, buf_size: new_slice.len() }
+        c::LogBufferView { buf_ptr: new_slice.as_ptr() as *const i8, buf_size: new_slice.len() }
     }
 
     pub extern fn buffer_size() -> usize {
@@ -133,6 +155,7 @@ fn main() {
 
         top_screen: Some(cbs::top_screen),
         bot_screen: Some(cbs::bot_screen),
+        mod_button: Some(cbs::mod_button),
 
         run_command: Some(cbs::run_command),
         use_trace_logs: Some(cbs::use_trace_logs),

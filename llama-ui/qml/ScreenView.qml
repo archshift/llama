@@ -17,6 +17,9 @@ Item {
     property alias topScreen: topScreen
     property alias botScreen: botScreen
 
+    focus: true
+    MouseArea { anchors.fill: parent; onClicked: { focus = true } }
+
     Rectangle {
         id: topScreenDecor
         anchors.top: parent.top

@@ -13,6 +13,7 @@ pub mod utils;
 mod cpu;
 pub mod dbgcore;
 pub mod hwcore;
-mod io;
+pub mod io;
 pub mod ldr;
 mod mem;
+mod rt_data;

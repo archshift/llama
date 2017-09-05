@@ -6,6 +6,7 @@ use cpu;
 use ldr;
 use mem;
 use io;
+use rt_data;
 
 fn map_memory_regions(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared)
         -> (mem::MemController, mem::MemController, mem::MemController) {
@@ -62,6 +63,7 @@ pub struct HwCore {
     arm11_handshake_task: Option<task::Task<Hardware11>>,
 
     mem_pica: mem::MemController,
+    pub rt_tx: rt_data::Tx,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -73,7 +75,9 @@ pub enum Arm11State {
 
 impl HwCore {
     pub fn new(loader: &ldr::Loader) -> HwCore {
-        let (io9, io11) = io::new_devices();
+        let (rt_tx, rt_rx) = rt_data::make_channels();
+
+        let (io9, io11) = io::new_devices(rt_rx);
         let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
         loader.load(&mut mem9);
 
@@ -98,6 +102,7 @@ impl HwCore {
             hardware_task: None,
             arm11_handshake_task: None,
             mem_pica: mem_pica,
+            rt_tx: rt_tx,
         }
     }
 

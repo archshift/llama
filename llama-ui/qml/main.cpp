@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlProperty>
+#include <QKeyEvent>
 #include <QString>
 #include <QTimer>
 #include <QtQuick/QQuickItem>
@@ -69,6 +70,42 @@ public slots:
         callbacks->reload_game(backend);
     }
 
+protected:
+    bool handleKey(QKeyEvent* event, bool pressed) {
+        Button button;
+        switch(event->key()) {
+            case Qt::Key::Key_A: button = BUTTON_A; break;
+            case Qt::Key::Key_S: button = BUTTON_B; break;
+            case Qt::Key::Key_Z: button = BUTTON_X; break;
+            case Qt::Key::Key_X: button = BUTTON_Y; break;
+            case Qt::Key::Key_Q: button = BUTTON_L; break;
+            case Qt::Key::Key_W: button = BUTTON_R; break;
+
+            case Qt::Key::Key_Up: button = BUTTON_UP; break;
+            case Qt::Key::Key_Down: button = BUTTON_DOWN; break;
+            case Qt::Key::Key_Left: button = BUTTON_LEFT; break;
+            case Qt::Key::Key_Right: button = BUTTON_RIGHT; break;
+
+            case Qt::Key::Key_M: button = BUTTON_START; break;
+            case Qt::Key::Key_N: button = BUTTON_SELECT; break;
+            default: return false;
+        }
+        event->accept();
+        callbacks->mod_button(backend, button, pressed);
+        return true;
+    }
+
+    bool eventFilter(QObject *obj, QEvent *event)
+    {
+        if (event->type() == QEvent::KeyPress) {
+            return handleKey(static_cast<QKeyEvent*>(event), true);
+        } else if (event->type() == QEvent::KeyRelease) {
+            return handleKey(static_cast<QKeyEvent*>(event), false);
+        } else {
+            // standard event processing
+            return QObject::eventFilter(obj, event);
+        }
+    }
 public:
     ScreenManager(QObject *screen_view, Backend *backend, const FrontendCallbacks *callbacks):
             screen_view(screen_view), backend(backend), callbacks(callbacks) { }
@@ -94,6 +131,7 @@ extern "C" int llama_open_gui(Backend *backend, const FrontendCallbacks *callbac
     ScreenManager scrnmgr(scrn_view, backend, callbacks);
     QObject::connect(scrn_view, SIGNAL(pauseToggled()), &scrnmgr, SLOT(togglePaused()));
     QObject::connect(scrn_view, SIGNAL(reloaded()), &scrnmgr, SLOT(reloadGame()));
+    scrn_view->installEventFilter(&scrnmgr);
 
     QTimer *scrn_update_timer = createScreenRepainter(scrn_view, backend, callbacks);
     scrn_update_timer->start(16); // TODO: not ideal
