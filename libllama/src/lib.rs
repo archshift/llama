@@ -2,6 +2,7 @@
 extern crate bitutils;
 #[macro_use]
 extern crate error_chain;
+extern crate extprim;
 extern crate indextree;
 #[macro_use]
 extern crate log;
