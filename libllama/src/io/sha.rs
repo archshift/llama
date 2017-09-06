@@ -3,7 +3,7 @@ use io::regs;
 use std::fmt;
 use std::mem;
 
-use openssl::hash::{Hasher, MessageDigest};
+use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 
 bfdesc!(RegCnt: u32, {
     busy: 0 => 0,
@@ -19,7 +19,7 @@ bfdesc!(RegCnt: u32, {
 #[derive(Default)]
 pub struct ShaDeviceState {
     hasher: Option<Hasher>,
-    hash: Vec<u8>
+    hash: [u8; 32]
 }
 
 impl fmt::Debug for ShaDeviceState {
@@ -39,7 +39,9 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
     if bf!(cnt @ RegCnt::final_round) == 1 && bf!(cnt @ RegCnt::busy) == 0 {
         info!("Reached end of final round!");
         if let Some(ref mut h) = dev._internal_state.hasher {
-            dev._internal_state.hash = h.finish().unwrap();
+            let hash_slice = &*h.finish2().unwrap();
+            dev._internal_state.hash = [0u8; 32];
+            dev._internal_state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }
         bf!(cnt @ RegCnt::final_round = 0);
     }
