@@ -4,12 +4,22 @@ iodevice!(ConfigDevice, {
         0x001 => sysprot11: u8 { }
         0x002 => reset11: u8 { }
         0x004 => debugctl: u16 { }
+        0x008 => unknown0: u8 {
+            read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x8 register!");
+            write_effect = |_| warn!("STUBBED: Write to unknown CONFIG+0x8 register!");
+        }
         0x00C => cardctl: u16 { }
         0x010 => cardstatus: u8 { }
         0x012 => cardcycles0: u16 { }
         0x014 => cardcycles1: u16 { }
-        0x020 => unknown0: u32 { }
-        0x100 => unknown1: u16 { }
+        0x020 => unknown1: u32 {
+            read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x20 register!");
+            write_effect = |_| warn!("STUBBED: Write to unknown CONFIG+0x20 register!");
+        }
+        0x100 => unknown2: u16 {
+            read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x100 register!");
+            write_effect = |_| warn!("STUBBED: Write to unknown CONFIG+0x100 register!");
+        }
         0x200 => extmem_cnt: u8 { }
     }
 });

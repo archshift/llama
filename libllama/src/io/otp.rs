@@ -40,7 +40,10 @@ fn reg_otp_read(dev: &mut OtpDevice, buf_pos: usize, dest: &mut [u8]) {
 
 iodevice!(OtpDevice, {
     internal_state: OtpDeviceState;
-    regs: {}
+    regs: {
+        0x100 => twl_id0: u32 {}
+        0x104 => twl_id1: u32 {}
+    }
     ranges: {
         0x000;0x100 => {
             read_effect = reg_otp_read;

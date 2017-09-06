@@ -34,10 +34,14 @@ fn reg_pad_read(dev: &mut HidDevice) {
 iodevice!(HidDevice, {
     internal_state: mpsc::Receiver<ButtonState>;
     regs: {
-        0x000 => pad: u32 {
+        0x000 => pad: u16 {
             default = !0;
             write_bits = 0;
             read_effect = reg_pad_read;
+        }
+        0x002 => unk: u16 {
+            read_effect = |_| warn!("STUBBED: Read from unknown HID+0x2 register!");
+            write_effect = |_| warn!("STUBBED: Write to unknown HID+0x2 register!");
         }
     }
 });
