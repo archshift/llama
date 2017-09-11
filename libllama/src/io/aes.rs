@@ -198,6 +198,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
             symm::Mode::Decrypt
         };
         let (cypher, iv_ctr) = match mode {
+            2 | 3 => (symm::Cipher::aes_128_ctr(), Some(&ctr[..])),
             4 | 5 => (symm::Cipher::aes_128_cbc(), Some(&ctr[..])),
             6 | 7 => (symm::Cipher::aes_128_ecb(), None),
             _ => unimplemented!()
