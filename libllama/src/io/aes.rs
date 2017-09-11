@@ -192,20 +192,19 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         trace!("Attempted to start AES crypto! mode: {}, keyslot: 0x{:X}, bytes: 0x{:X}, key: {}, iv: {}",
             mode, keyslot, bytes, key_str, iv_str);
 
-        match mode {
-            4 | 5 => {
-                let symm_mode = if mode & 1 == 1 {
-                    symm::Mode::Encrypt
-                } else {
-                    symm::Mode::Decrypt
-                };
-                let mut crypter = symm::Crypter::new(symm::Cipher::aes_128_cbc(), symm_mode,
-                                                     &key.data[..], Some(&ctr[..])).unwrap();
-                crypter.pad(false);
-                dev._internal_state.active_process = Some(crypter);
-            }
+        let direction = if mode & 1 == 1 {
+            symm::Mode::Encrypt
+        } else {
+            symm::Mode::Decrypt
+        };
+        let (cypher, iv_ctr) = match mode {
+            4 | 5 => (symm::Cipher::aes_128_cbc(), Some(&ctr[..])),
+            6 | 7 => (symm::Cipher::aes_128_ecb(), None),
             _ => unimplemented!()
-        }
+        };
+        let mut crypter = symm::Crypter::new(cypher, direction, &key.data[..], iv_ctr).unwrap();
+        crypter.pad(false);
+        dev._internal_state.active_process = Some(crypter);
 
         dev._internal_state.bytes_left = bytes as usize;
     }
