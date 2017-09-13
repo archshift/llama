@@ -28,7 +28,7 @@ bfdesc!(RegCnt: u32, {
 
 bfdesc!(RegKeyCnt: u8, {
     keyslot: 0 => 5,
-    use_dsi_keygen: 6 => 6,
+    force_dsi_keygen: 6 => 6,
     enable_fifo_flush: 7 => 7
 });
 
@@ -163,6 +163,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
     if bf!(cnt @ RegCnt::update_keyslot) == 1 {
         dev._internal_state.active_keyslot = dev.key_sel.get() as usize;
         trace!("Setting AES active keyslot to 0x{:X}", dev._internal_state.active_keyslot);
+        assert!(dev._internal_state.active_keyslot >= 4); // TWL keyslots not yet implemented
         // Remove update_keyslot bit
         dev.cnt.set_unchecked(bf!(cnt @ RegCnt::update_keyslot as 0));
     }
@@ -217,7 +218,7 @@ fn reg_key_cnt_update(dev: &mut AesDevice) {
 
     trace!("Wrote to AES KEYCNT register; keyslot: 0x{:X}, Mode: {}, FIFO flush: {}",
         bf!(key_cnt @ RegKeyCnt::keyslot),
-        if bf!(key_cnt @ RegKeyCnt::use_dsi_keygen) == 1 { "DSi" } else { "3DS" },
+        if bf!(key_cnt @ RegKeyCnt::force_dsi_keygen) == 1 { "DSi" } else { "3DS" },
         flush_fifo
     );
 
@@ -291,12 +292,18 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
         KeyType::CommonKey => "KEYFIFO", KeyType::KeyX => "KEYXFIFO", KeyType::KeyY => "KEYYFIFO"
     });
 
+    // TODO: Can you write to keyslots <4 this way?
+
     state.buf[state.pos / 4] = word;
     state.pos += 4;
     if state.pos >= 0x10 {
         // Done updating the key
         let key_cnt = dev.key_cnt.get();
-        assert!(bf!(key_cnt @ RegKeyCnt::use_dsi_keygen) == 0);
+        let keygen_mode = if bf!(key_cnt @ RegKeyCnt::force_dsi_keygen) == 1 {
+            KeygenMode::DSi
+        } else {
+            KeygenMode::THREEDS
+        };
 
         let keyslot = bf!(key_cnt @ RegKeyCnt::keyslot) as usize;
         let key = Key {
@@ -308,16 +315,20 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
             KeyType::KeyY => {
                 let keyx = &dev._internal_state.keyx_slots[keyslot];
                 let keyy = &key;
-                dev._internal_state.key_slots[keyslot] = Key::from_keypair(keyx, keyy, KeygenMode::THREEDS);
+                dev._internal_state.key_slots[keyslot] = Key::from_keypair(keyx, keyy, keygen_mode);
             }
         }
     }
 }
 
+fn reg_twlkey_write(dev: &mut AesDevice, buf_pos: usize, src: &[u8], keyslot: usize) {
+    warn!("STUBBED: Writing {} bytes to AES TWLKEY{} at +0x{:X}", src.len(), keyslot, buf_pos);
+}
+
 fn reg_ctr_write(dev: &mut AesDevice, buf_pos: usize, src: &[u8]) {
     trace!("Writing {} bytes to AES CTR at +0x{:X}", src.len(), buf_pos);
     let dst_slice = &mut dev._internal_state.reg_ctr[buf_pos .. buf_pos + src.len()];
-    dst_slice.clone_from_slice(src);
+    dst_slice.copy_from_slice(src);
 }
 
 iodevice!(AesDevice, {
@@ -358,19 +369,27 @@ iodevice!(AesDevice, {
         }
         0x040;0x30 => {  // KEY0
             read_effect = |_, _, _| unimplemented!();
-            write_effect = |_, _, _| unimplemented!();
+            write_effect = |dev: &mut AesDevice, buf_pos: usize, src: &[u8]| {
+                reg_twlkey_write(dev, buf_pos, src, 0);
+            };
         }
         0x070;0x30 => {  // KEY1
             read_effect = |_, _, _| unimplemented!();
-            write_effect = |_, _, _| unimplemented!();
+            write_effect = |dev: &mut AesDevice, buf_pos: usize, src: &[u8]| {
+                reg_twlkey_write(dev, buf_pos, src, 1);
+            };
         }
         0x0A0;0x30 => {  // KEY2
             read_effect = |_, _, _| unimplemented!();
-            write_effect = |_, _, _| unimplemented!();
+            write_effect = |dev: &mut AesDevice, buf_pos: usize, src: &[u8]| {
+                reg_twlkey_write(dev, buf_pos, src, 2);
+            };
         }
         0x0D0;0x30 => {  // KEY3
             read_effect = |_, _, _| unimplemented!();
-            write_effect = |_, _, _| unimplemented!();
+            write_effect = |dev: &mut AesDevice, buf_pos: usize, src: &[u8]| {
+                reg_twlkey_write(dev, buf_pos, src, 3);
+            };
         }
     }
 });
