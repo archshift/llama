@@ -165,23 +165,19 @@ impl HwCore {
         try_get_hw(&mut self.arm11_handshake_task, &mut self.hardware11);
     }
 
-    pub fn try_wait(&mut self) -> bool {
+    pub fn running(&mut self) -> bool {
         let res = {
             let mut tasks = [
                 // TODO: This is ugly!
                 (self.hardware_task.as_mut().map(|x| x as &mut task::TaskMgmt), task::EndBehavior::StopAll),
                 (self.arm11_handshake_task.as_mut().map(|x| x as &mut task::TaskMgmt), task::EndBehavior::Ignore)
             ];
-            task::TaskUnion(&mut tasks).try_join()
+            task::TaskUnion(&mut tasks).should_stop()
         };
-
-        match res {
-            Ok(x) => {
-                self.try_restore_hardwares();
-                x == task::JoinStatus::Joined
-            },
-            Err(_) => self.panic_action()
+        if res {
+            self.stop();
         }
+        !res
     }
 
     pub fn stop(&mut self) {
@@ -203,13 +199,9 @@ impl HwCore {
         self.arm11_handshake_task = None;
     }
 
-    pub fn hardware<'a>(&'a self) -> &'a Hardware9 {
-        // Will panic if already running
-        self.hardware9.as_ref().unwrap()
-    }
-
     pub fn hardware_mut<'a>(&'a mut self) -> &'a mut Hardware9 {
         // Will panic if already running
+        self.running();
         self.hardware9.as_mut().unwrap()
     }
 

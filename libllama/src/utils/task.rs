@@ -4,19 +4,13 @@ use std::sync::{self, atomic};
 use std::thread;
 
 #[derive(Eq, PartialEq)]
-pub enum JoinStatus {
-    NotReady,
-    Joined
-}
-
-#[derive(Eq, PartialEq)]
 pub enum StopStatus {
     Stopped,
     NotRunning,
 }
 
 pub trait TaskMgmt {
-    fn try_join(&mut self) -> Result<JoinStatus, ()>;
+    fn running(&self) -> bool;
     fn stop(&mut self) -> Result<StopStatus, ()>;
 }
 
@@ -47,7 +41,7 @@ impl<T> ReturnVal<T> {
 }
 
 pub struct Task<T> {
-    running: sync::Arc<atomic::AtomicBool>,
+    should_run: sync::Arc<atomic::AtomicBool>,
     running_internal: sync::Arc<atomic::AtomicBool>,
     pub ret: ReturnVal<T>,
 }
@@ -56,8 +50,8 @@ impl<T> Task<T> {
     pub fn spawn<F>(f: F) -> Task<T>
         where T: Send + 'static, F: FnOnce(sync::Arc<atomic::AtomicBool>) -> T, F: Send + 'static {
 
-        let running = sync::Arc::new(atomic::AtomicBool::new(true));
-        let running_t = running.clone();
+        let should_run = sync::Arc::new(atomic::AtomicBool::new(true));
+        let should_run_t = should_run.clone();
         let running_internal = sync::Arc::new(atomic::AtomicBool::new(false));
         let running_internal_t = running_internal.clone();
 
@@ -65,11 +59,11 @@ impl<T> Task<T> {
 
         let handle = thread::spawn(move || {
             let _running_marker = marker;
-            f(running_t)
+            f(should_run_t)
         });
 
         Task {
-            running: running,
+            should_run: should_run,
             running_internal: running_internal,
             ret: ReturnVal::Waiting(handle),
         }
@@ -77,17 +71,13 @@ impl<T> Task<T> {
 }
 
 impl<T> TaskMgmt for Task<T> {
-    fn try_join(&mut self) -> Result<JoinStatus, ()> {
-        if self.running_internal.load(atomic::Ordering::SeqCst) {
-            Ok(JoinStatus::NotReady)
-        } else {
-            self.stop().map(|_| JoinStatus::Joined)
-        }
+    fn running(&self) -> bool {
+        self.running_internal.load(atomic::Ordering::SeqCst)
     }
 
     fn stop(&mut self) -> Result<StopStatus, ()> {
         if let ReturnVal::Waiting(handle) = self.ret.take() {
-            self.running.store(false, atomic::Ordering::SeqCst);
+            self.should_run.store(false, atomic::Ordering::SeqCst);
             if let Ok(x) = handle.join() {
                 self.ret = ReturnVal::Ready(x);
                 Ok(StopStatus::Stopped)
@@ -116,27 +106,20 @@ pub struct TaskUnion<'a> (
     pub &'a mut [(Option<&'a mut TaskMgmt>, EndBehavior)]
 );
 
-impl<'a> TaskMgmt for TaskUnion<'a> {
-    fn try_join(&mut self) -> Result<JoinStatus, ()> {
-        let make_has_stopped = |tu: &mut (Option<&'a mut TaskMgmt>, EndBehavior)| {
-            match tu.0 {
-                Some(ref mut task) => Ok(task.try_join()? == JoinStatus::Joined),
-                None => Ok(true)
-            }
+impl<'a> TaskUnion<'a> {
+    pub fn should_stop(&self) -> bool {
+        let make_has_stopped = |tu: &(Option<&'a mut TaskMgmt>, EndBehavior)| {
+            if let Some(ref task) = tu.0 { !task.running() }
+            else { true }
         };
 
-        let should_stop = self.0.iter_mut()
-                                .filter(|ref tu| tu.1 == EndBehavior::StopAll)
-                                .map(make_has_stopped)
-                                .fold(Ok(true), |acc, b| Ok(acc? && b?));
-        match should_stop {
-            Ok(true) | Err(_) => should_stop.and(self.stop())
-                                            .map(|_| JoinStatus::Joined),
-            Ok(false) => Ok(JoinStatus::NotReady)
-        }
+        self.0.iter()
+              .filter(|ref tu| tu.1 == EndBehavior::StopAll)
+              .map(make_has_stopped)
+              .fold(false, |acc, b| acc || b)
     }
 
-    fn stop(&mut self) -> Result<StopStatus, ()> {
+    pub fn stop(&mut self) -> Result<StopStatus, ()> {
         let status_folder = |acc, stop_res| {
             match (acc, stop_res) {
                 (Ok(StopStatus::Stopped), Ok(_)) | (Ok(_), Ok(StopStatus::Stopped)) => Ok(StopStatus::Stopped),

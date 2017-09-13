@@ -55,7 +55,7 @@ mod cbs {
 
     pub unsafe extern fn is_running(backend: *mut c::Backend) -> bool {
         let backend = Backend::from_c(backend);
-        !backend.debugger.ctx().hwcore_mut().try_wait()
+        backend.debugger.ctx().hwcore_mut().running()
     }
 
     pub unsafe extern fn top_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
