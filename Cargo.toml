@@ -17,3 +17,6 @@ log = "0.3"
 
 [build-dependencies]
 bindgen = "0.26"
+
+[features]
+trace_instructions = ["libllama/trace_instructions"]

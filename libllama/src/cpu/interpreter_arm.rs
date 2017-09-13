@@ -46,6 +46,7 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
 
 #[inline(always)]
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
+    #[cfg(feature = "trace_instructions")]
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
     let status = match instr {
