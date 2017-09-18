@@ -6,6 +6,8 @@ use std::mem;
 use extprim::u128::u128 as u128_t;
 use openssl::symm;
 
+use utils::bytes;
+
 bfdesc!(RegCnt: u32, {
     fifo_in_count: 0 => 4,
     fifo_out_count: 5 => 9,
@@ -58,21 +60,11 @@ impl Key {
     }
 
     fn from_int(mut num: u128_t) -> Key {
-        let mut data = [0u8; 0x10];
-        for b in data.iter_mut().rev() {
-            *b = num.low64() as u8;
-            num >>= 8;
-        }
-        Key { data: data }
+        Key { data: bytes::from_u128(num) }
     }
 
     fn to_u128(&self) -> u128_t {
-        let mut new = u128_t::new(0);
-        for b in self.data.iter() {
-            new <<= 8;
-            new |= u128_t::new(*b as u64);
-        }
-        new
+        bytes::to_u128(&self.data)
     }
 }
 
