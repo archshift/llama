@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use std::mem;
 
 use io::emmc::card::Card;
+use cpu::irq;
 
 bfdesc!(RegCmd: u16, {
     command_index: 0 => 5,
@@ -30,6 +31,13 @@ bfdesc!(RegData32Ctl: u16, {
     use_32bit: 1 => 1
 });
 
+#[derive(Clone, Copy)]
+enum Status {
+    Lo(Status0),
+    Hi(Status1)
+}
+
+#[derive(Clone, Copy)]
 enum Status0 {
     CmdResponseEnd = (1 << 0),
     DataEnd     = (1 << 2),
@@ -42,6 +50,13 @@ enum Status0 {
     SigStateA   = (1 << 10),
 }
 
+impl Into<Status> for Status0 {
+    fn into(self) -> Status {
+        Status::Lo(self)
+    }
+}
+
+#[derive(Clone, Copy)]
 enum Status1 {
     CmdIndexErr = (1 << 0),
     CrcFail     = (1 << 1),
@@ -57,6 +72,12 @@ enum Status1 {
     IllegalCmd  = (1 << 15),
 }
 
+impl Into<Status> for Status1 {
+    fn into(self) -> Status {
+        Status::Hi(self)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransferType {
     Read,
@@ -64,12 +85,14 @@ pub enum TransferType {
 }
 
 pub struct EmmcDeviceState {
+    irq_reqs: irq::IrqRequests,
     cards: [Card; 2]
 }
 
-impl Default for EmmcDeviceState {
-    fn default() -> EmmcDeviceState {
+impl EmmcDeviceState {
+    pub fn new(irq_reqs: irq::IrqRequests) -> EmmcDeviceState {
         EmmcDeviceState {
+            irq_reqs: irq_reqs,
             cards: [
                 Card::new(card::CardType::Sd, card::sd_storage(), card::sd_cid()),
                 Card::new(card::CardType::Mmc, card::nand_storage(), card::nand_cid())
@@ -128,6 +151,41 @@ fn use_32bit(dev: &EmmcDevice) -> bool {
     && bf!((dev.data32_ctl.get()) @ RegData32Ctl::use_32bit) == 1
 }
 
+fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
+    let irq_add = match status.into() {
+        Status::Lo(s0) => {
+            let s0 = s0 as u16;
+            dev.irq_status0.bitadd_unchecked(s0);
+            s0 & dev.irq_mask0.get() != 0
+        }
+        Status::Hi(s1) => {
+            let s1 = s1 as u16;
+            dev.irq_status1.bitadd_unchecked(s1);
+            s1 & dev.irq_mask1.get() != 0
+        }
+    };
+    if irq_add {
+        trace!("SDMMC: Triggering IRQs 0: {:08X}, 1: {:08X}",
+                dev.irq_status0.get() & dev.irq_mask0.get(),
+                dev.irq_status1.get() & dev.irq_mask1.get());
+        dev._internal_state.irq_reqs.add(irq::IrqType::Sdio1);
+    }
+}
+
+fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
+    match status.into() {
+        Status::Lo(s0) => {
+            let s0 = s0 as u16;
+            dev.irq_status0.bitclr_unchecked(s0);
+        }
+        Status::Hi(s1) => {
+            let s1 = s1 as u16;
+            dev.irq_status1.bitclr_unchecked(s1);
+        }
+    };
+    dev._internal_state.irq_reqs.clr(irq::IrqType::Sdio1);
+}
+
 fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
     let index = bf!((dev.cmd.get()) @ RegCmd::command_index);
 
@@ -143,12 +201,8 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
         mode_sd::handle_cmd(dev, index)
     }
 
-    let csr = get_active_card(dev).csr;
-    if bf!(csr.illegal_cmd) == 1 {
-        dev.irq_status1.bitadd_unchecked(Status1::IllegalCmd as u16);
-    }
-
-    dev.irq_status1.bitclr_unchecked(Status1::CmdBusy as u16);
+    trigger_status(dev, Status0::CmdResponseEnd);
+    clear_status(dev, Status1::CmdBusy);
 }
 
 fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: bool) {
@@ -186,13 +240,13 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
             dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
             // Setting these flags: hack to keep the client reading even after acknowledging
-            dev.irq_status1.bitadd_unchecked(Status1::RxReady as u16);
+            trigger_status(dev, Status1::RxReady);
         }
         (TransferType::Write, false) => {
             buf16 = unsafe { mem::transmute(dev.data16_fifo.get()) };
             get_active_card(dev).storage.write_all(&buf16).unwrap();
 
-            dev.irq_status1.bitadd_unchecked(Status1::TxRq as u16);
+            trigger_status(dev, Status1::TxRq);
         }
         (TransferType::Read, true) => {
             get_active_card(dev).storage.read_exact(&mut buf32).unwrap();
@@ -210,7 +264,7 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
     };
 
     if should_stop {
-        dev.irq_status0.bitadd_unchecked(Status0::DataEnd as u16);
+        trigger_status(dev, Status0::DataEnd);
         mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
     }
 }

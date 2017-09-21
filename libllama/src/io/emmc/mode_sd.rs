@@ -26,7 +26,7 @@ static CMDs: [(usize, CmdHandler, CardType); 13] = [
     (9, CmdHandler::R2(cmds::send_csd), CardType::Sdmmc),
     // (10, CmdHandler::R1(cmds::send_cid)),
     // (12, CmdHandler::R1b(cmds::stop_transmission)),
-    (13, CmdHandler::R1(cmds::get_status), CardType::Sdmmc),
+    (13, CmdHandler::R1(|_| {}), CardType::Sdmmc),
     (16, CmdHandler::R1(cmds::set_blocklen), CardType::Sdmmc),
     // (17, CmdHandler::R1(cmds::read_single_block)),
     (18, CmdHandler::R1(|dev: &mut EmmcDevice| cmds::prepare_multi_transfer(dev, TransferType::Read)), CardType::Sdmmc),
@@ -89,12 +89,9 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
     }
 
     if found_wrong_type {
-        let mut csr = emmc::get_active_card(dev).csr;
-        bf!(csr.illegal_cmd = 1);
-        emmc::push_resp_u32(dev, csr.raw());
-
+        bf!((emmc::get_active_card(dev).csr).illegal_cmd = 1);
         warn!("Tried to run illegal SDMMC (APP_?')CMD{}", cmd_index);
-        dev.irq_status0.bitadd_unchecked(emmc::Status0::CmdResponseEnd as u16);
+        emmc::trigger_status(dev, emmc::Status1::IllegalCmd);
     } else {
         panic!("UNIMPLEMENTED: SDMMC (APP_?')CMD{}", cmd_index)
     }

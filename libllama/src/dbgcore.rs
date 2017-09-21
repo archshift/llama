@@ -1,5 +1,6 @@
 use std::sync;
 
+pub use cpu::irq::IrqType;
 use hwcore;
 
 #[derive(Clone)]
@@ -47,6 +48,10 @@ impl<'a> DbgContext<'a> {
             // Will panic if still running
             hw: self.hwcore.hardware_mut()
         }
+    }
+
+    pub fn trigger_irq(&mut self, irq: IrqType) {
+        self.hwcore_mut().irq_tx.add(irq);
     }
 }
 

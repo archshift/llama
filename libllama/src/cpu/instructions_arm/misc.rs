@@ -8,15 +8,7 @@ pub fn swi(cpu: &mut Cpu, data: arm::swi::InstrDesc) -> cpu::InstrStatus {
         return cpu::InstrStatus::InBlock;
     }
 
-    let ret_addr = cpu.regs[15] - 4;
-
-    cpu.spsr_svc = cpu.cpsr;
-    bf!((cpu.cpsr).mode = cpu::Mode::Svc as u32);
-    cpu.regs.swap(cpu::Mode::Svc);
-    cpu.regs[14] = ret_addr;
-
-    bf!((cpu.cpsr).thumb_bit = 0);
-    bf!((cpu.cpsr).disable_irq_bit = 1);
-    cpu.branch(0x08000010); // This is where bootrom points the SWI vector
+    let next_instr = cpu.regs[15] - cpu.get_pc_offset() / 2;
+    cpu.enter_exception(next_instr, cpu::Mode::Svc);
     cpu::InstrStatus::Branched
 }

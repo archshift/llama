@@ -64,6 +64,7 @@ pub struct HwCore {
 
     mem_pica: mem::MemController,
     pub rt_tx: rt_data::Tx,
+    pub irq_tx: cpu::irq::IrqRequests,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -76,12 +77,13 @@ pub enum Arm11State {
 impl HwCore {
     pub fn new(loader: &ldr::Loader) -> HwCore {
         let (rt_tx, rt_rx) = rt_data::make_channels();
+        let (irq_tx, irq_rx) = cpu::irq::make_channel();
 
-        let (io9, io11) = io::new_devices(rt_rx);
+        let (io9, io11) = io::new_devices(rt_rx, irq_tx.clone());
         let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
         loader.load(&mut mem9);
 
-        let mut cpu = cpu::Cpu::new(mem9);
+        let mut cpu = cpu::Cpu::new(mem9, irq_rx);
         cpu.reset(loader.entrypoint());
 
         let arm11_state = loader.arm11_state();
@@ -103,6 +105,7 @@ impl HwCore {
             arm11_handshake_task: None,
             mem_pica: mem_pica,
             rt_tx: rt_tx,
+            irq_tx: irq_tx,
         }
     }
 

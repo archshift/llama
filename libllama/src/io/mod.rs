@@ -19,6 +19,7 @@ use std::ptr;
 use std::sync;
 use std::default::Default;
 
+use cpu::irq::IrqRequests;
 use rt_data;
 use io::regs::IoRegAccess;
 
@@ -28,13 +29,13 @@ pub enum IoRegion {
     Arm11,
 }
 
-pub fn new_devices(rt_rx: rt_data::Rx) -> (IoRegsArm9, IoRegsShared) {
+pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests) -> (IoRegsArm9, IoRegsShared) {
     let pxi_device = sync::Arc::new(sync::Mutex::new(pxi::PxiDevice::new()));
 
     (IoRegsArm9 {
         config: config::ConfigDevice::new(),
-        irq: irq::IrqDevice::new(),
-        emmc: emmc::EmmcDevice::new(Default::default()),
+        irq: irq::IrqDevice::new(irq_requests.clone()),
+        emmc: emmc::EmmcDevice::new(emmc::EmmcDeviceState::new(irq_requests.clone())),
         ndma: ndma::NdmaDevice::new(Default::default()),
         otp: otp::OtpDevice::new(Default::default()),
         pxi9: pxi_device.clone(),

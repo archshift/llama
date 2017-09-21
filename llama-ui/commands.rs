@@ -76,6 +76,32 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     }
 }
 
+/// Triggers the specified IRQ
+/// Command format: "irq <type>"
+///
+/// `args`: Iterator over &str items
+fn cmd_irq<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+
+    let irq_ty = match args.next() {
+        Some(arg) => arg.to_lowercase(),
+        None => { info!("Usage: `irq <type>"); return }
+    };
+
+    let irq = match irq_ty.as_str() {
+        "timer0" => dbgcore::IrqType::Timer0,
+        "timer1" => dbgcore::IrqType::Timer1,
+        "timer2" => dbgcore::IrqType::Timer2,
+        "timer3" => dbgcore::IrqType::Timer3,
+        _ => { error!("Unimplemented/unknown IRQ type `{}`", irq_ty); return }
+    };
+
+    info!("Triggering IRQ {}", irq_ty);
+
+    let mut ctx = debugger.ctx();
+    ctx.trigger_irq(irq);
+}
+
 /// Prints memory to the screen based on provided address, number of bytes
 /// Command format: "mem <start address hex> [# bytes hex]"
 ///
@@ -178,6 +204,7 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It)
     match command.next() {
         Some("run") => { debugger.ctx().resume() },
         Some("brk") => cmd_brk(debugger, command),
+        Some("irq") => cmd_irq(debugger, command),
         Some("asm") => cmd_asm(debugger, command),
         Some("mem") => cmd_mem(debugger, command),
         Some("reg") => cmd_reg(debugger, command),

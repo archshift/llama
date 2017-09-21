@@ -1,5 +1,6 @@
 use cpu;
 use cpu::coproc;
+use cpu::irq;
 use cpu::regs::{GpRegs, Psr};
 use mem;
 
@@ -43,6 +44,7 @@ pub struct Cpu {
     coproc_syscnt: coproc::SysControl,
 
     pub memory: mem::MemController,
+    irq_line: irq::IrqLine,
     pub breakpoints: HashMap<u32, bool> // addr, is_triggered
 }
 
@@ -52,7 +54,7 @@ pub enum BreakReason {
 }
 
 impl Cpu {
-    pub fn new(memory: mem::MemController) -> Cpu {
+    pub fn new(memory: mem::MemController, irq_line: irq::IrqLine) -> Cpu {
         Cpu {
             regs: GpRegs::new(Mode::Svc),
             cpsr: Psr::new(0),
@@ -65,6 +67,7 @@ impl Cpu {
             coproc_syscnt: coproc::SysControl::new(),
 
             memory: memory,
+            irq_line: irq_line,
             breakpoints: HashMap::new()
         }
     }
@@ -120,8 +123,21 @@ impl Cpu {
         use cpu::decoder_arm::ArmInstruction;
         use cpu::decoder_thumb::ThumbInstruction;
 
+        let mut cycle = 0usize;
+
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
+
+            cycle = cycle.wrapping_add(1);
+            // Amortize the cost of checking for IRQs
+            if cycle % 64 == 0 && bf!((self.cpsr).disable_irq_bit) == 0 {
+                if self.irq_line.is_high() {
+                    trace!("ARM9 IRQ triggered!");
+                    self.enter_exception(addr+4, Mode::Irq);
+                    continue
+                }
+            }
+
             if self.find_toggle_breakpoint(addr) {
                 return BreakReason::Breakpoint;
             }
@@ -138,6 +154,30 @@ impl Cpu {
         }
 
         BreakReason::LimitReached
+    }
+
+    pub fn enter_exception(&mut self, return_loc: u32, mode: Mode) {
+        let R14_exc = return_loc;
+        let SPSR_exc = self.cpsr;
+
+        self.regs.swap(mode);
+        bf!((self.cpsr).mode = mode as u32);
+
+        self.regs[14] = R14_exc;
+        *self.get_current_spsr() = SPSR_exc;
+        bf!((self.cpsr).thumb_bit = 0);
+        bf!((self.cpsr).disable_irq_bit = 1);
+
+        // These vectors look like 0x080000XX because that's where the bootrom redirects them
+        let mut vector_addr = match mode {
+            Mode::Irq => 0x08000000,
+            Mode::Fiq => unimplemented!(),
+            Mode::Svc => 0x08000010,
+            Mode::Und => 0x08000018,
+            Mode::Abt => 0x08000028,
+            Mode::Sys | Mode::Usr => panic!("No exception associated with {:?}", mode)
+        };
+        self.branch(vector_addr);
     }
 
     pub fn find_toggle_breakpoint(&mut self, addr: u32) -> bool {
