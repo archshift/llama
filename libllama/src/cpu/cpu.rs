@@ -1,3 +1,4 @@
+use clock;
 use cpu;
 use cpu::coproc;
 use cpu::irq;
@@ -42,9 +43,12 @@ pub struct Cpu {
     pub spsr_und: Psr,
 
     coproc_syscnt: coproc::SysControl,
-
     pub memory: mem::MemController,
+
     irq_line: irq::IrqLine,
+    cycles: usize,
+    sys_clk: clock::SysClock,
+
     pub breakpoints: HashMap<u32, bool> // addr, is_triggered
 }
 
@@ -54,7 +58,7 @@ pub enum BreakReason {
 }
 
 impl Cpu {
-    pub fn new(memory: mem::MemController, irq_line: irq::IrqLine) -> Cpu {
+    pub fn new(memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu {
         Cpu {
             regs: GpRegs::new(Mode::Svc),
             cpsr: Psr::new(0),
@@ -65,9 +69,12 @@ impl Cpu {
             spsr_und: Psr::new(0),
 
             coproc_syscnt: coproc::SysControl::new(),
-
             memory: memory,
+
             irq_line: irq_line,
+            cycles: 0usize,
+            sys_clk: clk,
+
             breakpoints: HashMap::new()
         }
     }
@@ -123,15 +130,17 @@ impl Cpu {
         use cpu::decoder_arm::ArmInstruction;
         use cpu::decoder_thumb::ThumbInstruction;
 
-        let mut cycle = 0usize;
+        let mut cycles = self.cycles;
 
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
 
-            cycle = cycle.wrapping_add(1);
-            // Amortize the cost of checking for IRQs
-            if cycle % 64 == 0 && bf!((self.cpsr).disable_irq_bit) == 0 {
-                if self.irq_line.is_high() {
+            cycles = cycles.wrapping_add(1);
+            // Amortize the cost of checking for IRQs, updating clock
+            if cycles % 128 == 0 {
+                self.sys_clk.increment(128 * 8); // Probably speeds up time but w/e
+
+                if bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
                     trace!("ARM9 IRQ triggered!");
                     self.enter_exception(addr+4, Mode::Irq);
                     continue
@@ -153,6 +162,7 @@ impl Cpu {
             }
         }
 
+        self.cycles = cycles;
         BreakReason::LimitReached
     }
 

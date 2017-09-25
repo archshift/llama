@@ -1,6 +1,13 @@
+use std::fmt;
+use std::sync::Arc;
+
+use parking_lot::{Mutex, MutexGuard};
+
+use cpu::irq;
 use io::regs::IoReg;
 
-enum Prescaler {
+#[derive(Clone, Copy, Debug)]
+pub enum Prescaler {
     Div1 = 0,
     Div64 = 1,
     Div256 = 2,
@@ -26,13 +33,6 @@ bfdesc!(CntReg: u16, {
     started: 7 => 7
 });
 
-#[derive(Debug, Default)]
-pub struct TimerDeviceState {
-    cycles: u64,
-    started: [bool; 4],
-    start_cycles: [u64; 4],
-}
-
 fn get_regs(dev: &mut TimerDevice, index: usize) -> (&mut IoReg<u16>, &mut IoReg<u16>) {
     match index {
         0 => (&mut dev.val0, &mut dev.cnt0),
@@ -43,67 +43,306 @@ fn get_regs(dev: &mut TimerDevice, index: usize) -> (&mut IoReg<u16>, &mut IoReg
     }
 }
 
-fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
-    let now_active = {
-        let (_, cnt) = get_regs(dev, index);
-        bf!((cnt.get()) @ CntReg::started) == 1
+fn reg_val_update(dev: &mut TimerDevice, index: usize) {
+    let val = {
+        let (val, _) = get_regs(dev, index);
+        val.get()
     };
-    match (now_active, dev._internal_state.started[index]) {
-        /* On start */ (true, false) => dev._internal_state.start_cycles[index] = dev._internal_state.cycles,
-        /* On stop */  (false, true) => {},
-        /* Not changed */          _ => {}
+    let states = &dev._internal_state;
+    for mut t in TimerIter::new(states).filter(|t| t.has_index(index)) {
+        t.set_val_hword(index, val)
     }
 }
 
-fn reg_val_read(dev: &mut TimerDevice, mut index: usize) {
-    dev._internal_state.cycles += 0x20000; // TODO: not-stubbed timer incrementing
-
-    {
-        let (_, cnt) = get_regs(dev, index);
-        if bf!((cnt.get()) @ CntReg::count_up) == 1 {
-            index = (index + 3) % 4; // TODO: Verify that TIMER0 uses TIMER3 to count up
-        }
-    }
-
-    let diff_cycles = dev._internal_state.cycles - dev._internal_state.start_cycles[index];
-
+fn reg_val_read(dev: &mut TimerDevice, index: usize) {
     let new_val = {
-        let (val, cnt) = get_regs(dev, index);
-        let prescaler = bf!((cnt.get()) @ CntReg::prescaler);
-
-        let new_val = match Prescaler::new(prescaler) {
-            Prescaler::Div1 => diff_cycles,
-            Prescaler::Div64 => diff_cycles >> 6,
-            Prescaler::Div256 => diff_cycles >> 8,
-            Prescaler::Div1024 => diff_cycles >> 10,
-            _ => unreachable!(),
-        };
-        val.set_unchecked(new_val as u16);
-        new_val
+        let states = &dev._internal_state;
+        TimerIter::new(states).filter_map(|t| t.val_hword(index))
+                              .next().unwrap()
     };
+    let (val, _) = get_regs(dev, index);
+    val.set_unchecked(new_val);
+}
 
+fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
+    let (val, cnt) = {
+        let (val, cnt) = get_regs(dev, index);
+        (val.get(), cnt.get())
+    };
+    let mut timer = {
+        let states = &dev._internal_state;
+        TimerIter::new(states).filter(|t| t.has_index(index))
+                              .next().unwrap()
+    };
     {
-        // TODO: Verify that TIMER0 uses TIMER3 to count up
-        let (val, cnt) = get_regs(dev, (index + 1) % 4);
-        if bf!((cnt.get()) @ CntReg::count_up) == 1 {
-            val.set_unchecked((new_val >> 16) as u16)
+        let state = match timer {
+            Timer::Unit(_, ref mut state) | Timer::Joined { lowstate: ref mut state, .. } => state
+        };
+        state.started = bf!(cnt @ CntReg::started) == 1;
+        state.count_up = bf!(cnt @ CntReg::count_up) == 1;
+        state.prescaler = Prescaler::new(bf!(cnt @ CntReg::prescaler));
+    }
+
+    timer.set_val_hword(index, val);
+    trace!("Setting TIMER CNT{}: {:?}", index, timer);
+}
+
+
+enum Timer<'a> {
+    Joined { bitset: u8, lowstate: MutexGuard<'a, TimerState> },
+    Unit(u8, MutexGuard<'a, TimerState>)
+}
+
+impl<'a> fmt::Debug for Timer<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Timer::Unit(num, ref state) => write!(f, "Timer::Unit({}, {:?})", num, **state),
+            Timer::Joined { bitset: bs, lowstate: ref state } => {
+                write!(f, "Timer::Joined {{ bitset: 0b{:b}, lowstate: {:?} }}", bs, **state)
+            }
         }
     }
 }
+
+impl<'a> Timer<'a> {
+    fn started(&self) -> bool {
+        match *self {
+            Timer::Unit(_, ref state) | Timer::Joined { lowstate: ref state, .. } => state.started
+        }
+    }
+
+    fn val(&self) -> u64 {
+        let state = match *self {
+            Timer::Unit(_, ref state) | Timer::Joined { lowstate: ref state, .. } => state
+        };
+        scale(state.val_cycles, state.prescaler)
+    }
+
+    fn incr_val(&mut self, clock_diff: u64) {
+        let state = match *self {
+            Timer::Unit(_, ref mut state) | Timer::Joined { lowstate: ref mut state, .. } => state
+        };
+        state.val_cycles += clock_diff;
+    }
+
+    fn val_diff(&self, clock_diff: u64) -> u64 {
+        let state = match *self {
+            Timer::Unit(_, ref state) | Timer::Joined { lowstate: ref state, .. } => state
+        };
+
+        let new_val = scale(state.val_cycles + clock_diff, state.prescaler);
+        new_val - self.val()
+    }
+
+    fn will_overflow(&self, clock_diff: u64) -> Option<u8> {
+        let diff = self.val_diff(clock_diff);
+        match *self {
+            Timer::Unit(num, _) => {
+                let overflows = (self.val() as u16).checked_add(diff as u16).is_none();
+                if diff >> 16 != 0 || overflows {
+                    return Some(num)
+                } else {
+                    None
+                }
+            }
+            Timer::Joined { .. } => unimplemented!()
+        }
+    }
+
+    fn has_index(&self, t_index: usize) -> bool {
+        let t_index = t_index as u8;
+
+        match *self {
+            Timer::Unit(num, ..) => num == t_index,
+            Timer::Joined { bitset: bs, .. } => bs & (1 << t_index) != 0
+        }
+    }
+
+    fn val_hword(&self, t_index: usize) -> Option<u16> {
+        let t_index = t_index as u8;
+
+        match *self {
+            Timer::Unit(num, ..) if num == t_index => {
+                Some(self.val() as u16)
+            }
+            Timer::Joined { bitset: bs, .. } if bs & (1 << t_index) != 0 => {
+                Some((self.val() >> (16*t_index)) as u16)
+            }
+            _ => None
+        }
+    }
+
+    fn set_val_hword(&mut self, t_index: usize, val: u16) {
+        let t_index = t_index as u8;
+        let new = match *self {
+            Timer::Unit(num, ..) if num == t_index => {
+                val as u64
+            }
+            Timer::Joined { bitset: bs, .. } if bs & (1 << t_index) != 0 => {
+                self.val() & !(0xFFFF << (16*t_index)) | ((val as u64) << (16*t_index))
+            }
+            _ => return
+        };
+
+        let state = match *self {
+            Timer::Unit(_, ref mut state) | Timer::Joined { lowstate: ref mut state, .. } => state
+        };
+        state.val_cycles = unscale(new, state.prescaler);
+    }
+}
+
+
+
+struct TimerIter<'a> {
+    next_timer: u8,
+    timer_states: Vec<MutexGuard<'a, TimerState>>,
+}
+
+impl<'a> TimerIter<'a> {
+    fn new<'b>(states: &'b TimerStates) -> TimerIter<'b> {
+        TimerIter {
+            next_timer: 3,
+            timer_states: states.0.iter().map(|x| x.lock()).collect(),
+        }
+    }
+}
+
+impl<'a> Iterator for TimerIter<'a> {
+    type Item = Timer<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_timer == 0xFF {
+            return None
+        }
+        let mut item = self.timer_states.pop().unwrap();
+        if !item.count_up {
+            let ret = Timer::Unit(self.next_timer, item);
+            self.next_timer -= 1;
+            return Some(ret)
+        }
+
+        // assert!(bf!(cnt(0) @ CntReg::count_up) == 0);
+
+        let mut joined_bitset = 0;
+        loop {
+            joined_bitset |= 1 << self.next_timer;
+            self.next_timer = self.next_timer.wrapping_sub(1);
+            if !item.count_up || self.next_timer == 0xFF {
+                break
+            }
+            item = self.timer_states.pop().unwrap();
+        }
+        Some(Timer::Joined { bitset: joined_bitset, lowstate: item })
+    }
+}
+
+fn scale(cycles: u64, prescaler: Prescaler) -> u64 {
+    match prescaler {
+        Prescaler::Div1 => cycles,
+        Prescaler::Div64 => cycles >> 6,
+        Prescaler::Div256 => cycles >> 8,
+        Prescaler::Div1024 => cycles >> 10
+    }
+}
+
+fn unscale(clock_ticks: u64, prescaler: Prescaler) -> u64 {
+    match prescaler {
+        Prescaler::Div1 => clock_ticks,
+        Prescaler::Div64 => clock_ticks << 6,
+        Prescaler::Div256 => clock_ticks << 8,
+        Prescaler::Div1024 => clock_ticks << 10
+    }
+}
+
+fn irq(t_index: usize) -> irq::IrqType {
+    match t_index {
+        0 => irq::IrqType::Timer0,
+        1 => irq::IrqType::Timer1,
+        2 => irq::IrqType::Timer2,
+        3 => irq::IrqType::Timer3,
+        _ => unreachable!()
+    }
+}
+
+
+
+
+#[derive(Clone)]
+pub struct TimerStates(Arc<[Mutex<TimerState>; 4]>);
+impl TimerStates {
+    pub fn new() -> TimerStates {
+        TimerStates(Arc::new([
+            Mutex::new(TimerState::new()), Mutex::new(TimerState::new()),
+            Mutex::new(TimerState::new()), Mutex::new(TimerState::new()),
+        ]))
+    }
+}
+
+impl fmt::Debug for TimerStates {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TimerStates {{ }}")
+    }
+}
+
+#[derive(Debug)]
+pub struct TimerState {
+    started: bool,
+    count_up: bool,
+    val_cycles: u64,
+    prescaler: Prescaler,
+}
+
+impl TimerState {
+    pub fn new() -> TimerState {
+        TimerState {
+            started: false,
+            count_up: false,
+            val_cycles: 0,
+            prescaler: Prescaler::Div1
+        }
+    }
+}
+
+pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx: &mut irq::IrqRequests) {
+    let iter_started = TimerIter::new(&timer_states).filter(|t| t.started());
+
+    for mut timer in iter_started {
+        let overflows = timer.will_overflow(clock_diff as u64);
+        timer.incr_val(clock_diff as u64);
+        if let Some(overflow_index) = overflows {
+            // Overflow happened
+            irq_tx.add(irq(overflow_index as usize))
+        }
+    }
+}
+
+
+
 
 iodevice!(TimerDevice, {
-    internal_state: TimerDeviceState;
+    internal_state: TimerStates;
     regs: {
-        0x000 => val0: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 0); }
-        0x002 => cnt0: u16 { read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 0); }
+        0x000 => val0: u16 {
+            read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 0);
+            write_effect = |dev: &mut TimerDevice| reg_val_update(dev, 0);
+        }
+        0x002 => cnt0: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 0); }
 
-        0x004 => val1: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 1); }
-        0x006 => cnt1: u16 { read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 1); }
+        0x004 => val1: u16 {
+            read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 1);
+            write_effect = |dev: &mut TimerDevice| reg_val_update(dev, 1);
+        }
+        0x006 => cnt1: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 1); }
 
-        0x008 => val2: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 2); }
-        0x00A => cnt2: u16 { read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 2); }
+        0x008 => val2: u16 {
+            read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 2);
+            write_effect = |dev: &mut TimerDevice| reg_val_update(dev, 2);
+        }
+        0x00A => cnt2: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 2); }
 
-        0x00C => val3: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 3); }
-        0x00E => cnt3: u16 { read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 3); }
+        0x00C => val3: u16 {
+            read_effect = |dev: &mut TimerDevice| reg_val_read(dev, 3);
+            write_effect = |dev: &mut TimerDevice| reg_val_update(dev, 3);
+        }
+        0x00E => cnt3: u16 { write_effect = |dev: &mut TimerDevice| reg_cnt_update(dev, 3); }
     }
 });

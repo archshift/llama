@@ -10,7 +10,7 @@ mod otp;
 mod pxi;
 mod rsa;
 mod sha;
-mod timer;
+pub mod timer;
 mod xdma;
 
 pub mod hid;
@@ -21,9 +21,10 @@ use std::default::Default;
 
 use parking_lot::Mutex;
 
+use clock;
 use cpu::irq::IrqRequests;
-use rt_data;
 use io::regs::IoRegAccess;
+use rt_data;
 
 pub enum IoRegion {
     Arm9(IoRegsArm9),
@@ -31,7 +32,8 @@ pub enum IoRegion {
     Arm11,
 }
 
-pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests) -> (IoRegsArm9, IoRegsShared) {
+pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests,
+                   clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
     let pxi_device = Arc::new(Mutex::new(pxi::PxiDevice::new()));
 
     (IoRegsArm9 {
@@ -41,7 +43,7 @@ pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests) -> (IoRegsArm9
         ndma: ndma::NdmaDevice::new(Default::default()),
         otp: otp::OtpDevice::new(Default::default()),
         pxi9: pxi_device.clone(),
-        timer: timer::TimerDevice::new(Default::default()),
+        timer: timer::TimerDevice::new(clk.timer_states),
         aes: aes::AesDevice::new(Default::default()),
         sha: sha::ShaDevice::new(Default::default()),
         rsa: rsa::RsaDevice::new(Default::default()),
