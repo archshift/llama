@@ -7,6 +7,7 @@ extern crate indextree;
 #[macro_use]
 extern crate log;
 extern crate openssl;
+extern crate parking_lot;
 
 #[macro_use]
 pub mod utils;

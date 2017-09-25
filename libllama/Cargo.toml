@@ -11,6 +11,7 @@ indextree = "1.0"
 json = "0.11"
 log = "0.3"
 openssl = "0.9"
+parking_lot = "0.4"
 
 [features]
 trace_instructions = []

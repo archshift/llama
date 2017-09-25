@@ -2,12 +2,14 @@ use std;
 use std::cell;
 use std::cmp;
 use std::ptr;
-use std::sync;
+use std::sync::Arc;
+
+use parking_lot::{Mutex, RwLock};
 
 use io;
 
 const KB_SIZE: usize = 1024;
-pub type SharedMemoryNode = sync::RwLock<[u8; KB_SIZE]>;
+pub type SharedMemoryNode = RwLock<[u8; KB_SIZE]>;
 
 trait MemoryBlock {
     fn get_bytes(&self) -> u32;
@@ -40,15 +42,15 @@ impl MemoryBlock for UniqueMemoryBlock {
 }
 
 #[derive(Clone)]
-pub struct SharedMemoryBlock(sync::Arc<Vec<SharedMemoryNode>>);
+pub struct SharedMemoryBlock(Arc<Vec<SharedMemoryNode>>);
 impl SharedMemoryBlock {
     pub fn new(kbs: usize) -> SharedMemoryBlock {
         let mut inner: Vec<SharedMemoryNode> = Vec::new();
         for _ in 0..kbs {
-            inner.push(sync::RwLock::new([0; KB_SIZE]))
+            inner.push(RwLock::new([0; KB_SIZE]))
         }
 
-        SharedMemoryBlock(sync::Arc::new(inner))
+        SharedMemoryBlock(Arc::new(inner))
     }
 }
 impl MemoryBlock for SharedMemoryBlock {
@@ -67,7 +69,7 @@ impl MemoryBlock for SharedMemoryBlock {
             assert!(node_index < nodes.len());
             let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
             {
-                let node_ptr = nodes[node_index].read().unwrap().as_ptr();
+                let node_ptr = nodes[node_index].read().as_ptr();
                 let buf_pos = buf_size - buf_remaining;
                 ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
             }
@@ -87,7 +89,7 @@ impl MemoryBlock for SharedMemoryBlock {
             assert!(node_index < nodes.len());
             let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
             {
-                let node_ptr = nodes[node_index].write().unwrap().as_mut_ptr();
+                let node_ptr = nodes[node_index].write().as_mut_ptr();
                 let buf_pos = buf_size - buf_remaining;
                 ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
             }
@@ -99,10 +101,10 @@ impl MemoryBlock for SharedMemoryBlock {
 }
 
 #[derive(Clone)]
-pub struct IoMemoryBlock(sync::Arc<(usize, sync::Mutex<io::IoRegion>)>);
+pub struct IoMemoryBlock(Arc<(usize, Mutex<io::IoRegion>)>);
 impl IoMemoryBlock {
     pub fn new(variant: io::IoRegion, kbs: usize) -> IoMemoryBlock {
-        IoMemoryBlock(sync::Arc::new((kbs, sync::Mutex::new(variant))))
+        IoMemoryBlock(Arc::new((kbs, Mutex::new(variant))))
     }
 }
 impl MemoryBlock for IoMemoryBlock {
@@ -112,7 +114,7 @@ impl MemoryBlock for IoMemoryBlock {
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
         let (_, ref region) = *self.0;
-        match *region.lock().unwrap() {
+        match *region.lock() {
             io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
             io::IoRegion::Shared(ref mut x) => x.read_reg(offset, buf, buf_size),
             _ => unimplemented!(),
@@ -121,7 +123,7 @@ impl MemoryBlock for IoMemoryBlock {
 
     unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
         let (_, ref region) = *self.0;
-        match *region.lock().unwrap() {
+        match *region.lock() {
             io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
             io::IoRegion::Shared(ref mut x) => x.write_reg(offset, buf, buf_size),
             _ => unimplemented!(),
@@ -249,7 +251,7 @@ mod test {
         }
 
         // Compare memory with data
-        let block_mem = nodes[0].read().unwrap();
+        let block_mem = nodes[0].read();
         assert_eq!(block_mem[0x2C8..0x2CC], bytes[..]);
     }
 
@@ -261,7 +263,7 @@ mod test {
 
         // Write data directly to memory
         {
-            let mut block_mem = nodes[0].write().unwrap();
+            let mut block_mem = nodes[0].write();
             (&mut block_mem[0x2C8..0x2CC]).write_all(&[0xFFu8, 0x53u8, 0x28u8, 0xC6u8]);
         }
 
@@ -272,7 +274,7 @@ mod test {
         }
 
         // Compare memory and buffer
-        let block_mem = nodes[0].read().unwrap();
+        let block_mem = nodes[0].read();
         assert_eq!(block_mem[0x2C8..0x2CC], buf[..]);
     }
 
@@ -289,8 +291,8 @@ mod test {
         }
 
         // Compare memory with data
-        let block_mem0 = nodes[0].read().unwrap();
-        let block_mem1 = nodes[1].read().unwrap();
+        let block_mem0 = nodes[0].read();
+        let block_mem1 = nodes[1].read();
         assert_eq!(block_mem0[0x3FE..0x400], bytes[0..2]);
         assert_eq!(block_mem1[0x0..0x2], bytes[2..4]);
     }
@@ -303,8 +305,8 @@ mod test {
 
         // Write data directly to memory
         {
-            let mut block_mem0 = nodes[0].write().unwrap();
-            let mut block_mem1 = nodes[1].write().unwrap();
+            let mut block_mem0 = nodes[0].write();
+            let mut block_mem1 = nodes[1].write();
             (&mut block_mem0[0x3FE..0x400]).write_all(&[0xFFu8, 0x53u8]);
             (&mut block_mem1[0x0..0x2]).write_all(&[0x28u8, 0xC6u8]);
         }
@@ -316,8 +318,8 @@ mod test {
         }
 
         // Compare memory and buffer
-        let block_mem0 = nodes[0].read().unwrap();
-        let block_mem1 = nodes[1].read().unwrap();
+        let block_mem0 = nodes[0].read();
+        let block_mem1 = nodes[1].read();
         assert_eq!(block_mem0[0x3FE..0x400], buf[0..2]);
         assert_eq!(block_mem1[0x0..0x2], buf[2..4]);
     }

@@ -16,8 +16,10 @@ mod xdma;
 pub mod hid;
 
 use std::ptr;
-use std::sync;
+use std::sync::Arc;
 use std::default::Default;
+
+use parking_lot::Mutex;
 
 use cpu::irq::IrqRequests;
 use rt_data;
@@ -30,7 +32,7 @@ pub enum IoRegion {
 }
 
 pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests) -> (IoRegsArm9, IoRegsShared) {
-    let pxi_device = sync::Arc::new(sync::Mutex::new(pxi::PxiDevice::new()));
+    let pxi_device = Arc::new(Mutex::new(pxi::PxiDevice::new()));
 
     (IoRegsArm9 {
         config: config::ConfigDevice::new(),
@@ -59,7 +61,7 @@ pub struct IoRegsArm9 {
     timer: timer::TimerDevice,
     // ctrcard,
     emmc: emmc::EmmcDevice,
-    pxi9: sync::Arc<sync::Mutex<pxi::PxiDevice>>,
+    pxi9: Arc<Mutex<pxi::PxiDevice>>,
     aes: aes::AesDevice,
     sha: sha::ShaDevice,
     rsa: rsa::RsaDevice,
@@ -79,7 +81,7 @@ impl IoRegsArm9 {
             0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
-            0x08 => { self.pxi9.lock().unwrap().read_reg(offset & 0xFFF, buf, buf_size); return }
+            0x08 => { self.pxi9.lock().read_reg(offset & 0xFFF, buf, buf_size); return }
             0x09 => &mut self.aes,
             0x0A => &mut self.sha,
             0x0B => &mut self.rsa,
@@ -103,7 +105,7 @@ impl IoRegsArm9 {
             0x02 => &mut self.ndma,
             0x03 => &mut self.timer,
             0x06 => &mut self.emmc,
-            0x08 => { self.pxi9.lock().unwrap().write_reg(offset & 0xFFF, buf, buf_size); return }
+            0x08 => { self.pxi9.lock().write_reg(offset & 0xFFF, buf, buf_size); return }
             0x09 => &mut self.aes,
             0x0A => &mut self.sha,
             0x0B => &mut self.rsa,
@@ -134,7 +136,7 @@ pub struct IoRegsShared {
     hid: hid::HidDevice,
     // gpio,
     // mic,
-    pxi11: sync::Arc<sync::Mutex<pxi::PxiDevice>>,
+    pxi11: Arc<Mutex<pxi::PxiDevice>>,
     // ntrcard,
     // mp,
 }
@@ -143,7 +145,7 @@ impl IoRegsShared {
     pub unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
         let device: &mut IoRegAccess = match bits!(offset, 12 => 23) {
             0x46 => &mut self.hid,
-            0x63 => { self.pxi11.lock().unwrap().read_reg(offset & 0xFFF, buf, buf_size); return }
+            0x63 => { self.pxi11.lock().read_reg(offset & 0xFFF, buf, buf_size); return }
             _ => {
                 error!("Unimplemented IO register read at offset 0x{:X}", offset);
                 // If we can't find a register for it, just read zero bytes
@@ -157,7 +159,7 @@ impl IoRegsShared {
     pub unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
         let device: &mut IoRegAccess = match bits!(offset, 12 => 23) {
             0x46 => &mut self.hid,
-            0x63 => { self.pxi11.lock().unwrap().write_reg(offset & 0xFFF, buf, buf_size); return }
+            0x63 => { self.pxi11.lock().write_reg(offset & 0xFFF, buf, buf_size); return }
             _ => { error!("Unimplemented IO register write at offset 0x{:X}", offset); return },
         };
         device.write_reg(offset & 0xFFF, buf, buf_size);
