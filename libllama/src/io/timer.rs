@@ -1,3 +1,5 @@
+// TODO: How can we test this module?
+
 use std::fmt;
 use std::sync::Arc;
 
@@ -134,19 +136,30 @@ impl<'a> Timer<'a> {
         new_val - self.val()
     }
 
-    fn will_overflow(&self, clock_diff: u64) -> Option<u8> {
+    fn will_overflow_words(&self, clock_diff: u64) -> [bool; 4] {
         let diff = self.val_diff(clock_diff);
+        let mut overflow_words = [false; 4];
         match *self {
             Timer::Unit(num, _) => {
                 let overflows = (self.val() as u16).checked_add(diff as u16).is_none();
                 if diff >> 16 != 0 || overflows {
-                    return Some(num)
-                } else {
-                    None
+                    overflow_words[num as usize] = true;
                 }
             }
-            Timer::Joined { .. } => unimplemented!()
+            Timer::Joined { bitset: bs, .. } => {
+                let lowest_word = bs.trailing_zeros() as usize;
+                let val = self.val();
+                let newval = val + diff;
+                for i in 0..4 {
+                    let val_hword = (val >> (16*i)) as u16;
+                    let newval_hword = (newval >> (16*i)) as u16;
+                    if newval_hword < val_hword {
+                        overflow_words[lowest_word+i] = true;
+                    }
+                }
+            }
         }
+        overflow_words
     }
 
     fn has_index(&self, t_index: usize) -> bool {
@@ -306,11 +319,13 @@ pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx
     let iter_started = TimerIter::new(&timer_states).filter(|t| t.started());
 
     for mut timer in iter_started {
-        let overflows = timer.will_overflow(clock_diff as u64);
+        let overflows = timer.will_overflow_words(clock_diff as u64);
         timer.incr_val(clock_diff as u64);
-        if let Some(overflow_index) = overflows {
-            // Overflow happened
-            irq_tx.add(irq(overflow_index as usize))
+        for (index, status) in overflows.iter().enumerate() {
+            if *status {
+                // Overflow happened
+                irq_tx.add(irq(index))
+            }
         }
     }
 }
