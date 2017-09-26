@@ -2,7 +2,6 @@ use cpu;
 use cpu::Cpu;
 use cpu::decoder_arm as arm;
 
-#[inline(always)]
 pub fn swi(cpu: &mut Cpu, data: arm::swi::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;

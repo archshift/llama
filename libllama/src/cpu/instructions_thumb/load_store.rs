@@ -24,7 +24,6 @@ pub fn ldr_1(cpu: &mut Cpu, data: thumb::ldr_1::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn ldr_2(cpu: &mut Cpu, data: thumb::ldr_2::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001111001_0000_0000_00000000_0000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -41,7 +40,6 @@ pub fn ldr_3(cpu: &mut Cpu, data: thumb::ldr_3::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn ldr_4(cpu: &mut Cpu, data: thumb::ldr_4::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
                                           | ((bf!(data.rd) as u32) << 12)
@@ -49,7 +47,6 @@ pub fn ldr_4(cpu: &mut Cpu, data: thumb::ldr_4::InstrDesc) -> cpu::InstrStatus {
     cpu::instructions_arm::ldr(cpu, arm::ldr::InstrDesc::new(arminst))
 }
 
-#[inline(always)]
 pub fn ldrb_1(cpu: &mut Cpu, data: thumb::ldrb_1::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001011101_0000_0000_0000000_00000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -58,7 +55,6 @@ pub fn ldrb_1(cpu: &mut Cpu, data: thumb::ldrb_1::InstrDesc) -> cpu::InstrStatus
     cpu::instructions_arm::ldrb(cpu, arm::ldrb::InstrDesc::new(arminst))
 }
 
-#[inline(always)]
 pub fn ldrb_2(cpu: &mut Cpu, data: thumb::ldrb_2::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001111101_0000_0000_00000000_0000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -132,7 +128,6 @@ pub fn str_1(cpu: &mut Cpu, data: thumb::str_1::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn str_2(cpu: &mut Cpu, data: thumb::str_2::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001111000_0000_0000_00000000_0000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -141,7 +136,6 @@ pub fn str_2(cpu: &mut Cpu, data: thumb::str_2::InstrDesc) -> cpu::InstrStatus {
     cpu::instructions_arm::str(cpu, arm::str::InstrDesc::new(arminst))
 }
 
-#[inline(always)]
 pub fn str_3(cpu: &mut Cpu, data: thumb::str_3::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
                                           | ((bf!(data.rd) as u32) << 12)
@@ -149,7 +143,6 @@ pub fn str_3(cpu: &mut Cpu, data: thumb::str_3::InstrDesc) -> cpu::InstrStatus {
     cpu::instructions_arm::str(cpu, arm::str::InstrDesc::new(arminst))
 }
 
-#[inline(always)]
 pub fn strb_1(cpu: &mut Cpu, data: thumb::strb_1::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001011100_0000_0000_0000000_00000
                                       | ((bf!(data.rn) as u32) << 16)
@@ -158,7 +151,6 @@ pub fn strb_1(cpu: &mut Cpu, data: thumb::strb_1::InstrDesc) -> cpu::InstrStatus
     cpu::instructions_arm::strb(cpu, arm::strb::InstrDesc::new(arminst))
 }
 
-#[inline(always)]
 pub fn strb_2(cpu: &mut Cpu, data: thumb::strb_2::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111001111100_0000_0000_00000000_0000
                                       | ((bf!(data.rn) as u32) << 16)

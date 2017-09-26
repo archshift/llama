@@ -8,7 +8,6 @@ pub enum InstrStatus {
     Branched, // Do not advance PC
 }
 
-#[inline(always)]
 pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     match cond_opcode {
         0b0000 => return bf!(cpsr.z_bit) == 1, // EQ
@@ -44,7 +43,6 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     }
 }
 
-#[inline(always)]
 pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
     #[cfg(feature = "trace_instructions")]
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);

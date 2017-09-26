@@ -2,7 +2,6 @@ use cpu;
 use cpu::Cpu;
 use cpu::decoder_arm as arm;
 
-#[inline(always)]
 pub fn mrs(cpu: &mut Cpu, data: arm::mrs::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -20,7 +19,6 @@ pub fn mrs(cpu: &mut Cpu, data: arm::mrs::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -74,12 +72,10 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) ->
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn msr_1(cpu: &mut Cpu, data: arm::msr_1::InstrDesc) -> cpu::InstrStatus {
     instr_msr(cpu, data, true)
 }
 
-#[inline(always)]
 pub fn msr_2(cpu: &mut Cpu, data: arm::msr_2::InstrDesc) -> cpu::InstrStatus {
     instr_msr(cpu, arm::msr_1::InstrDesc::new(data.raw()), false)
 }

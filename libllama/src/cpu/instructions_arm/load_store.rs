@@ -111,7 +111,6 @@ enum MiscLsType {
     SignedHalfword
 }
 
-#[inline(always)]
 fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -142,7 +141,6 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -172,7 +170,6 @@ fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) ->
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -193,7 +190,6 @@ fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::Ins
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -218,57 +214,46 @@ fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn ldr(cpu: &mut Cpu, data: arm::ldr::InstrDesc) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn ldrb(cpu: &mut Cpu, data: arm::ldrb::InstrDesc) -> cpu::InstrStatus {
     instr_load(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn ldrd(cpu: &mut Cpu, data: arm::ldrd::InstrDesc) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
 }
 
-#[inline(always)]
 pub fn ldrh(cpu: &mut Cpu, data: arm::ldrh::InstrDesc) -> cpu::InstrStatus {
     instr_load_misc(cpu, data, MiscLsType::Halfword)
 }
 
-#[inline(always)]
 pub fn ldrsb(cpu: &mut Cpu, data: arm::ldrsb::InstrDesc) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedByte)
 }
 
-#[inline(always)]
 pub fn ldrsh(cpu: &mut Cpu, data: arm::ldrsh::InstrDesc) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedHalfword)
 }
 
-#[inline(always)]
 pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
     instr_store(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn strb(cpu: &mut Cpu, data: arm::strb::InstrDesc) -> cpu::InstrStatus {
     instr_store(cpu, arm::str::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn strd(cpu: &mut Cpu, data: arm::strd::InstrDesc) -> cpu::InstrStatus {
     instr_store_misc(cpu, arm::strh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
 }
 
-#[inline(always)]
 pub fn strh(cpu: &mut Cpu, data: arm::strh::InstrDesc) -> cpu::InstrStatus {
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
 
-#[inline(always)]
 pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -285,7 +270,6 @@ pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn swpb(cpu: &mut Cpu, data: arm::swpb::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;

@@ -2,7 +2,6 @@ use cpu::{Cpu, InstrStatus};
 use cpu::decoder_thumb::ThumbInstruction;
 use cpu::instructions_thumb;
 
-#[inline(always)]
 pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
     #[cfg(feature = "trace_instructions")]
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);

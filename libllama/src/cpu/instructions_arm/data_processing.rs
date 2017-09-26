@@ -99,7 +99,6 @@ struct BarrelShifterOut {
     pc_advanced: bool, // To work around the fact that PC @ +12 when shifting by a register value
 }
 
-#[inline(always)]
 fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
     // Just to make it a little bit easier to use this
     let instr_data = arm::add::InstrDesc::new(instr_data);
@@ -149,7 +148,6 @@ enum ProcessInstrBitOp {
     Xor,
 }
 
-#[inline(always)]
 fn instr_bitwise(cpu: &mut Cpu, data: arm::and::InstrDesc, op: ProcessInstrBitOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -187,7 +185,6 @@ fn instr_bitwise(cpu: &mut Cpu, data: arm::and::InstrDesc, op: ProcessInstrBitOp
     }
 }
 
-#[inline(always)]
 fn instr_compare(cpu: &mut Cpu, data: arm::cmp::InstrDesc, negative: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -225,7 +222,6 @@ enum ProcessInstrLogicalOp {
     SubCarry,
 }
 
-#[inline(always)]
 fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -300,7 +296,6 @@ fn instr_logical(cpu: &mut Cpu, data: arm::add::InstrDesc, op: ProcessInstrLogic
     }
 }
 
-#[inline(always)]
 fn instr_move(cpu: &mut Cpu, data: arm::mov::InstrDesc, negate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -333,7 +328,6 @@ fn instr_move(cpu: &mut Cpu, data: arm::mov::InstrDesc, negate: bool) -> cpu::In
     }
 }
 
-#[inline(always)]
 pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::umlal::InstrDesc, signed: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -367,7 +361,6 @@ pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::umlal::InstrDesc, signed
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -389,27 +382,22 @@ fn instr_test(cpu: &mut Cpu, data: arm::tst::InstrDesc, equiv: bool) -> cpu::Ins
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn adc(cpu: &mut Cpu, data: arm::adc::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::AddCarry)
 }
 
-#[inline(always)]
 pub fn add(cpu: &mut Cpu, data: arm::add::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::Add)
 }
 
-#[inline(always)]
 pub fn and(cpu: &mut Cpu, data: arm::and::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
-#[inline(always)]
 pub fn bic(cpu: &mut Cpu, data: arm::bic::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::AndNot)
 }
 
-#[inline(always)]
 pub fn clz(cpu: &mut Cpu, data: arm::clz::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -421,27 +409,22 @@ pub fn clz(cpu: &mut Cpu, data: arm::clz::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn cmn(cpu: &mut Cpu, data: arm::cmn::InstrDesc) -> cpu::InstrStatus {
     instr_compare(cpu, arm::cmp::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn cmp(cpu: &mut Cpu, data: arm::cmp::InstrDesc) -> cpu::InstrStatus {
     instr_compare(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn eor(cpu: &mut Cpu, data: arm::eor::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Xor)
 }
 
-#[inline(always)]
 pub fn orr(cpu: &mut Cpu, data: arm::orr::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Or)
 }
 
-#[inline(always)]
 pub fn mla(cpu: &mut Cpu, data: arm::mla::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -462,12 +445,10 @@ pub fn mla(cpu: &mut Cpu, data: arm::mla::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn mov(cpu: &mut Cpu, data: arm::mov::InstrDesc) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn mul(cpu: &mut Cpu, data: arm::mul::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -487,32 +468,26 @@ pub fn mul(cpu: &mut Cpu, data: arm::mul::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn mvn(cpu: &mut Cpu, data: arm::mvn::InstrDesc) -> cpu::InstrStatus {
     instr_move(cpu, arm::mov::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn rsb(cpu: &mut Cpu, data: arm::rsb::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ReverseSub)
 }
 
-#[inline(always)]
 pub fn rsc(cpu: &mut Cpu, data: arm::rsc::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::ReverseSubCarry)
 }
 
-#[inline(always)]
 pub fn sbc(cpu: &mut Cpu, data: arm::sbc::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::SubCarry)
 }
 
-#[inline(always)]
 pub fn smlal(cpu: &mut Cpu, data: arm::smlal::InstrDesc) -> cpu::InstrStatus {
     instr_mul64_accumulate(cpu, arm::umlal::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
@@ -533,27 +508,22 @@ pub fn smull(cpu: &mut Cpu, data: arm::smull::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-#[inline(always)]
 pub fn sub(cpu: &mut Cpu, data: arm::sub::InstrDesc) -> cpu::InstrStatus {
     instr_logical(cpu, arm::add::InstrDesc::new(data.raw()), ProcessInstrLogicalOp::Sub)
 }
 
-#[inline(always)]
 pub fn teq(cpu: &mut Cpu, data: arm::teq::InstrDesc) -> cpu::InstrStatus {
     instr_test(cpu, arm::tst::InstrDesc::new(data.raw()), true)
 }
 
-#[inline(always)]
 pub fn tst(cpu: &mut Cpu, data: arm::tst::InstrDesc) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn umlal(cpu: &mut Cpu, data: arm::umlal::InstrDesc) -> cpu::InstrStatus {
     instr_mul64_accumulate(cpu, data, false)
 }
 
-#[inline(always)]
 pub fn umull(cpu: &mut Cpu, data: arm::umull::InstrDesc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
