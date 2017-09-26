@@ -15,17 +15,18 @@ enum CmdHandler {
     R7(fn(&mut EmmcDevice) -> u32)
 }
 
-static CMDs: [(usize, CmdHandler, CardType); 13] = [
+static CMDs: [(usize, CmdHandler, CardType); 16] = [
     (0, CmdHandler::R1(cmds::go_idle_state), CardType::Sdmmc),
     (1, CmdHandler::R3(cmds::send_op_cond), CardType::Mmc),
     (2, CmdHandler::R2(cmds::all_send_cid), CardType::Sdmmc),
     (3, CmdHandler::R6(cmds::get_relative_addr), CardType::Sd),
     (3, CmdHandler::R1(cmds::set_relative_addr), CardType::Mmc),
+    (6, CmdHandler::R1(cmds::switch), CardType::Sdmmc),
     (7, CmdHandler::R1(cmds::select_deselect_card), CardType::Sdmmc),
     (8, CmdHandler::R7(cmds::send_if_cond), CardType::Sd),
     (9, CmdHandler::R2(cmds::send_csd), CardType::Sdmmc),
-    // (10, CmdHandler::R1(cmds::send_cid)),
-    // (12, CmdHandler::R1b(cmds::stop_transmission)),
+    (10, CmdHandler::R2(cmds::all_send_cid), CardType::Sdmmc),
+    (12, CmdHandler::R1(cmds::stop_transmission), CardType::Sdmmc),
     (13, CmdHandler::R1(|_| {}), CardType::Sdmmc),
     (16, CmdHandler::R1(cmds::set_blocklen), CardType::Sdmmc),
     // (17, CmdHandler::R1(cmds::read_single_block)),

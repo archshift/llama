@@ -38,6 +38,10 @@ pub fn get_relative_addr(dev: &mut EmmcDevice) -> u16 {
     rca
 }
 
+pub fn switch(dev: &mut EmmcDevice) {
+    warn!("STUBBED: SDMMC CMD6 SWITCH!");
+}
+
 pub fn select_deselect_card(dev: &mut EmmcDevice) {
     emmc::get_active_card(dev).set_state(CardState::Tran);
     warn!("STUBBED: SDMMC CMD7 SELECT_DESELECT_CARD!");

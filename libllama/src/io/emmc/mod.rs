@@ -96,7 +96,6 @@ impl EmmcDeviceState {
             cards: [
                 Card::new(card::CardType::Sd, card::sd_storage(), card::sd_cid()),
                 Card::new(card::CardType::Mmc, card::nand_storage(), card::nand_cid())
-                // Card::new(card::CardType::Sd, card::nand_storage(), card::nand_cid()) // TODO: This is a hack!
             ]
         }
     }
@@ -305,14 +304,18 @@ iodevice!(EmmcDevice, {
             read_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Read, false);
             write_effect = |dev: &mut EmmcDevice| reg_fifo_mod(dev, TransferType::Write, false);
         }
+        0x036 => unkirq_stat: u16 { }
+        0x038 => unkirq_mask: u16 { }
         0x0D8 => data16_ctl: u16 {
             default = 0b00010000_00010000;
             write_bits = 0b00000000_00100010;
         }
         0x0E0 => software_reset: u16 { write_bits = 0b1; }
         0x0F6 => protected: u16 { }
-        0x0FC => unknown0: u16 { }
-        0x0FE => unknown1: u16 { }
+        0x0F8 => nand_conn_stat: u16 { default = 0b00000000_00000100; }
+        0x0FA => nand_conn_mask: u16 { }
+        0x0FC => unknown2: u16 { }
+        0x0FE => unknown3: u16 { }
         0x100 => data32_ctl: u16 {
             write_bits = 0b00011111_00000010;
         }
