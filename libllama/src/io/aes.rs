@@ -166,14 +166,23 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         let key = dev._internal_state.key_slots[keyslot];
         let bytes = dev.blk_cnt.get() << 4;
 
-        // Reverse word order for CTR
-        let mut ctr: [u32; 4] = unsafe { mem::transmute(dev._internal_state.reg_ctr) };
-        ctr.reverse();
-        let ctr: [u8; 0x10] = unsafe { mem::transmute(ctr) };
+        let mut ctr = if bf!(cnt @ RegCnt::in_normal_order) == 1 {
+            // Reverse word order for CTR
+            dev._internal_state.reg_ctr.chunks(4).rev()
+                                       .flat_map(|x| x.iter().map(|b| *b))
+                                       .collect::<Vec<_>>()
+        } else {
+            dev._internal_state.reg_ctr.to_vec()
+        };
+
+        if bf!(cnt @ RegCnt::in_big_endian) == 0 {
+            // Reverse CTR byte order
+            for c in ctr.chunks_mut(4) {
+                c.reverse();
+            }
+        }
 
         assert!(dev.mac_blk_cnt.get() == 0);
-        assert!(bf!(cnt @ RegCnt::out_big_endian) == 1);
-        assert!(bf!(cnt @ RegCnt::in_big_endian) == 1);
         assert!(bf!(cnt @ RegCnt::out_normal_order) == 1);
         assert!(bf!(cnt @ RegCnt::in_normal_order) == 1);
 
@@ -191,8 +200,8 @@ fn reg_cnt_update(dev: &mut AesDevice) {
             symm::Mode::Decrypt
         };
         let (cypher, iv_ctr) = match mode {
-            2 | 3 => (symm::Cipher::aes_128_ctr(), Some(&ctr[..])),
-            4 | 5 => (symm::Cipher::aes_128_cbc(), Some(&ctr[..])),
+            2 | 3 => (symm::Cipher::aes_128_ctr(), Some(ctr.as_slice())),
+            4 | 5 => (symm::Cipher::aes_128_cbc(), Some(ctr.as_slice())),
             6 | 7 => (symm::Cipher::aes_128_ecb(), None),
             _ => unimplemented!()
         };
@@ -229,6 +238,8 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
             .expect("Attempted to write to AES FIFO-IN when not started!");
 
         let word = dev.fifo_in.get();
+        let word = if bf!((dev.cnt.get()) @ RegCnt::in_big_endian) == 1 { word }
+                   else { word.swap_bytes() };
         dev._internal_state.fifo_in_buf.push_back(word);
 
         if dev._internal_state.fifo_in_buf.len() == 4 {
@@ -260,7 +271,10 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
 }
 
 fn reg_fifo_out_onread(dev: &mut AesDevice) {
-    if let Some(word) = dev._internal_state.fifo_out_buf.pop_front() {
+    if let Some(mut word) = dev._internal_state.fifo_out_buf.pop_front() {
+        if bf!((dev.cnt.get()) @ RegCnt::out_big_endian) == 0 {
+            word = word.swap_bytes();
+        }
         dev.fifo_out.set_unchecked(word);
     }
 }
@@ -286,6 +300,8 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
 
     // TODO: Can you write to keyslots <4 this way?
 
+    let word = if bf!(cnt @ RegCnt::in_big_endian) == 1 { word }
+               else { word.swap_bytes() };
     state.buf[state.pos / 4] = word;
     state.pos += 4;
     if state.pos >= 0x10 {
