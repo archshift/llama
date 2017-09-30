@@ -155,12 +155,12 @@ fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
         Status::Lo(s0) => {
             let s0 = s0 as u16;
             dev.irq_status0.bitadd_unchecked(s0);
-            s0 & dev.irq_mask0.get() != 0
+            s0 & !dev.irq_mask0.get() != 0
         }
         Status::Hi(s1) => {
             let s1 = s1 as u16;
             dev.irq_status1.bitadd_unchecked(s1);
-            s1 & dev.irq_mask1.get() != 0
+            s1 & !dev.irq_mask1.get() != 0
         }
     };
     if irq_add {
@@ -182,7 +182,6 @@ fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
             dev.irq_status1.bitclr_unchecked(s1);
         }
     };
-    dev._internal_state.irq_reqs.clr(irq::IrqType::Sdio1);
 }
 
 fn reg_cmd_onupdate(dev: &mut EmmcDevice) {

@@ -89,6 +89,14 @@ impl HwCore {
         let mut cpu = cpu::Cpu::new(mem9, irq_rx, clk_tx);
         cpu.reset(loader.entrypoint());
 
+        // Initialize framebuffer data in a way that's compatible with BRAHMA and b9s
+        cpu.memory.write(0xFFF00000, 0x23FFFE00u32);
+        cpu.memory.write(0xFFF00004, 0x23FFFE00u32);
+        cpu.memory.write(0x23FFFE00, 0x20000000u32);
+        cpu.memory.write(0x23FFFE08, 0x2008CA00u32);
+        cpu.regs[0] = 2;
+        cpu.regs[1] = 0xFFF00000;
+
         let arm11_state = loader.arm11_state();
         info!("Creating system with ARM11 mode {:?}...", arm11_state);
         let dummy11_mode = match arm11_state {

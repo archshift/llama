@@ -131,6 +131,7 @@ impl Cpu {
         use cpu::decoder_thumb::ThumbInstruction;
 
         let mut cycles = self.cycles;
+        let mut irq_known_pending = false;
 
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
@@ -139,12 +140,13 @@ impl Cpu {
             // Amortize the cost of checking for IRQs, updating clock
             if cycles % 128 == 0 {
                 self.sys_clk.increment(128 * 8); // Probably speeds up time but w/e
-
-                if bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
-                    trace!("ARM9 IRQ triggered!");
-                    self.enter_exception(addr+4, Mode::Irq);
-                    continue
-                }
+                irq_known_pending = self.irq_line.is_high();
+            }
+            if irq_known_pending && bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
+                trace!("ARM9 IRQ triggered!");
+                self.enter_exception(addr+4, Mode::Irq);
+                irq_known_pending = false;
+                continue
             }
 
             if self.find_toggle_breakpoint(addr) {
