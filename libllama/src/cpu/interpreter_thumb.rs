@@ -51,6 +51,7 @@ pub fn interpret_thumb(cpu: &mut Cpu, instr: ThumbInstruction) {
         ThumbInstruction::orr(data) => instructions_thumb::orr(cpu, data),
         ThumbInstruction::pop(data) => instructions_thumb::pop(cpu, data),
         ThumbInstruction::push(data) => instructions_thumb::push(cpu, data),
+        ThumbInstruction::ror(data) => instructions_thumb::ror(cpu, data),
         ThumbInstruction::sub_1(data) => instructions_thumb::sub_1(cpu, data),
         ThumbInstruction::sub_2(data) => instructions_thumb::sub_2(cpu, data),
         ThumbInstruction::sub_3(data) => instructions_thumb::sub_3(cpu, data),

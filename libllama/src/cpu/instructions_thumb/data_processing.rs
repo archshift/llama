@@ -277,6 +277,14 @@ pub fn orr(cpu: &mut Cpu, data: thumb::orr::InstrDesc) -> cpu::InstrStatus {
     instr_bitwise(cpu, thumb::and::InstrDesc::new(data.raw()), ProcessInstrBitOp::Or)
 }
 
+pub fn ror(cpu: &mut Cpu, data: thumb::ror::InstrDesc) -> cpu::InstrStatus {
+    let arminst: u32 = 0b1110000110110000_0000_0000_0111_0000
+                                          | ((bf!(data.rd) as u32) << 12)
+                                               | ((bf!(data.rs) as u32) << 8)
+                                                         | ((bf!(data.rd) as u32) << 0);
+    cpu::instructions_arm::mov(cpu, arm::mov::InstrDesc::new(arminst))
+}
+
 pub fn sbc(cpu: &mut Cpu, data: thumb::sbc::InstrDesc) -> cpu::InstrStatus {
     let arminst: u32 = 0b111000001101_0000_0000_00000000_0000
                                       | ((bf!(data.rd) as u32) << 16)
