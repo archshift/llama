@@ -86,13 +86,15 @@ pub enum TransferType {
 
 pub struct EmmcDeviceState {
     irq_reqs: irq::IrqRequests,
-    cards: [Card; 2]
+    irq_statuses: [u16; 2],
+    cards: [Card; 2],
 }
 
 impl EmmcDeviceState {
     pub fn new(irq_reqs: irq::IrqRequests) -> EmmcDeviceState {
         EmmcDeviceState {
             irq_reqs: irq_reqs,
+            irq_statuses: [0 | (Status0::SigState as u16), 0],
             cards: [
                 Card::new(card::CardType::Sd, card::sd_storage(), card::sd_cid()),
                 Card::new(card::CardType::Mmc, card::nand_storage(), card::nand_cid())
@@ -154,19 +156,19 @@ fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
     let irq_add = match status.into() {
         Status::Lo(s0) => {
             let s0 = s0 as u16;
-            dev.irq_status0.bitadd_unchecked(s0);
-            s0 & !dev.irq_mask0.get() != 0
+            dev._internal_state.irq_statuses[0] |= s0;
+            s0 & !dev.irq_mask0.get() & 0b00000011_00011101 != 0
         }
         Status::Hi(s1) => {
             let s1 = s1 as u16;
-            dev.irq_status1.bitadd_unchecked(s1);
-            s1 & !dev.irq_mask1.get() != 0
+            dev._internal_state.irq_statuses[1] |= s1;
+            s1 & !dev.irq_mask1.get() & 0b10001011_01111111 != 0
         }
     };
     if irq_add {
         trace!("SDMMC: Triggering IRQs 0: {:08X}, 1: {:08X}",
-                dev.irq_status0.get() & dev.irq_mask0.get(),
-                dev.irq_status1.get() & dev.irq_mask1.get());
+                dev._internal_state.irq_statuses[0] & dev.irq_mask0.get(),
+                dev._internal_state.irq_statuses[1] & dev.irq_mask1.get());
         dev._internal_state.irq_reqs.add(irq::IrqType::Sdio1);
     }
 }
@@ -175,19 +177,17 @@ fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
     match status.into() {
         Status::Lo(s0) => {
             let s0 = s0 as u16;
-            dev.irq_status0.bitclr_unchecked(s0);
+            dev._internal_state.irq_statuses[0] &= !s0;
         }
         Status::Hi(s1) => {
             let s1 = s1 as u16;
-            dev.irq_status1.bitclr_unchecked(s1);
+            dev._internal_state.irq_statuses[1] &= !s1;
         }
     };
 }
 
 fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
     let index = bf!((dev.cmd.get()) @ RegCmd::command_index);
-
-    dev.irq_status0.set(0);
 
     let csr = get_active_card(dev).csr;
     if bf!((dev.cmd.get()) @ RegCmd::command_type) == 1 || bf!(csr.app_cmd) == 1 {
@@ -201,6 +201,22 @@ fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
 
     trigger_status(dev, Status0::CmdResponseEnd);
     clear_status(dev, Status1::CmdBusy);
+}
+
+fn reg_irqstat_read(dev: &mut EmmcDevice, stat_index: usize) {
+    match stat_index {
+        0 => dev.irq_status0.set_unchecked(dev._internal_state.irq_statuses[0]),
+        1 => dev.irq_status1.set_unchecked(dev._internal_state.irq_statuses[1]),
+        _ => unreachable!()
+    }
+}
+
+fn reg_irqstat_onupdate(dev: &mut EmmcDevice, stat_index: usize) {
+    match stat_index {
+        0 => dev._internal_state.irq_statuses[0] &= dev.irq_status0.get() | !0b00000011_00011101,
+        1 => dev._internal_state.irq_statuses[1] &= dev.irq_status1.get() | !0b10001011_01111111,
+        _ => unreachable!()
+    }
 }
 
 fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: bool) {
@@ -287,13 +303,21 @@ iodevice!(EmmcDevice, {
         0x018 => response6: u16 { write_bits = 0; }
         0x01A => response7: u16 { write_bits = 0; }
         0x01C => irq_status0: u16 {
-            // We want SIGSTATE to be 1 always (indicating SD card is inserted)
-            default = 0b00000000_00100000;
-            write_bits = !0b00000000_00100000;
+            read_effect = |dev: &mut EmmcDevice| reg_irqstat_read(dev, 0);
+            write_effect = |dev: &mut EmmcDevice| reg_irqstat_onupdate(dev, 0);
         }
-        0x01E => irq_status1: u16 { }
-        0x020 => irq_mask0: u16 { }
-        0x022 => irq_mask1: u16 { }
+        0x01E => irq_status1: u16 {
+            read_effect = |dev: &mut EmmcDevice| reg_irqstat_read(dev, 1);
+            write_effect = |dev: &mut EmmcDevice| reg_irqstat_onupdate(dev, 1);
+        }
+        0x020 => irq_mask0: u16 {
+            write_bits = 0b00000011_00011101;
+            write_effect = |dev: &mut EmmcDevice| trace!("Masking irq_status0 bits {:04X}", dev.irq_mask0.get());
+        }
+        0x022 => irq_mask1: u16 {
+            write_bits = 0b10001011_01111111;
+            write_effect = |dev: &mut EmmcDevice| trace!("Masking irq_status1 bits {:04X}", dev.irq_mask1.get());
+        }
         0x024 => clk_ctl: u16 { }
         0x026 => data16_blk_len: u16 { }
         0x028 => card_option: u16 { }
