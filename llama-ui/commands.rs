@@ -76,6 +76,30 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     }
 }
 
+///
+/// Command format: "keydmp" <on|off>
+///
+/// `args`: Iterator over &str items
+fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+
+    let state_str = match args.next() {
+        Some(arg) => arg,
+        None => { info!("Usage: `keydmp <on|off>"); return }
+    };
+
+    let state = match state_str {
+        "on" => true,
+        "off" => false,
+        _ => { info!("Usage: `keydmp <on|off>"); return }
+    };
+
+    info!("{} AES key dumping", if state { "Enabling" } else { "Disabling" });
+
+    let mut ctx = debugger.ctx();
+    ctx.hwcore_mut().rt_tx.key_dmp.exchange(state);
+}
+
 /// Triggers the specified IRQ
 /// Command format: "irq <type>"
 ///
@@ -204,6 +228,7 @@ pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It)
     match command.next() {
         Some("run") => { debugger.ctx().resume() },
         Some("brk") => cmd_brk(debugger, command),
+        Some("keydmp") => cmd_keydmp(debugger, command),
         Some("irq") => cmd_irq(debugger, command),
         Some("asm") => cmd_asm(debugger, command),
         Some("mem") => cmd_mem(debugger, command),

@@ -6,6 +6,7 @@ use std::mem;
 use extprim::u128::u128 as u128_t;
 use openssl::symm;
 
+use rt_data::StateFlag;
 use utils::bytes;
 
 bfdesc!(RegCnt: u32, {
@@ -111,17 +112,19 @@ pub struct AesDeviceState {
     fifo_in_buf: VecDeque<u32>,
     fifo_out_buf: VecDeque<u32>,
     reg_ctr: [u8; 0x10],
+
+    should_dump: StateFlag,
 }
 
 unsafe impl Send for AesDeviceState {} // TODO: Not good!
 
-impl Default for AesDeviceState {
-    fn default() -> AesDeviceState {
+impl AesDeviceState {
+    pub fn new(should_dump: StateFlag) -> AesDeviceState {
         AesDeviceState {
             active_keyslot: 0,
             active_process: None,
             bytes_left: 0,
-            key_slots: [Default::default(); 0x40],
+            key_slots: load_keys(),
             keyx_slots: [Default::default(); 0x40],
             keyfifo_state: Default::default(),
             keyxfifo_state: Default::default(),
@@ -129,6 +132,58 @@ impl Default for AesDeviceState {
             fifo_in_buf: VecDeque::new(),
             fifo_out_buf: VecDeque::new(),
             reg_ctr: [0; 0x10],
+
+            should_dump: should_dump
+        }
+    }
+}
+
+fn load_keys() -> [Key; 0x40] {
+    let mut keys: [Key; 0x40] = [Default::default(); 0x40];
+
+    use std::env;
+    use std::fs::File;
+    use std::io::Read;
+    let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-aeskeydb.bin");
+    let mut file = match File::open(&filename) {
+        Ok(file) => file,
+        Err(x) => {
+            info!("Could not open aeskeydb file `{}`... not loading keys!", filename);
+            return keys;
+        }
+    };
+    for &mut Key { data: ref mut b } in keys.iter_mut() {
+        if let Err(x) = file.read_exact(b) {
+            error!("Failed to read from aeskeydb file `{}`; {:?}", filename, x);
+            break
+        }
+    }
+    info!("Loaded AES keys from disk...");
+    keys
+}
+
+impl Drop for AesDeviceState {
+    fn drop(&mut self) {
+        if !self.should_dump.get() {
+            return
+        }
+
+        info!("Dumping AES keys to disk...");
+
+        use std::env;
+        use std::fs::{File, OpenOptions};
+        use std::io::Write;
+        let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-aeskeydb.bin");
+        let mut file = match OpenOptions::new().create(true).read(true).write(true)
+                                               .truncate(true).open(&filename) {
+            Ok(file) => file,
+            Err(x) => { error!("Failed to open aeskeydb file `{}`; {:?}", filename, x); return }
+        };
+        for &Key { data: ref b } in self.key_slots.iter() {
+            if let Err(x) = file.write_all(b) {
+                error!("Failed to write to aeskeydb file `{}`; {:?}", filename, x);
+                return
+            }
         }
     }
 }
