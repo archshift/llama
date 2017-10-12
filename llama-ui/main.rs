@@ -2,7 +2,6 @@
 extern crate log;
 extern crate capstone;
 extern crate lgl;
-extern crate libc;
 extern crate libllama;
 
 mod commands;
@@ -10,7 +9,7 @@ mod uilog;
 
 use std::env;
 
-use libllama::{dbgcore, hwcore, ldr};
+use libllama::{dbgcore, gdbstub, hwcore, ldr};
 
 mod c {
     #![allow(warnings)]
@@ -20,6 +19,7 @@ mod c {
 struct Backend<'a> {
     loader: &'a ldr::Loader,
     debugger: dbgcore::DbgCore,
+    gdb: gdbstub::GdbStub,
     fbs: hwcore::Framebuffers
 }
 
@@ -42,6 +42,7 @@ mod cbs {
     use {Backend, c};
 
     use lgl;
+    use libllama::gdbstub;
     use libllama::io::hid;
 
     pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
@@ -117,6 +118,8 @@ mod cbs {
     pub unsafe extern fn reload_game(backend: *mut c::Backend) {
         let backend = Backend::from_c(backend);
         backend.debugger = super::load_game(backend.loader);
+        backend.gdb = gdbstub::GdbStub::new(backend.debugger.clone());
+        backend.gdb.start();
     }
 
     pub unsafe extern fn log(buf: c::LogBufferView) {
@@ -169,11 +172,15 @@ fn main() {
         top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
     };
 
+    let debugger = load_game(&loader);
+
     let mut backend = Backend {
         loader: &loader,
-        debugger: load_game(&loader),
+        debugger: debugger.clone(),
+        gdb: gdbstub::GdbStub::new(debugger),
         fbs: fbs
     };
+    backend.gdb.start();
 
     unsafe { c::llama_open_gui(backend.to_c(), &callbacks) };
 }

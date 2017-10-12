@@ -76,7 +76,7 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     }
 }
 
-///
+/// Sets AES key-dumping state
 /// Command format: "keydmp" <on|off>
 ///
 /// `args`: Iterator over &str items

@@ -6,6 +6,7 @@ extern crate extprim;
 extern crate indextree;
 #[macro_use]
 extern crate log;
+extern crate mio;
 extern crate openssl;
 extern crate parking_lot;
 
@@ -15,6 +16,7 @@ pub mod utils;
 mod clock;
 mod cpu;
 pub mod dbgcore;
+pub mod gdbstub;
 pub mod hwcore;
 pub mod io;
 pub mod ldr;

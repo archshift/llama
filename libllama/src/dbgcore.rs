@@ -35,6 +35,10 @@ impl<'a> DbgContext<'a> {
         self.hwcore.start();
     }
 
+    pub fn running(&mut self) -> bool {
+        self.hwcore.running()
+    }
+
     pub fn hwcore(&self) -> &hwcore::HwCore {
         &*self.hwcore
     }
@@ -74,6 +78,10 @@ impl<'a> DbgHwContext<'a> {
 
     pub fn write_reg(&mut self, reg: usize, value: u32) {
         self.hw.arm9.regs[reg] = value;
+    }
+
+    pub fn read_cpsr(&self) -> u32 {
+        self.hw.arm9.cpsr.raw()
     }
 
     pub fn pause_addr(&self) -> u32 {
