@@ -20,5 +20,6 @@ pub mod gdbstub;
 pub mod hwcore;
 pub mod io;
 pub mod ldr;
+pub mod msgs;
 mod mem;
 mod rt_data;

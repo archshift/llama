@@ -9,7 +9,7 @@ mod uilog;
 
 use std::env;
 
-use libllama::{dbgcore, gdbstub, hwcore, ldr};
+use libllama::{dbgcore, gdbstub, hwcore, ldr, msgs};
 
 mod c {
     #![allow(warnings)]
@@ -20,7 +20,8 @@ struct Backend<'a> {
     loader: &'a ldr::Loader,
     debugger: dbgcore::DbgCore,
     gdb: gdbstub::GdbStub,
-    fbs: hwcore::Framebuffers
+    fbs: hwcore::Framebuffers,
+    msg_client: msgs::Client<hwcore::Message>,
 }
 
 impl<'a> Backend<'a> {
@@ -42,7 +43,7 @@ mod cbs {
     use {Backend, c};
 
     use lgl;
-    use libllama::gdbstub;
+    use libllama::hwcore::Message;
     use libllama::io::hid;
 
     pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
@@ -117,9 +118,9 @@ mod cbs {
 
     pub unsafe extern fn reload_game(backend: *mut c::Backend) {
         let backend = Backend::from_c(backend);
-        backend.debugger = super::load_game(backend.loader);
-        backend.gdb = gdbstub::GdbStub::new(backend.debugger.clone());
-        backend.gdb.start();
+        backend.msg_client.send(Message::Quit).unwrap();
+        backend.gdb.wait(); // Need to wait because the GDB thread owns the port
+        *backend = super::load_game(backend.loader);
     }
 
     pub unsafe extern fn log(buf: c::LogBufferView) {
@@ -140,9 +141,29 @@ mod cbs {
     }
 }
 
-fn load_game(loader: &ldr::Loader) -> dbgcore::DbgCore {
-    let hwcore = hwcore::HwCore::new(loader);
-    dbgcore::DbgCore::bind(hwcore)
+fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
+    let fbs = hwcore::Framebuffers {
+        top_screen: Vec::new(), bot_screen: Vec::new(),
+        top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
+    };
+
+    let mut pump = msgs::Pump::new();
+    let client_gdb = pump.add_client(&["quit", "arm9halted"]);
+    let client_user = pump.add_client(&[]);
+
+    let hwcore = hwcore::HwCore::new(pump, loader);
+    let debugger = dbgcore::DbgCore::bind(hwcore);
+
+    let mut backend = Backend {
+        loader: loader,
+        debugger: debugger.clone(),
+        gdb: gdbstub::GdbStub::new(client_gdb, debugger),
+        fbs: fbs,
+        msg_client: client_user,
+    };
+    backend.gdb.start();
+
+    backend
 }
 
 fn main() {
@@ -167,20 +188,6 @@ fn main() {
         buffer_size: Some(cbs::buffer_size),
     };
 
-    let fbs = hwcore::Framebuffers {
-        top_screen: Vec::new(), bot_screen: Vec::new(),
-        top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
-    };
-
-    let debugger = load_game(&loader);
-
-    let mut backend = Backend {
-        loader: &loader,
-        debugger: debugger.clone(),
-        gdb: gdbstub::GdbStub::new(debugger),
-        fbs: fbs
-    };
-    backend.gdb.start();
-
+    let mut backend = load_game(&loader);
     unsafe { c::llama_open_gui(backend.to_c(), &callbacks) };
 }

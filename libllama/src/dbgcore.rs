@@ -50,7 +50,7 @@ impl<'a> DbgContext<'a> {
     pub fn hw<'b>(&'b mut self) -> DbgHwContext<'b> {
         DbgHwContext {
             // Will panic if still running
-            hw: self.hwcore.hardware_mut()
+            hw: self.hwcore.hardware9.lock().unwrap()
         }
     }
 
@@ -60,7 +60,7 @@ impl<'a> DbgContext<'a> {
 }
 
 pub struct DbgHwContext<'a> {
-    hw: &'a mut hwcore::Hardware9
+    hw: sync::MutexGuard<'a, hwcore::Hardware9>
 }
 
 impl<'a> DbgHwContext<'a> {

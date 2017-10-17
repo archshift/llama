@@ -2,18 +2,21 @@ use std::io::{self, Read, Write};
 use std::ops::{Add, AddAssign};
 use std::str;
 use std::sync::atomic::Ordering;
+use std::thread;
 use std::time::Duration;
 
 use mio;
 use mio::tcp::{TcpListener, TcpStream};
 
+use cpu::BreakReason;
 use dbgcore;
+use hwcore::Message;
+use msgs;
 use utils;
-use utils::task::{self, TaskMgmt};
 
 fn cmd_step(ctx: &mut dbgcore::DbgContext) -> Option<String> {
     ctx.hw().step();
-    Some(make_resp_signal(ctx))
+    Some(make_resp_signal(BreakReason::LimitReached, ctx))
 }
 
 fn cmd_continue(ctx: &mut dbgcore::DbgContext) -> Option<String> {
@@ -21,10 +24,15 @@ fn cmd_continue(ctx: &mut dbgcore::DbgContext) -> Option<String> {
     None
 }
 
-fn make_resp_signal(ctx: &mut dbgcore::DbgContext) -> String {
+fn make_resp_signal(reason: BreakReason, ctx: &mut dbgcore::DbgContext) -> String {
     let hw = ctx.hw();
-    format!("T05{:02X}:{:08X};{:02X}:{:08X}", 15, hw.read_reg(15).swap_bytes(),
-                                              13, hw.read_reg(13).swap_bytes())
+    let reason_str = match reason {
+        BreakReason::Breakpoint => format!(";{}:", "swbreak"),
+        _ => String::new(),
+    };
+    format!("T05{:02X}:{:08X};{:02X}:{:08X}{}", 15, hw.read_reg(15).swap_bytes(),
+                                                13, hw.read_reg(13).swap_bytes(),
+                                                reason_str)
 }
 
 fn handle_gdb_cmd_q(cmd: &str, ctx: &mut dbgcore::DbgContext) -> Option<String> {
@@ -149,9 +157,9 @@ fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Option<String> 
             }
             out += "OK";
         }
-        '?' => {
-            out += &make_resp_signal(&mut hw_ctx);
-        }
+        // '?' => {
+        //     out += &make_resp_signal(&mut hw_ctx);
+        // }
         x => {
             warn!("GDB client tried to run unsupported command {}", x);
         }
@@ -207,7 +215,7 @@ fn load_packet<I: Iterator<Item = u8>>(it: &mut I) -> PacketType {
 fn write_gdb_packet(data: &str, stream: &mut TcpStream) {
     let checksum = data.bytes().fold(Checksum(0), |checksum, b| checksum + b);
     write!(stream, "${}#{:02X}", data, checksum.0).unwrap();
-    stream.flush();
+    stream.flush().unwrap();
 }
 
 fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore::DbgCore) {
@@ -224,8 +232,8 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore
             }
             PacketType::CtrlC => debugger.ctx().pause(),
             PacketType::Malformed => {
-                stream.write(b"-");
-                stream.flush();
+                stream.write(b"-").unwrap();
+                stream.flush().unwrap();
                 return
             }
         }
@@ -237,21 +245,24 @@ const TOKEN_LISTENER: mio::Token = mio::Token(1024);
 const TOKEN_CLIENT: mio::Token = mio::Token(1025);
 
 pub struct GdbStub {
+    msg_client: Option<msgs::Client<Message>>,
     debugger: dbgcore::DbgCore,
-    gdb_thread: Option<task::Task<()>>
+    gdb_thread: Option<thread::JoinHandle<msgs::Client<Message>>>
 }
 
 impl GdbStub {
-    pub fn new(debugger: dbgcore::DbgCore) -> GdbStub {
+    pub fn new(msg_client: msgs::Client<Message>, debugger: dbgcore::DbgCore) -> GdbStub {
         GdbStub {
+            msg_client: Some(msg_client),
             debugger: debugger,
             gdb_thread: None
         }
     }
 
     pub fn start(&mut self) {
+        let msg_client = self.msg_client.take().unwrap();
         let mut debugger = self.debugger.clone();
-        self.gdb_thread = Some(task::Task::spawn(move |running| {
+        self.gdb_thread = Some(thread::Builder::new().name("GDBStub".to_owned()).spawn(move || {
             use mio::Events;
 
             let poll = mio::Poll::new().unwrap();
@@ -268,28 +279,34 @@ impl GdbStub {
 
             info!("Starting GDB stub on port 4567...");
 
-            while running.load(Ordering::SeqCst) {
+            't: loop {
                 connection.poll.poll(&mut events, Some(Duration::from_millis(100))).unwrap();
                 for event in &events {
                     handle_event(&event, &mut connection, |buf, stream| {
                         handle_gdb_packet(buf, stream, &mut debugger);
                     });
                 }
-                let mut ctx = debugger.ctx();
-                if !ctx.running() {
-                    if let Some(ref mut stream) = connection.socket {
-                        write_gdb_packet(&make_resp_signal(&mut ctx), stream);
+
+                for msg in msg_client.try_iter() {
+                    match msg {
+                        Message::Quit => break 't,
+                        Message::Arm9Halted(reason) => {
+                            if let Some(ref mut stream) = connection.socket {
+                                write_gdb_packet(&make_resp_signal(reason, &mut debugger.ctx()), stream);
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
-        }))
+            msg_client
+        }).unwrap())
     }
 
-    pub fn stop(&mut self) {
-        if let Some(ref mut t) = self.gdb_thread {
-            t.stop().unwrap();
+    pub fn wait(&mut self) {
+        if let Some(t) = self.gdb_thread.take() {
+            self.msg_client = Some(t.join().unwrap());
         }
-        self.gdb_thread = None;
     }
 }
 

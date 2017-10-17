@@ -52,9 +52,11 @@ pub struct Cpu {
     pub breakpoints: HashMap<u32, bool> // addr, is_triggered
 }
 
+#[derive(Clone)]
 pub enum BreakReason {
     LimitReached,
-    Breakpoint
+    Breakpoint,
+    Trapped
 }
 
 impl Cpu {
