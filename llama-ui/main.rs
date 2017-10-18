@@ -154,14 +154,13 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
     let hwcore = hwcore::HwCore::new(pump, loader);
     let debugger = dbgcore::DbgCore::bind(hwcore);
 
-    let mut backend = Backend {
+    let backend = Backend {
         loader: loader,
         debugger: debugger.clone(),
         gdb: gdbstub::GdbStub::new(client_gdb, debugger),
         fbs: fbs,
         msg_client: client_user,
     };
-    backend.gdb.start();
 
     backend
 }
