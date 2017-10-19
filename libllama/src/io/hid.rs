@@ -1,5 +1,12 @@
 use std::sync::mpsc;
 
+#[derive(Debug)]
+pub struct HidDeviceState(pub mpsc::Receiver<ButtonState>);
+
+// TODO: Only temporary, but should be safe as long as we are the only
+// mpsc::Reciever that exists for this channel
+unsafe impl Sync for HidDeviceState {}
+
 pub enum Button {
     A = 0,
     B = 1,
@@ -22,7 +29,7 @@ pub enum ButtonState {
 
 fn reg_pad_read(dev: &mut HidDevice) {
     let mut current_pad = dev.pad.get();
-    for change in dev._internal_state.try_iter() {
+    for change in dev._internal_state.0.try_iter() {
         match change {
             ButtonState::Pressed(b) => current_pad &= !(1 << b as u32),
             ButtonState::Released(b) => current_pad |= 1 << b as u32
@@ -32,7 +39,7 @@ fn reg_pad_read(dev: &mut HidDevice) {
 }
 
 iodevice!(HidDevice, {
-    internal_state: mpsc::Receiver<ButtonState>;
+    internal_state: HidDeviceState;
     regs: {
         0x000 => pad: u16 {
             default = !0;

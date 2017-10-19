@@ -101,10 +101,10 @@ impl MemoryBlock for SharedMemoryBlock {
 }
 
 #[derive(Clone)]
-pub struct IoMemoryBlock(Arc<(usize, Mutex<io::IoRegion>)>);
+pub struct IoMemoryBlock(Arc<(usize, io::IoRegion)>);
 impl IoMemoryBlock {
     pub fn new(variant: io::IoRegion, kbs: usize) -> IoMemoryBlock {
-        IoMemoryBlock(Arc::new((kbs, Mutex::new(variant))))
+        IoMemoryBlock(Arc::new((kbs, variant)))
     }
 }
 impl MemoryBlock for IoMemoryBlock {
@@ -114,18 +114,18 @@ impl MemoryBlock for IoMemoryBlock {
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
         let (_, ref region) = *self.0;
-        match *region.lock() {
-            io::IoRegion::Arm9(ref mut x) => x.read_reg(offset, buf, buf_size),
-            io::IoRegion::Shared(ref mut x) => x.read_reg(offset, buf, buf_size),
+        match *region {
+            io::IoRegion::Arm9(ref x) => x.read_reg(offset, buf, buf_size),
+            io::IoRegion::Shared(ref x) => x.read_reg(offset, buf, buf_size),
             _ => unimplemented!(),
         }
     }
 
     unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
         let (_, ref region) = *self.0;
-        match *region.lock() {
-            io::IoRegion::Arm9(ref mut x) => x.write_reg(offset, buf, buf_size),
-            io::IoRegion::Shared(ref mut x) => x.write_reg(offset, buf, buf_size),
+        match *region {
+            io::IoRegion::Arm9(ref x) => x.write_reg(offset, buf, buf_size),
+            io::IoRegion::Shared(ref x) => x.write_reg(offset, buf, buf_size),
             _ => unimplemented!(),
         }
     }

@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{self, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -196,7 +196,13 @@ impl HwCore {
     }
 
     pub fn running(&mut self) -> bool {
-        self.hardware9.try_lock().is_err() || self.hardware11.try_lock().is_err()
+        if let Err(sync::TryLockError::WouldBlock) = self.hardware9.try_lock() {
+            return true
+        }
+        if let Err(sync::TryLockError::WouldBlock) = self.hardware11.try_lock() {
+            return true
+        }
+        return false
     }
 
     pub fn stop(&mut self) {
