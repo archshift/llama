@@ -72,9 +72,9 @@ impl BreakData {
             BreakReason::Breakpoint => format!(";{}:", "swbreak"),
             _ => String::new(),
         };
-        format!("T05{:02X}:{:08X};{:02X}:{:08X}{}", 15, self.r15.swap_bytes(),
-                                                    13, self.r13.swap_bytes(),
-                                                    reason_str)
+        format!("T05{:02X}:{:08X};{:02X}:{:08X}{};", 15, self.r15.swap_bytes(),
+                                                     13, self.r13.swap_bytes(),
+                                                     reason_str)
     }
 }
 
@@ -90,8 +90,7 @@ impl Default for BreakData {
 
 fn handle_gdb_cmd_q(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     let mut s = cmd.splitn(2, ':');
-    let ty = parse_next(&mut &mut s)?;
-    let params = parse_next(&mut &mut s)?;
+    let ty = parse_next(&mut s)?;
     let mut out = String::new();
     match ty {
         "Supported" => {
@@ -104,15 +103,15 @@ fn handle_gdb_cmd_q(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
 
 fn handle_gdb_cmd_v(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     let mut s = cmd.splitn(2, |c| c == ',' || c == ':' || c == ';');
-    let ty = parse_next(&mut &mut s)?;
-    let params = parse_next(&mut &mut s)?;
+    let ty = parse_next(&mut s)?;
     let mut out = String::new();
     match ty {
         "Cont" => {
+            let params = parse_next(&mut s)?;
             let threads = params.split(';');
             for thread in threads {
                 let mut thread_data = thread.split(':');
-                let action = parse_next(&mut &mut thread_data)?;
+                let action = parse_next(&mut thread_data)?;
                 let thread_name = thread_data.next();
                 if let Some(name) = thread_name {
                     assert!(name == "-1");
@@ -139,7 +138,7 @@ fn handle_gdb_cmd_v(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
 
 
 fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
-    let ty = parse_next(&mut &mut cmd.chars())?;
+    let ty = parse_next(&mut cmd.chars())?;
     let params = &cmd[1..];
     let mut out = String::new();
     ctx.dbg.pause();
@@ -236,14 +235,20 @@ impl AddAssign<u8> for Checksum {
 enum PacketType {
     Command(String),
     CtrlC,
-    Malformed
+    AckOk,
+    AckErr,
+    EndOfPacket,
+    Malformed,
 }
 
 fn load_packet<I: Iterator<Item = u8>>(it: &mut I) -> PacketType {
-    let mut it = it.skip_while(|b| *b != 0x03 && *b != b'$');
+    let mut it = it.skip_while(|b| *b != 0x03 && *b != b'$' && *b != b'-' && *b != b'+');
     match it.next() {
         Some(0x3) => return PacketType::CtrlC,
         Some(b'$') => {}
+        Some(b'+') => return PacketType::AckOk,
+        Some(b'-') => return PacketType::AckErr,
+        None => return PacketType::EndOfPacket,
         _ => return PacketType::Malformed
     }
 
@@ -288,9 +293,19 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, ctx: &mut GdbCtx) -> R
                         else { return Err(e) }
                     }
                 }
+
             }
-            PacketType::CtrlC => ctx.dbg.pause(),
+            PacketType::CtrlC => {
+                ctx.dbg.pause();
+                trace!("Recieved GDB packet with CTRL-C signal!");
+            }
+            PacketType::AckOk => {},
+            PacketType::AckErr => error!("GDB client replied with error packet!"),
+            PacketType::EndOfPacket => {
+                return Ok(())
+            }
             PacketType::Malformed => {
+                trace!("Recieved malformed data {:?}", data);
                 stream.write(b"-")?;
                 stream.flush()?;
                 return Ok(())
@@ -357,7 +372,7 @@ impl GdbStub {
 
                 for event in &events {
                     handle_event(&event, &mut connection, |buf, stream| {
-                        handle_gdb_packet(buf, stream, &mut ctx);
+                        handle_gdb_packet(buf, stream, &mut ctx).unwrap();
                     });
                 }
 
