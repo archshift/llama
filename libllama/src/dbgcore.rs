@@ -1,5 +1,6 @@
 use std::sync;
 
+use cpu;
 pub use cpu::irq::IrqType;
 use hwcore;
 
@@ -82,6 +83,12 @@ impl<'a> DbgHwContext<'a> {
 
     pub fn read_cpsr(&self) -> u32 {
         self.hw.arm9.cpsr.raw()
+    }
+
+    pub fn write_cpsr(&mut self, value: u32) {
+        self.hw.arm9.cpsr.set_raw(value);
+        let mode_num = bf!((self.hw.arm9.cpsr).mode);
+        self.hw.arm9.regs.swap(cpu::Mode::from_num(mode_num));
     }
 
     pub fn pause_addr(&self) -> u32 {

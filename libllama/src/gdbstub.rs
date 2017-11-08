@@ -40,7 +40,7 @@ fn parse_next_hex<'a, I: Iterator<Item=&'a str>>(it: &mut I) -> Result<u32> {
 
 fn cmd_step(ctx: &mut GdbCtx) -> Result<String> {
     ctx.dbg.hw().step();
-    let break_data = BreakData::new(BreakReason::LimitReached, ctx);
+    let break_data = BreakData::new(BreakReason::LimitReached, ctx.dbg);
     let signal = break_data.to_signal();
     *ctx.last_halt = break_data;
     Ok(signal)
@@ -58,8 +58,8 @@ struct BreakData {
 }
 
 impl BreakData {
-    fn new(reason: BreakReason, ctx: &mut GdbCtx) -> BreakData {
-        let hw = ctx.dbg.hw();
+    fn new(reason: BreakReason, dbg: &mut dbgcore::DbgContext) -> BreakData {
+        let hw = dbg.hw();
         BreakData {
             reason: reason,
             r15: hw.read_reg(15),
@@ -75,16 +75,6 @@ impl BreakData {
         format!("T05{:02X}:{:08X};{:02X}:{:08X}{};", 15, self.r15.swap_bytes(),
                                                      13, self.r13.swap_bytes(),
                                                      reason_str)
-    }
-}
-
-impl Default for BreakData {
-    fn default() -> Self {
-        BreakData {
-            reason: BreakReason::Trapped,
-            r15: 0,
-            r13: 0,
-        }
     }
 }
 
@@ -148,6 +138,7 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             for reg in 0..16 {
                 out += &format!("{:08X}", hw.read_reg(reg).swap_bytes());
             }
+            out += &format!("{:08X}", hw.read_cpsr().swap_bytes());
         }
         'G' => {
             let mut hw = ctx.dbg.hw();
@@ -156,6 +147,9 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
                 let reg_data = utils::from_hex(&params[param_reg_range])?;
                 hw.write_reg(reg, reg_data.swap_bytes());
             }
+            // 17th register: CPSR
+            let reg_data = utils::from_hex(&params[8*16..8*17])?;
+            hw.write_cpsr(reg_data.swap_bytes());
             out += "OK";
         }
         'm' => {
@@ -181,6 +175,16 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
                 hw.write_mem(addr+b, &[byte]);
             }
             out += "OK";
+        }
+        'p' => {
+            let hw = ctx.dbg.hw();
+            let reg = utils::from_hex(&params)? as usize;
+            let regval = match reg {
+                0 ... 15 => hw.read_reg(reg),
+                25 => hw.read_cpsr(),
+                n => panic!("GDB requested bad register value {}", n)
+            };
+            out += &format!("{:08X}", regval.swap_bytes());
         }
         'q' => {
             return handle_gdb_cmd_q(params, ctx);
@@ -360,7 +364,7 @@ impl GdbStub {
 
             info!("Starting GDB stub on port 4567...");
 
-            let mut last_halt: BreakData = Default::default();
+            let mut last_halt = BreakData::new(BreakReason::Trapped, &mut debugger.ctx());
             't: loop {
                 connection.poll.poll(&mut events, Some(Duration::from_millis(100)))
                     .expect("Could not poll for network events!");
@@ -381,7 +385,7 @@ impl GdbStub {
                         Message::Quit => break 't,
                         Message::Arm9Halted(reason) => {
                             if let Some(ref mut stream) = connection.socket {
-                                let break_data = BreakData::new(reason, &mut ctx);
+                                let break_data = BreakData::new(reason, ctx.dbg);
                                 write_gdb_packet(&break_data.to_signal(), stream);
                             }
                         }
