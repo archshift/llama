@@ -17,6 +17,10 @@ Item {
             id: scrnView
             Layout.fillWidth: true
             Layout.fillHeight: true
+
+            onDbgViewToggled: {
+                dbgConsole.visible = !dbgConsole.visible
+            }
         }
 
         DbgConsole {

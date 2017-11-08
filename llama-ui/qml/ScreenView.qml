@@ -13,6 +13,7 @@ Item {
     signal reloaded()
     signal fullscreenActivated()
     signal configOpened()
+    signal dbgViewToggled()
 
     property alias topScreen: topScreen
     property alias botScreen: botScreen
@@ -98,6 +99,8 @@ Item {
             spacing: parent.width * 0.02
 
             Button {
+                text: "Dbg"
+                onClicked: dbgViewToggled()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
