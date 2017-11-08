@@ -38,28 +38,57 @@ fn parse_next_hex<'a, I: Iterator<Item=&'a str>>(it: &mut I) -> Result<u32> {
 }
 
 
-fn cmd_step(ctx: &mut dbgcore::DbgContext) -> Result<String> {
-    ctx.hw().step();
-    Ok(make_resp_signal(BreakReason::LimitReached, ctx))
+fn cmd_step(ctx: &mut GdbCtx) -> Result<String> {
+    ctx.dbg.hw().step();
+    let break_data = BreakData::new(BreakReason::LimitReached, ctx);
+    let signal = break_data.to_signal();
+    *ctx.last_halt = break_data;
+    Ok(signal)
 }
 
-fn cmd_continue(ctx: &mut dbgcore::DbgContext) -> Result<String> {
-    ctx.resume();
+fn cmd_continue(ctx: &mut GdbCtx) -> Result<String> {
+    ctx.dbg.resume();
     bail!(ErrorKind::NoResponse)
 }
 
-fn make_resp_signal(reason: BreakReason, ctx: &mut dbgcore::DbgContext) -> String {
-    let hw = ctx.hw();
-    let reason_str = match reason {
-        BreakReason::Breakpoint => format!(";{}:", "swbreak"),
-        _ => String::new(),
-    };
-    format!("T05{:02X}:{:08X};{:02X}:{:08X}{}", 15, hw.read_reg(15).swap_bytes(),
-                                                13, hw.read_reg(13).swap_bytes(),
-                                                reason_str)
+struct BreakData {
+    reason: BreakReason,
+    r15: u32,
+    r13: u32
 }
 
-fn handle_gdb_cmd_q(cmd: &str, ctx: &mut dbgcore::DbgContext) -> Result<String> {
+impl BreakData {
+    fn new(reason: BreakReason, ctx: &mut GdbCtx) -> BreakData {
+        let hw = ctx.dbg.hw();
+        BreakData {
+            reason: reason,
+            r15: hw.read_reg(15),
+            r13: hw.read_reg(13),
+        }
+    }
+
+    fn to_signal(&self) -> String {
+        let reason_str = match self.reason {
+            BreakReason::Breakpoint => format!(";{}:", "swbreak"),
+            _ => String::new(),
+        };
+        format!("T05{:02X}:{:08X};{:02X}:{:08X}{}", 15, self.r15.swap_bytes(),
+                                                    13, self.r13.swap_bytes(),
+                                                    reason_str)
+    }
+}
+
+impl Default for BreakData {
+    fn default() -> Self {
+        BreakData {
+            reason: BreakReason::Trapped,
+            r15: 0,
+            r13: 0,
+        }
+    }
+}
+
+fn handle_gdb_cmd_q(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     let mut s = cmd.splitn(2, ':');
     let ty = parse_next(&mut &mut s)?;
     let params = parse_next(&mut &mut s)?;
@@ -73,7 +102,7 @@ fn handle_gdb_cmd_q(cmd: &str, ctx: &mut dbgcore::DbgContext) -> Result<String> 
     Ok(out)
 }
 
-fn handle_gdb_cmd_v(cmd: &str, ctx: &mut dbgcore::DbgContext) -> Result<String> {
+fn handle_gdb_cmd_v(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     let mut s = cmd.splitn(2, |c| c == ',' || c == ':' || c == ';');
     let ty = parse_next(&mut &mut s)?;
     let params = parse_next(&mut &mut s)?;
@@ -109,21 +138,20 @@ fn handle_gdb_cmd_v(cmd: &str, ctx: &mut dbgcore::DbgContext) -> Result<String> 
 }
 
 
-fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Result<String> {
+fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     let ty = parse_next(&mut &mut cmd.chars())?;
     let params = &cmd[1..];
     let mut out = String::new();
-    let mut hw_ctx = debugger.ctx();
-    hw_ctx.pause();
+    ctx.dbg.pause();
     match ty {
         'g' => {
-            let hw = hw_ctx.hw();
+            let hw = ctx.dbg.hw();
             for reg in 0..16 {
                 out += &format!("{:08X}", hw.read_reg(reg).swap_bytes());
             }
         }
         'G' => {
-            let mut hw = hw_ctx.hw();
+            let mut hw = ctx.dbg.hw();
             for reg in 0..16 {
                 let param_reg_range = 8*reg..8*(reg+1);
                 let reg_data = utils::from_hex(&params[param_reg_range])?;
@@ -132,7 +160,7 @@ fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Result<String> 
             out += "OK";
         }
         'm' => {
-            let hw = hw_ctx.hw();
+            let hw = ctx.dbg.hw();
             let mut params = params.split(',');
             let addr = parse_next_hex(&mut params)?;
             let size = parse_next_hex(&mut params)?;
@@ -143,7 +171,7 @@ fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Result<String> 
             }
         }
         'M' => {
-            let mut hw = hw_ctx.hw();
+            let mut hw = ctx.dbg.hw();
             let mut params = params.split(|c| c == ',' || c == ':');
             let addr = parse_next_hex(&mut params)?;
             let size = parse_next_hex(&mut params)?;
@@ -156,19 +184,19 @@ fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Result<String> 
             out += "OK";
         }
         'q' => {
-            return handle_gdb_cmd_q(params, &mut hw_ctx);
+            return handle_gdb_cmd_q(params, ctx);
         }
         's' => {
-            return cmd_step(&mut hw_ctx);
+            return cmd_step(ctx);
         }
         'c' => {
-            return cmd_continue(&mut hw_ctx);
+            return cmd_continue(ctx);
         }
         'v' => {
-            return handle_gdb_cmd_v(params, &mut hw_ctx);
+            return handle_gdb_cmd_v(params, ctx);
         }
         'z' | 'Z' => {
-            let mut hw = hw_ctx.hw();
+            let mut hw = ctx.dbg.hw();
             let mut params = params.split(',');
             let brk_ty = parse_next(&mut params)?;
             let addr = parse_next_hex(&mut params)?;
@@ -181,9 +209,9 @@ fn handle_gdb_cmd(cmd: &str, debugger: &mut dbgcore::DbgCore) -> Result<String> 
             }
             out += "OK";
         }
-        // '?' => {
-        //     out += &make_resp_signal(&mut hw_ctx);
-        // }
+        '?' => {
+            out += &ctx.last_halt.to_signal();
+        }
         x => {
             warn!("GDB client tried to run unsupported command {}", x);
         }
@@ -245,7 +273,7 @@ fn write_gdb_packet(data: &str, stream: &mut TcpStream) -> Result<()> {
     Ok(())
 }
 
-fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore::DbgCore) -> Result<()> {
+fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, ctx: &mut GdbCtx) -> Result<()> {
     trace!("Recieving GDB packet: {}", str::from_utf8(data).unwrap());
     let mut it = data.iter().cloned();
     loop {
@@ -253,7 +281,7 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore
             PacketType::Command(cmd) => {
                 stream.write(b"+")?;
                 stream.flush()?;
-                match handle_gdb_cmd(&cmd, debugger) {
+                match handle_gdb_cmd(&cmd, ctx) {
                     Ok(out) => write_gdb_packet(&out, stream)?,
                     Err(e) => {
                         if let &ErrorKind::NoResponse = e.kind() {}
@@ -261,7 +289,7 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore
                     }
                 }
             }
-            PacketType::CtrlC => debugger.ctx().pause(),
+            PacketType::CtrlC => ctx.dbg.pause(),
             PacketType::Malformed => {
                 stream.write(b"-")?;
                 stream.flush()?;
@@ -271,6 +299,10 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, debugger: &mut dbgcore
     }
 }
 
+struct GdbCtx<'a, 'b: 'a> {
+    dbg: &'a mut dbgcore::DbgContext<'b>,
+    last_halt: &'a mut BreakData,
+}
 
 const TOKEN_LISTENER: mio::Token = mio::Token(1024);
 const TOKEN_CLIENT: mio::Token = mio::Token(1025);
@@ -313,13 +345,19 @@ impl GdbStub {
 
             info!("Starting GDB stub on port 4567...");
 
+            let mut last_halt: BreakData = Default::default();
             't: loop {
                 connection.poll.poll(&mut events, Some(Duration::from_millis(100)))
                     .expect("Could not poll for network events!");
 
+                let mut ctx = GdbCtx {
+                    dbg: &mut debugger.ctx(),
+                    last_halt: &mut last_halt
+                };
+
                 for event in &events {
                     handle_event(&event, &mut connection, |buf, stream| {
-                        handle_gdb_packet(buf, stream, &mut debugger);
+                        handle_gdb_packet(buf, stream, &mut ctx);
                     });
                 }
 
@@ -328,7 +366,8 @@ impl GdbStub {
                         Message::Quit => break 't,
                         Message::Arm9Halted(reason) => {
                             if let Some(ref mut stream) = connection.socket {
-                                write_gdb_packet(&make_resp_signal(reason, &mut debugger.ctx()), stream);
+                                let break_data = BreakData::new(reason, &mut ctx);
+                                write_gdb_packet(&break_data.to_signal(), stream);
                             }
                         }
                         _ => {}
