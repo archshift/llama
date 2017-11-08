@@ -210,7 +210,11 @@ fn reg_cnt_update(dev: &mut AesDevice) {
     if bf!(cnt @ RegCnt::update_keyslot) == 1 {
         dev._internal_state.active_keyslot = dev.key_sel.get() as usize;
         trace!("Setting AES active keyslot to 0x{:X}", dev._internal_state.active_keyslot);
-        assert!(dev._internal_state.active_keyslot >= 4); // TWL keyslots not yet implemented
+
+        if dev.key_sel.get() < 4 {
+            error!("Attempting to set keys for unimplemented TWL keyslots!");
+        }
+
         // Remove update_keyslot bit
         dev.cnt.set_unchecked(bf!(cnt @ RegCnt::update_keyslot as 0));
     }
@@ -238,8 +242,12 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         }
 
         assert!(dev.mac_blk_cnt.get() == 0);
-        assert!(bf!(cnt @ RegCnt::out_normal_order) == 1);
-        assert!(bf!(cnt @ RegCnt::in_normal_order) == 1);
+        if bf!(cnt @ RegCnt::out_normal_order) == 0 {
+            warn!("Setting up AES for untested out_normal_order value (0)");
+        }
+        if bf!(cnt @ RegCnt::in_normal_order) == 0 {
+            warn!("Setting up AES for untested in_normal_order value (0)");
+        }
 
         let mut key_str = String::new();
         let mut iv_str = String::new();
@@ -288,39 +296,50 @@ fn reg_key_cnt_update(dev: &mut AesDevice) {
 }
 
 fn reg_fifo_in_update(dev: &mut AesDevice) {
+    let cnt = dev.cnt.get();
     {
         let active_process = dev._internal_state.active_process.as_mut()
-            .expect("Attempted to write to AES FIFO-IN when not started!");
+            .expect(&format!("Attempted to write to AES FIFO-IN when not started! cnt={:08X}", cnt));
 
         let word = dev.fifo_in.get();
-        let word = if bf!((dev.cnt.get()) @ RegCnt::in_big_endian) == 1 { word }
+        let word = if bf!(cnt @ RegCnt::in_big_endian) == 1 { word }
                    else { word.swap_bytes() };
         dev._internal_state.fifo_in_buf.push_back(word);
 
         if dev._internal_state.fifo_in_buf.len() == 4 {
-            let words = [
+            let mut words = [
                 dev._internal_state.fifo_in_buf.pop_front().unwrap(),
                 dev._internal_state.fifo_in_buf.pop_front().unwrap(),
                 dev._internal_state.fifo_in_buf.pop_front().unwrap(),
                 dev._internal_state.fifo_in_buf.pop_front().unwrap()
             ];
+
+            // TODO: Test this
+            if bf!(cnt @ RegCnt::out_normal_order) == 0 {
+                warn!("STUBBED: AES crypto with in_normal_order unset");
+                words.reverse();
+            }
             let bytes: [u8; 0x10] = unsafe { mem::transmute(words) };
 
             let mut dec_bytes = [0u8; 0x20]; // Double size because of library silliness
             active_process.update(&bytes[..], &mut dec_bytes[..]);
 
             let dec_words: [u32; 8] = unsafe { mem::transmute(dec_bytes) };
-            dev._internal_state.fifo_out_buf.push_back(dec_words[0]);
-            dev._internal_state.fifo_out_buf.push_back(dec_words[1]);
-            dev._internal_state.fifo_out_buf.push_back(dec_words[2]);
-            dev._internal_state.fifo_out_buf.push_back(dec_words[3]);
+            let dec_words_iter = dec_words[..4].iter();
+
+            // TODO: Test this
+            if bf!(cnt @ RegCnt::out_normal_order) == 1 {
+                dev._internal_state.fifo_out_buf.extend(dec_words_iter);
+            } else {
+                warn!("STUBBED: AES crypto with out_normal_order unset");
+                dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
+            }
         }
     }
 
     dev._internal_state.bytes_left -= 4;
     if dev._internal_state.bytes_left == 0 {
         dev._internal_state.active_process = None;
-        let cnt = dev.cnt.get();
         dev.cnt.set_unchecked(bf!(cnt @ RegCnt::busy as 0));
     }
 }
