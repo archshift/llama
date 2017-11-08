@@ -10,7 +10,9 @@ use libllama::utils::from_hex;
 fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
-    use capstone::{Capstone, CsArch, CsMode};
+    use capstone::Capstone;
+    use capstone::arch::BuildsCapstone;
+    use capstone::arch::arm::ArchMode;
     let _ = args;
 
     let mut ctx = debugger.ctx();
@@ -23,16 +25,21 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     };
 
     let cpu_mode = if hw.is_thumb() {
-        CsMode::MODE_THUMB
+        ArchMode::Thumb
     } else {
-        CsMode::MODE_LITTLE_ENDIAN
+        ArchMode::Arm
     };
 
-    if let Ok(cs) = Capstone::new(CsArch::ARCH_ARM, cpu_mode) {
+    let cs = Capstone::new()
+        .arm()
+        .mode(cpu_mode)
+        .build();
+
+    if let Ok(cs) = cs {
         let mut inst_bytes = [0u8; 4];
         hw.read_mem(pause_addr, &mut inst_bytes);
 
-        match cs.disasm(&inst_bytes, pause_addr as u64, 1) {
+        match cs.disasm_count(&inst_bytes, pause_addr as u64, 1) {
             Ok(insts) => {
                 let inst = insts.iter().next().unwrap();
                 info!("{:X}: {} {}", pause_addr,

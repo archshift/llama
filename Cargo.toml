@@ -9,14 +9,14 @@ name = "llama-ui"
 path = "llama-ui/main.rs"
 
 [dependencies]
-capstone = "0.0"
+capstone = "0.2"
 lgl = { git = "https://github.com/archshift/lgl" }
 libc = "0.2"
 libllama = { path = "libllama" }
 log = "0.3"
 
 [build-dependencies]
-bindgen = "0.26"
+bindgen = "0.31"
 
 [features]
 trace_instructions = ["libllama/trace_instructions"]

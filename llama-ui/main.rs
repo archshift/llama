@@ -76,19 +76,19 @@ mod cbs {
 
     pub unsafe extern fn mod_button(backend: *mut c::Backend, button: i32, pressed: bool) {
         let backend = Backend::from_c(backend);
-        let button = match button {
-            _ if button == c::Button::BUTTON_A as i32 => hid::Button::A,
-            _ if button == c::Button::BUTTON_B as i32 => hid::Button::B,
-            _ if button == c::Button::BUTTON_X as i32 => hid::Button::X,
-            _ if button == c::Button::BUTTON_Y as i32 => hid::Button::Y,
-            _ if button == c::Button::BUTTON_L as i32 => hid::Button::L,
-            _ if button == c::Button::BUTTON_R as i32 => hid::Button::R,
-            _ if button == c::Button::BUTTON_UP as i32 => hid::Button::Up,
-            _ if button == c::Button::BUTTON_DOWN as i32 => hid::Button::Down,
-            _ if button == c::Button::BUTTON_LEFT as i32 => hid::Button::Left,
-            _ if button == c::Button::BUTTON_RIGHT as i32 => hid::Button::Right,
-            _ if button == c::Button::BUTTON_SELECT as i32 => hid::Button::Select,
-            _ if button == c::Button::BUTTON_START as i32 => hid::Button::Start,
+        let button = match button as u32 {
+            c::Button_BUTTON_A => hid::Button::A,
+            c::Button_BUTTON_B => hid::Button::B,
+            c::Button_BUTTON_X => hid::Button::X,
+            c::Button_BUTTON_Y => hid::Button::Y,
+            c::Button_BUTTON_L => hid::Button::L,
+            c::Button_BUTTON_R => hid::Button::R,
+            c::Button_BUTTON_UP => hid::Button::Up,
+            c::Button_BUTTON_DOWN => hid::Button::Down,
+            c::Button_BUTTON_LEFT => hid::Button::Left,
+            c::Button_BUTTON_RIGHT => hid::Button::Right,
+            c::Button_BUTTON_SELECT => hid::Button::Select,
+            c::Button_BUTTON_START => hid::Button::Start,
             _ => unreachable!()
         };
         let state = if pressed { hid::ButtonState::Pressed(button) }
