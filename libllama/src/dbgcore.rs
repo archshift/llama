@@ -95,6 +95,10 @@ impl<'a> DbgHwContext<'a> {
         self.hw.arm9.regs[15] - self.hw.arm9.get_pc_offset()
     }
 
+    pub fn branch_to(&mut self, addr: u32) {
+        self.hw.arm9.branch(addr);
+    }
+
     pub fn is_thumb(&self) -> bool {
         bf!((self.hw.arm9.cpsr).thumb_bit) == 1
     }

@@ -62,7 +62,7 @@ impl BreakData {
         let hw = dbg.hw();
         BreakData {
             reason: reason,
-            r15: hw.read_reg(15),
+            r15: hw.pause_addr(),
             r13: hw.read_reg(13),
         }
     }
@@ -135,21 +135,27 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
     match ty {
         'g' => {
             let hw = ctx.dbg.hw();
-            for reg in 0..16 {
+            for reg in 0..15 {
                 out += &format!("{:08X}", hw.read_reg(reg).swap_bytes());
             }
+            out += &format!("{:08X}", hw.pause_addr().swap_bytes());
             out += &format!("{:08X}", hw.read_cpsr().swap_bytes());
         }
         'G' => {
             let mut hw = ctx.dbg.hw();
-            for reg in 0..16 {
-                let param_reg_range = 8*reg..8*(reg+1);
-                let reg_data = utils::from_hex(&params[param_reg_range])?;
-                hw.write_reg(reg, reg_data.swap_bytes());
+            let nth_val = |index: usize| -> Result<u32> {
+                let param_reg_range = 8*index..8*(index+1);
+                let val = utils::from_hex(&params[param_reg_range])?;
+                Ok(val.swap_bytes())
+            };
+
+            for reg in 0..15 {
+                hw.write_reg(reg, nth_val(reg)?);
             }
-            // 17th register: CPSR
-            let reg_data = utils::from_hex(&params[8*16..8*17])?;
-            hw.write_cpsr(reg_data.swap_bytes());
+            // register at 15: PC
+            hw.branch_to(nth_val(15)?);
+            // register at 16: CPSR
+            hw.write_cpsr(nth_val(16)?);
             out += "OK";
         }
         'm' => {
@@ -180,7 +186,8 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             let hw = ctx.dbg.hw();
             let reg = utils::from_hex(&params)? as usize;
             let regval = match reg {
-                0 ... 15 => hw.read_reg(reg),
+                0 ... 14 => hw.read_reg(reg),
+                15 => hw.pause_addr(),
                 25 => hw.read_cpsr(),
                 n => panic!("GDB requested bad register value {}", n)
             };

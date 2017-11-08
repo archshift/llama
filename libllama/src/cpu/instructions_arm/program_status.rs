@@ -41,7 +41,7 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::msr_1::InstrDesc, immediate: bool) ->
     let state_mask   = 0x00000020u32;
 
     if val & unalloc_mask != 0 {
-        panic!("Attempted to set reserved bits!");
+        error!("Attempted to set reserved PSR bits through MSR instruction!");
     }
 
     let mut byte_mask = 0u32;
