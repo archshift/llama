@@ -242,9 +242,6 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         }
 
         assert!(dev.mac_blk_cnt.get() == 0);
-        if bf!(cnt @ RegCnt::out_normal_order) == 0 {
-            warn!("Setting up AES for untested out_normal_order value (0)");
-        }
         if bf!(cnt @ RegCnt::in_normal_order) == 0 {
             warn!("Setting up AES for untested in_normal_order value (0)");
         }
@@ -315,7 +312,7 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
             ];
 
             // TODO: Test this
-            if bf!(cnt @ RegCnt::out_normal_order) == 0 {
+            if bf!(cnt @ RegCnt::in_normal_order) == 0 {
                 warn!("STUBBED: AES crypto with in_normal_order unset");
                 words.reverse();
             }
@@ -327,11 +324,9 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
             let dec_words: [u32; 8] = unsafe { mem::transmute(dec_bytes) };
             let dec_words_iter = dec_words[..4].iter();
 
-            // TODO: Test this
             if bf!(cnt @ RegCnt::out_normal_order) == 1 {
                 dev._internal_state.fifo_out_buf.extend(dec_words_iter);
             } else {
-                warn!("STUBBED: AES crypto with out_normal_order unset");
                 dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
             }
         }
