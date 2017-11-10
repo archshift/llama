@@ -55,7 +55,10 @@ impl Key {
                 let c = u128_t::from_str_radix("1FF9E9AAC5FE0408024591DC5D52768A", 16).unwrap();
                 (keyx.rotate_left(2) ^ keyy).wrapping_add(c).rotate_right(41)
             }
-            KeygenMode::DSi => unimplemented!()
+            KeygenMode::DSi => {
+                let c = u128_t::from_str_radix("FFFEFB4E295902582A680F5F1A4F3E79", 16).unwrap();
+                (keyx ^ keyy).wrapping_add(c).rotate_left(42)
+            }
         };
         Key::from_int(common)
     }
