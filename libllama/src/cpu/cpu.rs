@@ -56,7 +56,8 @@ pub struct Cpu {
 pub enum BreakReason {
     LimitReached,
     Breakpoint,
-    Trapped
+    Trapped,
+    WFI
 }
 
 impl Cpu {

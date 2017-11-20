@@ -246,7 +246,15 @@ fn arm9_run(client: &msgs::Client<Message>, hardware: &mut Hardware9) -> bool {
 
 fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool {
     't: loop {
-        for msg in client.try_iter() {
+        let break_reason = hardware.dummy11.step();
+
+        let mut msg_opt = match break_reason {
+            cpu::BreakReason::WFI => client.recv().ok(),
+            cpu::BreakReason::LimitReached => client.try_recv().ok(),
+            cpu::BreakReason::Breakpoint | cpu::BreakReason::Trapped => unimplemented!(),
+        };
+
+        while let Some(msg) = msg_opt {
             match msg {
                 Message::Quit => return false,
                 Message::SuspendEmulation => {
@@ -254,10 +262,7 @@ fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool 
                 }
                 _ => {}
             }
-        }
-
-        if let cpu::BreakReason::Breakpoint = hardware.dummy11.step() {
-            thread::park_timeout(Duration::from_millis(200));
+            msg_opt = client.try_recv().ok();
         }
     }
 

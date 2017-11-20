@@ -7,37 +7,36 @@ use mem;
 
 pub struct BoxedSteppable(Box<Steppable + Send + Sync>);
 
+macro_rules! dmnode_inner {
+    ($arena:expr, $base_node:expr, $op:expr, $dbg:expr) => ({
+        let node = $arena.new_node(ProgramNodeInner::new($op, $dbg));
+        $base_node.append(node, $arena);
+        node
+    });
+}
+
+macro_rules! dmnode {
+    ( in $arena:expr, $base_node:expr; do $body:expr ) =>
+        ( dmnode_inner!($arena, $base_node, ProgramOp::Stmt($body), stringify!($body)); );
+    ( in $arena:expr, $base_node:expr; if $body:expr ) =>
+        ( dmnode_inner!($arena, $base_node, ProgramOp::If($body), concat!("if ", stringify!($body))); );
+    ( in $arena:expr, $base_node:expr; while $body:expr ) =>
+        ( dmnode_inner!($arena, $base_node, ProgramOp::While($body), concat!("while ", stringify!($body))); );
+    ( in $arena:expr, $base_node:expr; break $body:expr ) =>
+        ( dmnode_inner!($arena, $base_node, ProgramOp::Break($body), concat!("break ", stringify!($body))); );
+    ( in $arena:expr, $base_node:expr; nop ) =>
+        ( dmnode_inner!($arena, $base_node, ProgramOp::Nop, "nop"); )
+}
+
 pub mod modes {
     use std::time;
     use std::thread;
 
-    use super::{Dummy11HW, Program, BoxedSteppable};
-
-    macro_rules! dmnode_inner {
-        ($arena:expr, $base_node:expr, $op:expr, $dbg:expr) => ({
-            let node = $arena.new_node(super::ProgramNodeInner::new($op, $dbg));
-            $base_node.append(node, $arena);
-            node
-        });
-    }
-
-    macro_rules! dmnode {
-        ( in $arena:expr, $base_node:expr; do $body:expr ) =>
-            ( dmnode_inner!($arena, $base_node, super::ProgramOp::Stmt($body), stringify!($body)); );
-        ( in $arena:expr, $base_node:expr; if $body:expr ) =>
-            ( dmnode_inner!($arena, $base_node, super::ProgramOp::If($body), concat!("if ", stringify!($body))); );
-        ( in $arena:expr, $base_node:expr; while $body:expr ) =>
-            ( dmnode_inner!($arena, $base_node, super::ProgramOp::While($body), concat!("while ", stringify!($body))); );
-        ( in $arena:expr, $base_node:expr; nop ) =>
-            ( dmnode_inner!($arena, $base_node, super::ProgramOp::Nop, "nop"); )
-    }
+    use super::*;
 
     pub fn idle() -> BoxedSteppable {
         let mut program = Program::<()>::new(());
-        dmnode!(in &mut program.arena, program.base_node; do
-            |_, _| Ok(thread::sleep(time::Duration::from_millis(10)))
-        );
-        BoxedSteppable(Box::new(program))
+        program.build()
     }
 
     pub fn boot() -> BoxedSteppable {
@@ -62,7 +61,7 @@ pub mod modes {
 
             dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 11)));
         }
-        BoxedSteppable(Box::new(program))
+        program.build()
     }
 
     pub fn kernel() -> BoxedSteppable {
@@ -83,7 +82,7 @@ pub mod modes {
 
             dmnode!(in a, bn; do |_, hw| Ok(hw.memory.write::<u8>(SYNC_ADDR, 3)));
         }
-        BoxedSteppable(Box::new(program))
+        program.build()
     }
 }
 
@@ -107,8 +106,7 @@ impl Dummy11 {
     }
 
     pub fn step(&mut self) -> BreakReason {
-        self.program.0.step(&mut self.hw);
-        BreakReason::LimitReached
+        self.program.0.step(&mut self.hw)
     }
 }
 
@@ -120,7 +118,8 @@ enum ProgramOp<State> {
     Block,
     Stmt(OpFn<State>),
     If(CondFn<State>),
-    While(CondFn<State>)
+    While(CondFn<State>),
+    Break(BreakReason)
 }
 
 struct Program<State> {
@@ -130,7 +129,9 @@ struct Program<State> {
     active_node: NodeId,
 }
 
-impl<State> Program<State> {
+impl<State> Program<State>
+    where State: Sync + Send + 'static {
+
     fn new(state: State) -> Program<State> {
         let mut arena = Arena::new();
         let base_node = arena.new_node(ProgramNodeInner::new(ProgramOp::Block, "{}"));
@@ -141,6 +142,19 @@ impl<State> Program<State> {
             active_node: base_node
         }
     }
+
+    fn add_idle_loop(&mut self) {
+        let (a, bn) = (&mut self.arena, self.base_node);
+        let while_node = dmnode!(in a, bn; while |_, _| Ok(true));
+        {
+            dmnode!(in a, while_node; break BreakReason::WFI);
+        }
+    }
+
+    fn build(mut self) -> BoxedSteppable {
+        self.add_idle_loop();
+        BoxedSteppable(Box::new(self))
+    }
 }
 
 trait Steppable {
@@ -149,14 +163,13 @@ trait Steppable {
 
 impl<State> Steppable for Program<State> {
     fn step(&mut self, hardware: &mut Dummy11HW) -> BreakReason {
-        run_node(&mut self.state, hardware, &mut self.arena, self.active_node).unwrap();
+        let ret = run_node(&mut self.state, hardware, &mut self.arena, self.active_node).unwrap();
         if let Some(n) = next_node(&mut self.arena, self.active_node) {
             self.active_node = n;
-            BreakReason::LimitReached
         } else {
-            // Could not find next node; end of program?
-            BreakReason::Breakpoint
+            panic!("Reached end of Dummy11 program!");
         }
+        ret
     }
 }
 
@@ -173,9 +186,11 @@ unsafe impl<State> Sync for ProgramNodeInner<State> {} // TODO: not good!
 impl<State> ProgramNodeInner<State> {
     fn new(op: ProgramOp<State>, _dbg_string: &str) -> ProgramNodeInner<State> {
         let (enter_body, sticky) = match op {
-            ProgramOp::Nop | ProgramOp::Stmt(_) => (false, false),
+            ProgramOp::Nop
+            | ProgramOp::Stmt(_)
+            | ProgramOp::If(_)
+            | ProgramOp::Break(_) => (false, false),
             ProgramOp::Block => (true, false),
-            ProgramOp::If(_) => (false, false),
             ProgramOp::While(_) => (false, true),
         };
         ProgramNodeInner {
@@ -189,18 +204,20 @@ impl<State> ProgramNodeInner<State> {
 }
 
 fn run_node<State>(state: &mut State, hw: &mut Dummy11HW,
-                       arena: &mut Arena<ProgramNodeInner<State>>, node_id: NodeId) -> Result<(), ()> {
+                   arena: &mut Arena<ProgramNodeInner<State>>,
+                   node_id: NodeId) -> Result<BreakReason, ()> {
     let data = &mut arena[node_id].data;
     if !data.run.get() {
-        return Ok(())
+        return Ok(BreakReason::LimitReached)
     }
     trace!("Running Dummy11 node: {}", data._dbg_string);
     match data.op {
         ProgramOp::Stmt(f) => f(state, hw)?,
         ProgramOp::If(c) | ProgramOp::While(c) => { data.enter_body.replace(c(state, hw)?); },
+        ProgramOp::Break(ref r) => return Ok(r.clone()),
         _ => {}
     }
-    Ok(())
+    Ok(BreakReason::LimitReached)
 }
 
 fn next_node<State>(arena: &Arena<ProgramNodeInner<State>>, node_id: NodeId) -> Option<NodeId> {
