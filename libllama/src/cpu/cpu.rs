@@ -5,7 +5,7 @@ use cpu::irq;
 use cpu::regs::{GpRegs, Psr};
 use mem;
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Mode {
@@ -49,7 +49,7 @@ pub struct Cpu {
     cycles: usize,
     sys_clk: clock::SysClock,
 
-    pub breakpoints: HashMap<u32, bool> // addr, is_triggered
+    pub breakpoints: HashSet<u32> // addr, is_triggered
 }
 
 #[derive(Clone)]
@@ -77,7 +77,7 @@ impl Cpu {
             cycles: 0usize,
             sys_clk: clk,
 
-            breakpoints: HashMap::new()
+            breakpoints: HashSet::new()
         }
     }
 
@@ -195,11 +195,6 @@ impl Cpu {
     }
 
     pub fn find_toggle_breakpoint(&mut self, addr: u32) -> bool {
-        if let Some(triggered) = self.breakpoints.get_mut(&addr) {
-            *triggered ^= true;
-            *triggered
-        } else {
-            false
-        }
+        !self.breakpoints.is_empty() && self.breakpoints.remove(&addr)
     }
 }

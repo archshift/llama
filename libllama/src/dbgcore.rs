@@ -108,11 +108,11 @@ impl<'a> DbgHwContext<'a> {
     }
 
     pub fn set_breakpoint(&mut self, addr: u32) {
-        self.hw.arm9.breakpoints.insert(addr, false);
+        self.hw.arm9.breakpoints.insert(addr);
     }
 
     pub fn has_breakpoint(&mut self, addr: u32) -> bool {
-        self.hw.arm9.breakpoints.get(&addr).is_some()
+        self.hw.arm9.breakpoints.contains(&addr)
     }
 
     pub fn del_breakpoint(&mut self, addr: u32) {
