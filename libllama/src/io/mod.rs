@@ -53,7 +53,7 @@ pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests,
     let xdma   = make_dev! { xdma::XdmaDevice };
     let cfgext = make_dev! { config::ConfigExtDevice };
 
-    let hid    = make_dev! { hid::HidDevice:     hid::HidDeviceState(rt_rx.hid_btn) };
+    let hid    = make_dev! { hid::HidDevice };
 
     (IoRegsArm9 {
         cfg:    cfg.clone(),
@@ -98,21 +98,21 @@ macro_rules! impl_rw {
 
 #[derive(Clone)]
 pub struct IoRegsArm9 {
-    cfg:    Arc<Mutex< config::ConfigDevice >>,
-    irq:    Arc<Mutex< irq::IrqDevice >>,
-    ndma:   Arc<Mutex< ndma::NdmaDevice >>,
-    timer:  Arc<Mutex< timer::TimerDevice >>,
+    pub cfg:    Arc<Mutex< config::ConfigDevice >>,
+    pub irq:    Arc<Mutex< irq::IrqDevice >>,
+    pub ndma:   Arc<Mutex< ndma::NdmaDevice >>,
+    pub timer:  Arc<Mutex< timer::TimerDevice >>,
     // ctrcard,
-    emmc:   Arc<Mutex< emmc::EmmcDevice >>,
-    pxi9:   Arc<Mutex< pxi::PxiDevice >>,
-    aes:    Arc<Mutex< aes::AesDevice >>,
-    sha:    Arc<Mutex< sha::ShaDevice >>,
-    rsa:    Arc<Mutex< rsa::RsaDevice >>,
-    xdma:   Arc<Mutex< xdma::XdmaDevice >>,
+    pub emmc:   Arc<Mutex< emmc::EmmcDevice >>,
+    pub pxi9:   Arc<Mutex< pxi::PxiDevice >>,
+    pub aes:    Arc<Mutex< aes::AesDevice >>,
+    pub sha:    Arc<Mutex< sha::ShaDevice >>,
+    pub rsa:    Arc<Mutex< rsa::RsaDevice >>,
+    pub xdma:   Arc<Mutex< xdma::XdmaDevice >>,
     // spicard,
-    cfgext: Arc<Mutex< config::ConfigExtDevice >>,
+    pub cfgext: Arc<Mutex< config::ConfigExtDevice >>,
     // prng,
-    otp:    Arc<Mutex< otp::OtpDevice >>,
+    pub otp:    Arc<Mutex< otp::OtpDevice >>,
     // arm7,
 }
 
@@ -149,10 +149,10 @@ pub struct IoRegsShared {
     // spi,
     // i2c,
     // codec,
-    hid: Arc<Mutex< hid::HidDevice >>,
+    pub hid: Arc<Mutex< hid::HidDevice >>,
     // gpio,
     // mic,
-    pxi11: Arc<Mutex< pxi::PxiDevice >>,
+    pub pxi11: Arc<Mutex< pxi::PxiDevice >>,
     // ntrcard,
     // mp,
 }

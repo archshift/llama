@@ -19,6 +19,7 @@ pub enum Message {
     SuspendEmulation,
     Arm9Halted(cpu::BreakReason),
     Arm11Halted(cpu::BreakReason),
+    HidUpdate(io::hid::ButtonState),
 }
 
 impl msgs::Ident for Message {
@@ -30,6 +31,7 @@ impl msgs::Ident for Message {
             Message::SuspendEmulation => "suspendemu",
             Message::Arm9Halted(_) => "arm9halted",
             Message::Arm11Halted(_) => "arm11halted",
+            Message::HidUpdate(_) => "hidupdate",
         }
     }
 }
@@ -97,11 +99,13 @@ pub struct Hardware11 {
 pub struct HwCore {
     pub hardware9: Arc<Mutex<Hardware9>>,
     pub hardware11: Arc<Mutex<Hardware11>>,
+    pub hardware_io: (io::IoRegsArm9, io::IoRegsShared),
 
     _pump_thread: msgs::PumpThread,
     client_this: msgs::Client<Message>,
     arm9_thread: thread::JoinHandle<()>,
     arm11_thread: thread::JoinHandle<()>,
+    io_thread: thread::JoinHandle<()>,
 
     mem_pica: mem::MemController,
     pub rt_tx: rt_data::Tx,
@@ -122,7 +126,9 @@ impl HwCore {
         let clk_tx = clock::make_channel(irq_tx.clone());
         let clk_rx = clk_tx.clone();
 
-        let (io9, io11) = io::new_devices(rt_rx, irq_tx.clone(), clk_rx);
+        let hardware_io = io::new_devices(rt_rx, irq_tx.clone(), clk_rx);
+
+        let (io9, io11) = hardware_io.clone();
         let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
         loader.load(&mut mem9);
 
@@ -150,6 +156,7 @@ impl HwCore {
 
         let client_arm9 = msg_pump.add_client(&["quit", "startemu", "suspendemu"]);
         let client_arm11 = msg_pump.add_client(&["quit", "startemu", "suspendemu"]);
+        let client_io = msg_pump.add_client(&["quit", "hidupdate"]);
         let client_this = msg_pump.add_client(&[]);
         let pump_thread = msg_pump.start();
 
@@ -177,13 +184,21 @@ impl HwCore {
             }
         }).unwrap();
 
+        let hardware = hardware_io.clone();
+        let io_thread = thread::Builder::new().name("IO".to_owned()).spawn(move || {
+            let client = client_io;
+            io_run(&client, hardware);
+        }).unwrap();
+
         HwCore {
             hardware9: hardware9,
             hardware11: hardware11,
+            hardware_io: hardware_io,
             _pump_thread: pump_thread,
             client_this: client_this,
             arm9_thread: arm9_thread,
             arm11_thread: arm11_thread,
+            io_thread: io_thread,
 
             mem_pica: mem_pica,
             rt_tx: rt_tx,
@@ -219,6 +234,19 @@ impl HwCore {
         // self.mem_pica.read_buf(0x20046500u32, ..);
         self.mem_pica.read_buf(0x2008CA00u32, fbs.bot_screen.as_mut_slice());
         // self.mem_pica.read_buf(0x200C4E00u32, ..);
+    }
+}
+
+fn io_run(client: &msgs::Client<Message>, hardware: (io::IoRegsArm9, io::IoRegsShared)) {
+    let (io9, shared) = hardware;
+    for msg in client.iter() {
+        match msg {
+            Message::HidUpdate(btn) => {
+                io::hid::update_pad(&mut shared.hid.lock(), btn);
+            }
+            Message::Quit => return,
+            _ => {}
+        }
     }
 }
 

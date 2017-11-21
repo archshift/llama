@@ -93,7 +93,7 @@ mod cbs {
         };
         let state = if pressed { hid::ButtonState::Pressed(button) }
                     else { hid::ButtonState::Released(button) };
-        backend.debugger.ctx().hwcore_mut().rt_tx.hid_btn.send(state).unwrap();
+        backend.msg_client.send(Message::HidUpdate(state)).unwrap();
     }
 
     pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const i8, str_len: usize) {
