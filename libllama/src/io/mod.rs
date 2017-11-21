@@ -26,6 +26,7 @@ use cpu::irq::IrqRequests;
 use io::regs::IoRegAccess;
 use rt_data;
 
+#[derive(Clone)]
 pub enum IoRegion {
     Arm9(IoRegsArm9),
     Shared(IoRegsShared),
@@ -34,37 +35,42 @@ pub enum IoRegion {
 
 pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests,
                    clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
-    let cfg = config::ConfigDevice::new();
-    let irq = irq::IrqDevice::new(irq_requests.clone());
-    let emmc = emmc::EmmcDevice::new(emmc::EmmcDeviceState::new(irq_requests.clone()));
-    let ndma = ndma::NdmaDevice::new(Default::default());
-    let otp = otp::OtpDevice::new(Default::default());
-    let pxi = Arc::new(Mutex::new(pxi::PxiDevice::new()));
-    let timer = timer::TimerDevice::new(clk.timer_states);
-    let aes = aes::AesDevice::new(aes::AesDeviceState::new(rt_rx.key_dmp));
-    let sha = sha::ShaDevice::new(Default::default());
-    let rsa = rsa::RsaDevice::new(Default::default());
-    let xdma = xdma::XdmaDevice::new();
-    let cfgext = config::ConfigExtDevice::new();
+    macro_rules! make_dev {
+        ($type:ty) => { Arc::new(Mutex::new(<$type>::new())) };
+        ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
+    }
 
-    let hid = hid::HidDevice::new(hid::HidDeviceState(rt_rx.hid_btn));
+    let cfg    = make_dev! { config::ConfigDevice };
+    let irq    = make_dev! { irq::IrqDevice:     irq_requests.clone() };
+    let emmc   = make_dev! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
+    let ndma   = make_dev! { ndma::NdmaDevice:   Default::default() };
+    let otp    = make_dev! { otp::OtpDevice:     Default::default() };
+    let pxi    = make_dev! { pxi::PxiDevice };
+    let timer  = make_dev! { timer::TimerDevice: clk.timer_states };
+    let aes    = make_dev! { aes::AesDevice:     aes::AesDeviceState::new(rt_rx.key_dmp) };
+    let sha    = make_dev! { sha::ShaDevice:     Default::default() };
+    let rsa    = make_dev! { rsa::RsaDevice:     Default::default() };
+    let xdma   = make_dev! { xdma::XdmaDevice };
+    let cfgext = make_dev! { config::ConfigExtDevice };
+
+    let hid    = make_dev! { hid::HidDevice:     hid::HidDeviceState(rt_rx.hid_btn) };
 
     (IoRegsArm9 {
-        cfg:    Mutex::new(cfg),
-        irq:    Mutex::new(irq),
-        emmc:   Mutex::new(emmc),
-        ndma:   Mutex::new(ndma),
-        otp:    Mutex::new(otp),
+        cfg:    cfg.clone(),
+        irq:    irq.clone(),
+        emmc:   emmc.clone(),
+        ndma:   ndma.clone(),
+        otp:    otp.clone(),
         pxi9:   pxi.clone(),
-        timer:  Mutex::new(timer),
-        aes:    Mutex::new(aes),
-        sha:    Mutex::new(sha),
-        rsa:    Mutex::new(rsa),
-        xdma:   Mutex::new(xdma),
-        cfgext: Mutex::new(cfgext),
+        timer:  timer.clone(),
+        aes:    aes.clone(),
+        sha:    sha.clone(),
+        rsa:    rsa.clone(),
+        xdma:   xdma.clone(),
+        cfgext: cfgext.clone(),
     },
     IoRegsShared {
-        hid:    Mutex::new(hid),
+        hid:    hid.clone(),
         pxi11:  pxi.clone(),
     })
 }
@@ -90,22 +96,23 @@ macro_rules! impl_rw {
     };
 }
 
+#[derive(Clone)]
 pub struct IoRegsArm9 {
-    cfg:    Mutex<config::ConfigDevice>,
-    irq:    Mutex<irq::IrqDevice>,
-    ndma:   Mutex<ndma::NdmaDevice>,
-    timer:  Mutex<timer::TimerDevice>,
+    cfg:    Arc<Mutex< config::ConfigDevice >>,
+    irq:    Arc<Mutex< irq::IrqDevice >>,
+    ndma:   Arc<Mutex< ndma::NdmaDevice >>,
+    timer:  Arc<Mutex< timer::TimerDevice >>,
     // ctrcard,
-    emmc:   Mutex<emmc::EmmcDevice>,
-    pxi9:   Arc<Mutex<pxi::PxiDevice>>,
-    aes:    Mutex<aes::AesDevice>,
-    sha:    Mutex<sha::ShaDevice>,
-    rsa:    Mutex<rsa::RsaDevice>,
-    xdma:   Mutex<xdma::XdmaDevice>,
+    emmc:   Arc<Mutex< emmc::EmmcDevice >>,
+    pxi9:   Arc<Mutex< pxi::PxiDevice >>,
+    aes:    Arc<Mutex< aes::AesDevice >>,
+    sha:    Arc<Mutex< sha::ShaDevice >>,
+    rsa:    Arc<Mutex< rsa::RsaDevice >>,
+    xdma:   Arc<Mutex< xdma::XdmaDevice >>,
     // spicard,
-    cfgext: Mutex<config::ConfigExtDevice>,
+    cfgext: Arc<Mutex< config::ConfigExtDevice >>,
     // prng,
-    otp:    Mutex<otp::OtpDevice>,
+    otp:    Arc<Mutex< otp::OtpDevice >>,
     // arm7,
 }
 
@@ -127,6 +134,7 @@ impl IoRegsArm9 {
 }
 
 
+#[derive(Clone)]
 pub struct IoRegsShared {
     // sdio_wifi,
     // hash,
@@ -141,10 +149,10 @@ pub struct IoRegsShared {
     // spi,
     // i2c,
     // codec,
-    hid: Mutex<hid::HidDevice>,
+    hid: Arc<Mutex< hid::HidDevice >>,
     // gpio,
     // mic,
-    pxi11: Arc<Mutex<pxi::PxiDevice>>,
+    pxi11: Arc<Mutex< pxi::PxiDevice >>,
     // ntrcard,
     // mp,
 }

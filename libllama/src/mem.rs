@@ -101,20 +101,19 @@ impl MemoryBlock for SharedMemoryBlock {
 }
 
 #[derive(Clone)]
-pub struct IoMemoryBlock(Arc<(usize, io::IoRegion)>);
+pub struct IoMemoryBlock(usize, io::IoRegion);
 impl IoMemoryBlock {
     pub fn new(variant: io::IoRegion, kbs: usize) -> IoMemoryBlock {
-        IoMemoryBlock(Arc::new((kbs, variant)))
+        IoMemoryBlock(kbs, variant)
     }
 }
 impl MemoryBlock for IoMemoryBlock {
     fn get_bytes(&self) -> u32 {
-        ((self.0).0 * KB_SIZE) as u32
+        (self.0 * KB_SIZE) as u32
     }
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        let (_, ref region) = *self.0;
-        match *region {
+        match self.1 {
             io::IoRegion::Arm9(ref x) => x.read_reg(offset, buf, buf_size),
             io::IoRegion::Shared(ref x) => x.read_reg(offset, buf, buf_size),
             _ => unimplemented!(),
@@ -122,8 +121,7 @@ impl MemoryBlock for IoMemoryBlock {
     }
 
     unsafe fn write_from_ptr(&self, offset: usize, buf: *const u8, buf_size: usize) {
-        let (_, ref region) = *self.0;
-        match *region {
+        match self.1 {
             io::IoRegion::Arm9(ref x) => x.write_reg(offset, buf, buf_size),
             io::IoRegion::Shared(ref x) => x.write_reg(offset, buf, buf_size),
             _ => unimplemented!(),
