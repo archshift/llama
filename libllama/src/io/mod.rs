@@ -1,7 +1,7 @@
 #[macro_use]
 mod regs;
 
-mod aes;
+pub mod aes;
 mod config;
 mod emmc;
 mod irq;
@@ -24,7 +24,6 @@ use parking_lot::Mutex;
 use clock;
 use cpu::irq::IrqRequests;
 use io::regs::IoRegAccess;
-use rt_data;
 
 #[derive(Clone)]
 pub enum IoRegion {
@@ -33,8 +32,7 @@ pub enum IoRegion {
     Arm11,
 }
 
-pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests,
-                   clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
+pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
     macro_rules! make_dev {
         ($type:ty) => { Arc::new(Mutex::new(<$type>::new())) };
         ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
@@ -47,7 +45,7 @@ pub fn new_devices(rt_rx: rt_data::Rx, irq_requests: IrqRequests,
     let otp    = make_dev! { otp::OtpDevice:     Default::default() };
     let pxi    = make_dev! { pxi::PxiDevice };
     let timer  = make_dev! { timer::TimerDevice: clk.timer_states };
-    let aes    = make_dev! { aes::AesDevice:     aes::AesDeviceState::new(rt_rx.key_dmp) };
+    let aes    = make_dev! { aes::AesDevice:     Default::default() };
     let sha    = make_dev! { sha::ShaDevice:     Default::default() };
     let rsa    = make_dev! { rsa::RsaDevice:     Default::default() };
     let xdma   = make_dev! { xdma::XdmaDevice };

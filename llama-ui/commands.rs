@@ -84,27 +84,36 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 }
 
 /// Sets AES key-dumping state
-/// Command format: "keydmp" <on|off>
+/// Command format: "keydmp"
 ///
-/// `args`: Iterator over &str items
-fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+/// `args`: Unused
+fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
     where It: Iterator<Item=&'a str> {
 
-    let state_str = match args.next() {
-        Some(arg) => arg,
-        None => { info!("Usage: `keydmp <on|off>"); return }
-    };
-
-    let state = match state_str {
-        "on" => true,
-        "off" => false,
-        _ => { info!("Usage: `keydmp <on|off>"); return }
-    };
-
-    info!("{} AES key dumping", if state { "Enabling" } else { "Disabling" });
+    use libllama::io::aes;
 
     let mut ctx = debugger.ctx();
-    ctx.hwcore_mut().rt_tx.key_dmp.exchange(state);
+    let key_slots = {
+        let mut aes_dev = ctx.hwcore_mut().hardware_io.0.aes.lock();
+        aes::dump_keys(&mut aes_dev)
+    };
+
+    let filename = aes::keydb_path();
+    info!("Dumping AES keys to disk at `{}`...", filename);
+
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let mut file = match OpenOptions::new().create(true).read(true).write(true)
+                                            .truncate(true).open(&filename) {
+        Ok(file) => file,
+        Err(x) => { error!("Failed to open aeskeydb file `{}`; {:?}", filename, x); return }
+    };
+    for k in key_slots.iter() {
+        if let Err(x) = file.write_all(&k.data) {
+            error!("Failed to write to aeskeydb file `{}`; {:?}", filename, x);
+            return
+        }
+    }
 }
 
 /// Triggers the specified IRQ

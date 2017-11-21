@@ -7,7 +7,6 @@ use cpu;
 use ldr;
 use mem;
 use io;
-use rt_data;
 use msgs;
 
 
@@ -108,7 +107,6 @@ pub struct HwCore {
     io_thread: thread::JoinHandle<()>,
 
     mem_pica: mem::MemController,
-    pub rt_tx: rt_data::Tx,
     pub irq_tx: cpu::irq::IrqRequests,
 }
 
@@ -121,12 +119,11 @@ pub enum Arm11State {
 
 impl HwCore {
     pub fn new(mut msg_pump: msgs::Pump<Message>, loader: &ldr::Loader) -> HwCore {
-        let (rt_tx, rt_rx) = rt_data::make_channels();
         let (irq_tx, irq_rx) = cpu::irq::make_channel();
         let clk_tx = clock::make_channel(irq_tx.clone());
         let clk_rx = clk_tx.clone();
 
-        let hardware_io = io::new_devices(rt_rx, irq_tx.clone(), clk_rx);
+        let hardware_io = io::new_devices(irq_tx.clone(), clk_rx);
 
         let (io9, io11) = hardware_io.clone();
         let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
@@ -201,7 +198,6 @@ impl HwCore {
             io_thread: io_thread,
 
             mem_pica: mem_pica,
-            rt_tx: rt_tx,
             irq_tx: irq_tx,
         }
     }
