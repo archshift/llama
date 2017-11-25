@@ -1,5 +1,6 @@
 use clock;
 use cpu;
+use cpu::caches;
 use cpu::coproc;
 use cpu::irq;
 use cpu::regs::{GpRegs, Psr};
@@ -44,6 +45,8 @@ pub struct Cpu {
 
     coproc_syscnt: coproc::SysControl,
     pub memory: mem::MemController,
+    icache_arm: caches::ICacheArm,
+    icache_thumb: caches::ICacheThumb,
 
     irq_line: irq::IrqLine,
     cycles: usize,
@@ -73,6 +76,8 @@ impl Cpu {
 
             coproc_syscnt: coproc::SysControl::new(),
             memory: memory,
+            icache_arm: caches::ICacheArm::new(),
+            icache_thumb: caches::ICacheThumb::new(),
 
             irq_line: irq_line,
             cycles: 0usize,
@@ -130,9 +135,6 @@ impl Cpu {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
-        use cpu::decoder_arm::ArmInstruction;
-        use cpu::decoder_thumb::ThumbInstruction;
-
         let mut cycles = self.cycles;
         let mut irq_known_pending = false;
 
@@ -158,11 +160,11 @@ impl Cpu {
 
             if bf!((self.cpsr).thumb_bit) == 0 {
                 assert_eq!(addr & 0b11, 0);
-                let instr = ArmInstruction::decode(self.memory.read::<u32>(addr));
+                let instr = self.icache_arm.get_inst(addr, &self.memory);
                 cpu::interpret_arm(self, instr);
             } else {
                 assert_eq!(addr & 0b1, 0);
-                let instr = ThumbInstruction::decode(self.memory.read::<u16>(addr));
+                let instr = self.icache_thumb.get_inst(addr, &self.memory);
                 cpu::interpret_thumb(self, instr);
             }
         }

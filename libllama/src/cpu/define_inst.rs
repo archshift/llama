@@ -113,7 +113,7 @@ macro_rules! define_insts {
     }) => (
         $($( define_inst!($name: $ty, $($part.$width);*); )*)*
 
-        #[derive(Debug)]
+        #[derive(Clone, Copy, Debug)]
         #[allow(non_camel_case_types)]
         pub enum $enumname {
             $($( $name($name::InstrDesc), )*)*
