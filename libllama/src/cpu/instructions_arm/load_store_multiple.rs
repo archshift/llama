@@ -30,7 +30,7 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[i] = cpu.memory.read::<u32>(addr);
+            cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
@@ -40,7 +40,7 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
     }
 
     if bit!(register_list, 15) == 1 {
-        let val = cpu.memory.read::<u32>(addr);
+        let val = cpu.mpu.dmem_read::<u32>(addr);
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return cpu::InstrStatus::Branched;
@@ -61,7 +61,7 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
     cpu.regs.swap(cpu::Mode::Usr);
     for i in 0..14 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[i] = cpu.memory.read::<u32>(addr);
+            cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
@@ -80,7 +80,7 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[i] = cpu.memory.read::<u32>(addr);
+            cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
@@ -90,7 +90,7 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
     }
 
     cpu.spsr_make_current();
-    let dest = cpu.memory.read::<u32>(addr);
+    let dest = cpu.mpu.dmem_read::<u32>(addr);
     cpu.branch(dest & 0xFFFFFFFE);
     cpu::InstrStatus::Branched
 }
@@ -105,7 +105,7 @@ pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
 
     for i in 0..16 {
         if bit!(register_list, i) == 1 {
-            cpu.memory.write::<u32>(addr, cpu.regs[i]);
+            cpu.mpu.dmem_write::<u32>(addr, cpu.regs[i]);
             addr += 4;
         }
     }
@@ -129,7 +129,7 @@ pub fn stm_2(cpu: &mut Cpu, data: arm::stm_2::InstrDesc) -> cpu::InstrStatus {
     cpu.regs.swap(cpu::Mode::Usr);
     for i in 0..16 {
         if bit!(register_list, i) == 1 {
-            cpu.memory.write::<u32>(addr, cpu.regs[i]);
+            cpu.mpu.dmem_write::<u32>(addr, cpu.regs[i]);
             addr += 4;
         }
     }

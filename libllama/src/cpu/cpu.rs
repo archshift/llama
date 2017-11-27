@@ -44,9 +44,7 @@ pub struct Cpu {
     pub spsr_und: Psr,
 
     coproc_syscnt: coproc::SysControl,
-    pub memory: mem::MemController,
-    icache_arm: caches::ICacheArm,
-    icache_thumb: caches::ICacheThumb,
+    pub mpu: caches::Mpu,
 
     irq_line: irq::IrqLine,
     cycles: usize,
@@ -75,9 +73,7 @@ impl Cpu {
             spsr_und: Psr::new(0),
 
             coproc_syscnt: coproc::SysControl::new(),
-            memory: memory,
-            icache_arm: caches::ICacheArm::new(),
-            icache_thumb: caches::ICacheThumb::new(),
+            mpu: caches::Mpu::new(memory),
 
             irq_line: irq_line,
             cycles: 0usize,
@@ -160,11 +156,11 @@ impl Cpu {
 
             if bf!((self.cpsr).thumb_bit) == 0 {
                 assert_eq!(addr & 0b11, 0);
-                let instr = self.icache_arm.get_inst(addr, &self.memory);
+                let instr = cpu::decoder_arm::ArmInstruction::decode(self.mpu.imem_read::<u32>(addr));
                 cpu::interpret_arm(self, instr);
             } else {
                 assert_eq!(addr & 0b1, 0);
-                let instr = self.icache_thumb.get_inst(addr, &self.memory);
+                let instr = cpu::decoder_thumb::ThumbInstruction::decode(self.mpu.imem_read::<u16>(addr));
                 cpu::interpret_thumb(self, instr);
             }
         }

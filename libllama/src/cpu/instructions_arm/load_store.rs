@@ -121,9 +121,9 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
 
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     let val = if byte {
-        cpu.memory.read::<u8>(addr.0) as u32
+        cpu.mpu.dmem_read::<u8>(addr.0) as u32
     } else {
-        cpu.memory.read::<u32>(addr.0 & !0b11)
+        cpu.mpu.dmem_read::<u32>(addr.0 & !0b11)
             .rotate_right(8 * bits!(addr.0, 0 => 1))
     };
 
@@ -155,14 +155,14 @@ fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) ->
     let val = match ty {
         MiscLsType::Doubleword => {
             assert!((rd % 2 == 0) && (rd != 14) && (addr.0 % 4 == 0));
-            let val = cpu.memory.read::<u64>(addr.0);
+            let val = cpu.mpu.dmem_read::<u64>(addr.0);
             cpu.regs[rd] = val as u32;
             cpu.regs[rd+1] = (val >> 32) as u32;
             return cpu::InstrStatus::InBlock
         }
-        MiscLsType::Halfword => cpu.memory.read::<u16>(addr.0) as u32,
-        MiscLsType::SignedByte => sign_extend(cpu.memory.read::<u8>(addr.0) as u32, 8) as u32,
-        MiscLsType::SignedHalfword => sign_extend(cpu.memory.read::<u16>(addr.0) as u32, 16) as u32
+        MiscLsType::Halfword => cpu.mpu.dmem_read::<u16>(addr.0) as u32,
+        MiscLsType::SignedByte => sign_extend(cpu.mpu.dmem_read::<u8>(addr.0) as u32, 8) as u32,
+        MiscLsType::SignedHalfword => sign_extend(cpu.mpu.dmem_read::<u16>(addr.0) as u32, 16) as u32
     };
 
     cpu.regs[bf!(data.rd) as usize] = val;
@@ -182,9 +182,9 @@ fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::Ins
     cpu.regs[bf!(data.rn) as usize] = wb.0;
 
     if byte {
-        cpu.memory.write::<u8>(addr.0, val as u8);
+        cpu.mpu.dmem_write::<u8>(addr.0, val as u8);
     } else {
-        cpu.memory.write::<u32>(addr.0 & !0b11, val);
+        cpu.mpu.dmem_write::<u32>(addr.0 & !0b11, val);
     };
 
     cpu::InstrStatus::InBlock
@@ -205,9 +205,9 @@ fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -
         MiscLsType::Doubleword => {
             assert!((rd % 2 == 0) && (rd != 14) && (addr.0 % 4 == 0));
             let val = (cpu.regs[rd] as u64) | ((cpu.regs[rd+1] as u64) << 32);
-            cpu.memory.write::<u64>(addr.0, val)
+            cpu.mpu.dmem_write::<u64>(addr.0, val)
         }
-        MiscLsType::Halfword => cpu.memory.write::<u16>(addr.0, cpu.regs[rd] as u16),
+        MiscLsType::Halfword => cpu.mpu.dmem_write::<u16>(addr.0, cpu.regs[rd] as u16),
         _ => panic!("Invalid miscellaneous store type!")
     }
 
@@ -263,8 +263,8 @@ pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
     let addr = cpu.regs[bf!(data.rn) as usize];
     let new_val = cpu.regs[bf!(data.rm) as usize];
 
-    let tmp = cpu.memory.read::<u32>(addr);
-    cpu.memory.write::<u32>(addr, new_val);
+    let tmp = cpu.mpu.dmem_read::<u32>(addr);
+    cpu.mpu.dmem_write::<u32>(addr, new_val);
     cpu.regs[bf!(data.rd) as usize] = tmp;
 
     cpu::InstrStatus::InBlock
@@ -279,8 +279,8 @@ pub fn swpb(cpu: &mut Cpu, data: arm::swpb::InstrDesc) -> cpu::InstrStatus {
     let addr = cpu.regs[bf!(data.rn) as usize];
     let new_val = cpu.regs[bf!(data.rm) as usize];
 
-    let tmp = cpu.memory.read::<u8>(addr);
-    cpu.memory.write::<u8>(addr, new_val as u8);
+    let tmp = cpu.mpu.dmem_read::<u8>(addr);
+    cpu.mpu.dmem_write::<u8>(addr, new_val as u8);
     cpu.regs[bf!(data.rd) as usize] = tmp as u32;
 
     cpu::InstrStatus::InBlock

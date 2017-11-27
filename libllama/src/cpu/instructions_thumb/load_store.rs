@@ -19,7 +19,7 @@ pub fn ldr_1(cpu: &mut Cpu, data: thumb::ldr_1::InstrDesc) -> cpu::InstrStatus {
 
     let addr = base_val + immed_5 * 4;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u32>(addr);
+    cpu.regs[bf!(data.rd) as usize] = cpu.mpu.dmem_read::<u32>(addr);
 
     cpu::InstrStatus::InBlock
 }
@@ -35,7 +35,7 @@ pub fn ldr_2(cpu: &mut Cpu, data: thumb::ldr_2::InstrDesc) -> cpu::InstrStatus {
 pub fn ldr_3(cpu: &mut Cpu, data: thumb::ldr_3::InstrDesc) -> cpu::InstrStatus {
     let immed_8 = bf!(data.immed_8) as u32;
     let addr = (cpu.regs[15] & 0xFFFFFFFC) + immed_8 * 4;
-    cpu.regs[bf!(data.rd) as usize] = cpu.memory.read::<u32>(addr);
+    cpu.regs[bf!(data.rd) as usize] = cpu.mpu.dmem_read::<u32>(addr);
 
     cpu::InstrStatus::InBlock
 }
@@ -123,7 +123,7 @@ pub fn str_1(cpu: &mut Cpu, data: thumb::str_1::InstrDesc) -> cpu::InstrStatus {
 
     let addr = base_val + immed_5 * 4;
     // TODO: determine behavior based on CP15 r1 bit_U (22)
-    cpu.memory.write::<u32>(addr, cpu.regs[bf!(data.rd) as usize]);
+    cpu.mpu.dmem_write::<u32>(addr, cpu.regs[bf!(data.rd) as usize]);
 
     cpu::InstrStatus::InBlock
 }

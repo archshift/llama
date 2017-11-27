@@ -13,8 +13,11 @@ pub fn mcr(cpu: &mut Cpu, data: arm::mcr::InstrDesc) -> cpu::InstrStatus {
     let opcode_1 = bf!(data.opcode_1) as usize;
     let opcode_2 = bf!(data.opcode_2) as usize;
 
-    let coproc = cpu.get_coprocessor(bf!(data.cp_num) as usize);
-    coproc.move_in(crn, crm, opcode_1, opcode_2, src_val);
+    let cp_effect = {
+        let coproc = cpu.get_coprocessor(bf!(data.cp_num) as usize);
+        coproc.move_in(crn, crm, opcode_1, opcode_2, src_val)
+    };
+    cp_effect(cpu);
 
     cpu::InstrStatus::InBlock
 }

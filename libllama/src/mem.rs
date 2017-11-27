@@ -185,7 +185,7 @@ impl MemController {
         }
 
         let (block_addr, ref block) = self.regions[index];
-        if (address >= block_addr) && (address <= block_addr + block.get_bytes() - 1) {
+        if address - block_addr < block.get_bytes() {
             return Some((block_addr, block));
         }
         None

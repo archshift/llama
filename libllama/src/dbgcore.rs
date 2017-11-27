@@ -66,11 +66,13 @@ pub struct DbgHwContext<'a> {
 
 impl<'a> DbgHwContext<'a> {
     pub fn read_mem(&self, address: u32, bytes: &mut [u8]) {
-        self.hw.arm9.memory.read_buf(address, bytes)
+        self.hw.arm9.mpu.memory.read_buf(address, bytes)
     }
 
     pub fn write_mem(&mut self, address: u32, bytes: &[u8]) {
-        self.hw.arm9.memory.write_buf(address, bytes)
+        self.hw.arm9.mpu.memory.write_buf(address, bytes);
+        self.hw.arm9.mpu.icache.invalidate();
+        self.hw.arm9.mpu.dcache.invalidate();
     }
 
     pub fn read_reg(&self, reg: usize) -> u32 {

@@ -1,4 +1,5 @@
-use cpu::coproc::Coprocessor;
+use cpu;
+use cpu::coproc::{CpEffect, Coprocessor};
 
 bitfield!(RegControl: u32, {
     use_mpu: 0 => 0,
@@ -22,6 +23,12 @@ bitfield!(RegControl: u32, {
     use_l2cache: 26 => 26
 });
 
+bitfield!(MpuRegion: u32, {
+    enabled: 0 => 0,
+    size: 1 => 5,
+    base_shr_12: 12 => 31
+});
+
 pub struct SysControl {
     r1_control: RegControl,
     r2_dcacheability: u32,
@@ -29,7 +36,7 @@ pub struct SysControl {
     r3_bufferability: u32,
     r5_daccessperms: u32,
     r5_iaccessperms: u32,
-    r6_memregions: [u32; 8],
+    r6_memregions: [MpuRegion; 8],
     r9_dcache_lockdown: u32,
     r9_icache_lockdown: u32,
     r9_dtcm_size: u32,
@@ -45,7 +52,7 @@ impl SysControl {
             r3_bufferability: 0,
             r5_daccessperms: 0,
             r5_iaccessperms: 0,
-            r6_memregions: [0; 8],
+            r6_memregions: [MpuRegion::new(0); 8],
             r9_dcache_lockdown: 0,
             r9_icache_lockdown: 0,
             r9_dtcm_size: 0,
@@ -55,14 +62,22 @@ impl SysControl {
 }
 
 impl Coprocessor for SysControl {
-    fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) {
+    fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) -> CpEffect {
         assert_eq!(op1, 0);
 
+        let mut effect: CpEffect = Box::new(move |cpu| {});
         match cpreg1 {
             1 => match op2 {
                 0b000 => {
                     warn!("STUBBED: System control register write");
                     self.r1_control.set_raw(val);
+
+                    let control = self.r1_control;
+                    effect = Box::new(move |cpu| {
+                        cpu.mpu.enabled = bf!(control.use_mpu) == 1;
+                        cpu.mpu.icache_enabled = bf!(control.use_icache) == 1;
+                        cpu.mpu.dcache_enabled = bf!(control.use_dcache) == 1;
+                    });
                 }
                 0b001 | 0b010 => unimplemented!(),
                 _ => unreachable!()
@@ -70,12 +85,24 @@ impl Coprocessor for SysControl {
 
             2 => match op2 {
                 0 => {
-                    warn!("STUBBED: DCache cacheability register write");
+                    trace!("DCache cacheability register write");
                     self.r2_dcacheability = val;
+                    let cacheable = val;
+                    effect = Box::new(move |cpu| {
+                        for (i, region) in cpu.mpu.regions.iter_mut().enumerate() {
+                            region.use_dcache = bit!(cacheable, i) == 1;
+                        }
+                    });
                 }
                 1 => {
-                    warn!("STUBBED: ICache cacheability register write");
+                    trace!("ICache cacheability register write");
                     self.r2_icacheability = val;
+                    let cacheable = val;
+                    effect = Box::new(move |cpu| {
+                        for (i, region) in cpu.mpu.regions.iter_mut().enumerate() {
+                            region.use_icache = bit!(cacheable, i) == 1;
+                        }
+                    });
                 }
                 _ => unreachable!()
             },
@@ -86,24 +113,45 @@ impl Coprocessor for SysControl {
             }
 
             5 => match op2 {
-                0 | 1 => unimplemented!(),
-                2 => {
-                    warn!("STUBBED: Instr access perms register write");
+                0 | 2 => { // TODO: verify
+                    warn!("STUBBED: Data access perms register write");
                     self.r5_daccessperms = val;
                 }
-                3 => {
-                    warn!("STUBBED: Data access perms register write");
+                1 | 3 => { // TODO: verify
+                    warn!("STUBBED: Instr access perms register write");
                     self.r5_iaccessperms = val;
                 }
                 _ => unreachable!()
             },
 
             6 => {
-                warn!("STUBBED: MPU region {} register write", cpreg2);
-                self.r6_memregions[cpreg2] = val
+                trace!("MPU region {} register write", cpreg2);
+                let index = cpreg2;
+                self.r6_memregions[index].set_raw(val);
+
+                let region_data = self.r6_memregions[index];
+                effect = Box::new(move |cpu| {
+                    let region = &mut cpu.mpu.regions[index];
+                    region.size_exp = (bf!(region_data.size) + 1) as u16;
+                    region.base_sigbits = bf!(region_data.base_shr_12) << 12 >> region.size_exp;
+                    region.enabled = bf!(region_data.enabled) == 1;
+                });
             }
 
-            7 => warn!("STUBBED: Cache control register write; reg2={}, op2={}", cpreg2, op2),
+            7 => match (cpreg2, op2) {
+                (5, 0...2) => effect = Box::new(move |cpu| cpu.mpu.icache.invalidate()),
+                (6, 0...2) => effect = Box::new(move |cpu| cpu.mpu.dcache.invalidate()),
+                (7, 0) => effect = Box::new(move |cpu| {
+                    cpu.mpu.icache.invalidate();
+                    cpu.mpu.dcache.invalidate();
+                }),
+                (7, 1...2) => unimplemented!(),
+                (10, 0...2) => effect = Box::new(move |cpu| cpu.mpu.dcache.invalidate()),
+                (11, 0...2) => unimplemented!(),
+                (14, 0...2) => effect = Box::new(move |cpu| cpu.mpu.dcache.invalidate()),
+                (15, 0...2) => unimplemented!(),
+                _ => warn!("STUBBED: Cache control register write; reg2={}, op2={}", cpreg2, op2),
+            }
 
             9 => match (cpreg2, op2) {
                 (0, 0) => {
@@ -126,9 +174,10 @@ impl Coprocessor for SysControl {
             },
 
             _ => panic!("Unimplemented CP15 write to coproc reg {}", cpreg1)
-        }
+        };
 
         info!("Write 0x{:08X} to CP15 reg {}; reg2={}, op2={}", val, cpreg1, cpreg2, op2);
+        effect
     }
 
     fn move_out(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize) -> u32 {
@@ -162,12 +211,11 @@ impl Coprocessor for SysControl {
             }
 
             5 => match op2 {
-                0 | 1 => unimplemented!(),
-                2 => {
+                0 | 2 => { // TODO: verify
                     warn!("STUBBED: Instr access perms register read");
                     self.r5_daccessperms
                 }
-                3 => {
+                1 | 3 => { // TODO: verify
                     warn!("STUBBED: Data access perms register read");
                     self.r5_iaccessperms
                 }
@@ -176,7 +224,7 @@ impl Coprocessor for SysControl {
 
             6 => {
                 warn!("STUBBED: MPU region {} register read", cpreg2);
-                self.r6_memregions[cpreg2]
+                self.r6_memregions[cpreg2].raw()
             }
 
             7 => panic!("Cannot read from cache control register!"),
