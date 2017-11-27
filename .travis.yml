@@ -7,6 +7,11 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+    
+cache:
+  - cargo
+  - directories:
+    - capstone-3.0.4
 
 env:
   - QT_SELECT=5
