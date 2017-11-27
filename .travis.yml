@@ -7,6 +7,11 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+    
+cache:
+  - cargo
+  - directories:
+    - capstone-3.0.4
 
 env:
   - QT_SELECT=5
@@ -15,10 +20,12 @@ dist: trusty
 sudo: required
 
 install:
-  - wget https://github.com/aquynh/capstone/archive/3.0.4.tar.gz -O /tmp/capstone.tar.gz
-  - tar -xvf /tmp/capstone.tar.gz
+  - if [ ! -e capstone-3.0.4 ]; then
+      wget https://github.com/aquynh/capstone/archive/3.0.4.tar.gz -O /tmp/capstone.tar.gz;
+      tar -xvf /tmp/capstone.tar.gz;
+    fi
   - pushd capstone-3.0.4
-  - ./make.sh && sudo ./make.sh install
+  - sudo ./make.sh install
   - popd
   - sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qt5-qmake
 
