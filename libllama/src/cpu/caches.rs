@@ -1,7 +1,8 @@
 pub struct TinyCache<T: Copy> {
     plru_set: u64,
     lru_index: usize,
-    mappings: [Option<(u32, T)>; 64]
+    map_keys: [u64; 64],
+    map_vals: [T; 64],
 }
 
 impl<T: Copy> TinyCache<T> {
@@ -9,8 +10,15 @@ impl<T: Copy> TinyCache<T> {
         TinyCache {
             plru_set: 0,
             lru_index: 0,
-            mappings: [None; 64]
+            map_keys: [!0; 64],
+            map_vals: [unsafe { ::std::mem::zeroed() }; 64]
         }
+    }
+
+    fn invalidate(&mut self) {
+        self.plru_set = 0;
+        self.lru_index = 0;
+        self.map_keys = [!0; 64];
     }
 
     fn update_plru64(&mut self, accessed: usize) {
@@ -23,42 +31,35 @@ impl<T: Copy> TinyCache<T> {
 
     fn get_or<F>(&mut self, key: u32, orelse: F) -> &T
         where F: Fn(u32) -> T {
-
-        let map_pos = self.mappings.iter().filter_map(|x|*x)
-            .position(|(map_key, _)| map_key == key);
+        let key = key as u64;
+        let map_pos = self.map_keys.iter().position(|map_key| *map_key == key);
 
         let pos = if let Some(pos) = map_pos {
             self.update_plru64(pos);
             pos
         } else {
-            let instr = orelse(key);
+            let instr = orelse(key as u32);
             let lru = self.lru_index;
-            self.mappings[lru] = Some((key, instr));
+            self.map_keys[lru] = key;
+            self.map_vals[lru] = instr;
             self.update_plru64(lru);
             lru
         };
-        &self.mappings[pos].as_ref().unwrap().1
+        &self.map_vals[pos]
     }
 
     fn update_in<F>(&mut self, key: u32, updater: F)
         where F: Fn(u32, &mut T) {
-        let map_item = self.mappings.iter().filter_map(|x|*x)
-            .position(|(map_key, _)| map_key == key);
+        let key = key as u64;
+        let map_item = self.map_keys.iter().position(|map_key| *map_key == key);
         if let Some(pos) = map_item {
-            updater(key, &mut self.mappings[pos].as_mut().unwrap().1);
+            updater(key as u32, &mut self.map_vals[pos]);
         }
-    }
-
-    fn invalidate(&mut self) {
-        *self = Self::new();
     }
 }
 
 
 use mem;
-use cpu::decoder_arm::ArmInstruction;
-use cpu::decoder_thumb::ThumbInstruction;
-
 
 pub struct MemCache(TinyCache<[u32; 8]>);
 impl MemCache {
