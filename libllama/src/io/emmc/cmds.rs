@@ -3,7 +3,7 @@ use std::io::{Seek, SeekFrom};
 use extprim::u128::u128 as u128_t;
 
 use io::emmc::{self, EmmcDevice, Status0, Status1, TransferType};
-use io::emmc::card::CardState;
+use io::emmc::card::{CardState, TransferLoc};
 
 pub fn go_idle_state(dev: &mut EmmcDevice) {
     for card in dev._internal_state.cards.iter_mut() {
@@ -73,12 +73,6 @@ pub fn set_blocklen(dev: &mut EmmcDevice) {
 pub fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
     let file_offset = emmc::get_params_u32(&*dev);
 
-    {
-        let file = &mut emmc::get_active_card(dev).storage;
-        file.seek(SeekFrom::Start(file_offset as u64)).unwrap();
-        trace!("Seeking SDMMC pointer to offset 0x{:08X}!", file_offset);
-    }
-
     let block_count = if emmc::use_32bit(dev) {
         let ctl = match ttype {
             TransferType::Read => bf!((dev.data32_ctl.get()) @ emmc::RegData32Ctl::rx32rdy as 1),
@@ -93,7 +87,11 @@ pub fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
         }
         dev.data16_blk_cnt.get()
     };
-    emmc::get_active_card(dev).make_transfer(ttype, block_count);
+
+    let card = &mut emmc::get_active_card(dev);
+    card.make_transfer(TransferLoc::Storage, ttype, block_count);
+    card.seek(SeekFrom::Start(file_offset as u64)).unwrap();
+    trace!("Seeking SDMMC pointer to offset 0x{:08X}!", file_offset);
 }
 
 pub fn app_cmd(dev: &mut EmmcDevice) {
@@ -116,5 +114,8 @@ pub fn set_clr_card_detect(dev: &mut EmmcDevice) {
 }
 
 pub fn get_scr(dev: &mut EmmcDevice) {
-    warn!("STUBBED: SDMMC ACMD52 GET_SCR!");
+    warn!("STUBBED: SDMMC ACMD51 GET_SCR!");
+    let num_blocks = dev.data16_blk_cnt.get();
+    emmc::trigger_status(dev, Status1::RxReady);
+    emmc::get_active_card(dev).make_transfer(TransferLoc::RegScr, TransferType::Read, num_blocks);
 }

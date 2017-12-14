@@ -250,7 +250,8 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
     let mut buf32 = [0u8; 4];
     match (transfer_type, is_32bit) {
         (TransferType::Read, false) => {
-            get_active_card(dev).storage.read_exact(&mut buf16).unwrap();
+            // TODO: Fail gracefully if read size < requested? Needs more testing
+            get_active_card(dev).read(&mut buf16).unwrap();
             dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
             // Setting these flags: hack to keep the client reading even after acknowledging
@@ -258,12 +259,13 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         }
         (TransferType::Write, false) => {
             buf16 = unsafe { mem::transmute(dev.data16_fifo.get()) };
-            get_active_card(dev).storage.write_all(&buf16).unwrap();
+            get_active_card(dev).write_all(&buf16).unwrap();
 
             trigger_status(dev, Status1::TxRq);
         }
         (TransferType::Read, true) => {
-            get_active_card(dev).storage.read_exact(&mut buf32).unwrap();
+            // TODO: Fail gracefully if read size < requested? Needs more testing
+            get_active_card(dev).read(&mut buf32).unwrap();
             dev.data32_fifo.set_unchecked(unsafe { mem::transmute(buf32) });
 
             let new_ctl = bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1);
@@ -271,7 +273,7 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         }
         (TransferType::Write, true) => {
             buf32 = unsafe { mem::transmute(dev.data32_fifo.get()) };
-            get_active_card(dev).storage.write_all(&buf32).unwrap();
+            get_active_card(dev).write_all(&buf32).unwrap();
 
             // Don't set flags. TODO: Why is this?
         }
