@@ -13,12 +13,12 @@ extern crate parking_lot;
 #[macro_use]
 pub mod utils;
 
-mod clock;
-mod cpu;
+pub mod clock;
+pub mod cpu;
 pub mod dbgcore;
 pub mod gdbstub;
 pub mod hwcore;
 pub mod io;
 pub mod ldr;
 pub mod msgs;
-mod mem;
+pub mod mem;
