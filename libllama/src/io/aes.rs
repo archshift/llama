@@ -296,12 +296,12 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
                 warn!("STUBBED: AES crypto with in_normal_order unset");
                 words.reverse();
             }
-            let bytes: [u8; 0x10] = unsafe { mem::transmute(words) };
 
-            let mut dec_bytes = [0u8; 0x20]; // Double size because of library silliness
-            active_process.update(&bytes[..], &mut dec_bytes[..]);
+            let mut dec_words = [0u32; 8]; // Double size because of library silliness
+            unsafe {
+                active_process.update(bytes::from_val(&words), bytes::from_mut_val(&mut dec_words));
+            }
 
-            let dec_words: [u32; 8] = unsafe { mem::transmute(dec_bytes) };
             let dec_words_iter = dec_words[..4].iter();
 
             if bf!(cnt @ RegCnt::out_normal_order) == 1 {
