@@ -16,6 +16,7 @@ pub mod utils;
 pub mod clock;
 pub mod cpu;
 pub mod dbgcore;
+pub mod fs;
 pub mod gdbstub;
 pub mod hwcore;
 pub mod io;

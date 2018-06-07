@@ -7,11 +7,7 @@ use extprim::u128::u128 as u128_t;
 use openssl::symm;
 
 use utils::bytes;
-
-pub fn keydb_path() -> String {
-    use std::env;
-    format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-aeskeydb.bin")
-}
+use fs;
 
 bfdesc!(RegCnt: u32, {
     fifo_in_count: 0 => 4,
@@ -144,19 +140,18 @@ impl Default for AesDeviceState {
 fn load_keys() -> [Key; 0x40] {
     let mut keys: [Key; 0x40] = [Default::default(); 0x40];
 
-    use std::fs::File;
     use std::io::Read;
-    let filename = keydb_path();
-    let mut file = match File::open(&filename) {
+    let mut file = match fs::open_file(fs::LlamaFile::AesKeyDb) {
         Ok(file) => file,
         Err(x) => {
-            info!("Could not open aeskeydb file `{}`... not loading keys!", filename);
+            info!("{}", x);
+            info!("Not loading AES keys!");
             return keys;
         }
     };
     for &mut Key { data: ref mut b } in keys.iter_mut() {
         if let Err(x) = file.read_exact(b) {
-            error!("Failed to read from aeskeydb file `{}`; {:?}", filename, x);
+            error!("Failed to read from aeskeydb file; {:?}", x);
             break
         }
     }

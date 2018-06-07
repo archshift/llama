@@ -1,11 +1,12 @@
 use std::env;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Read};
 
 use extprim::u128::u128 as u128_t;
 
 use io::emmc::TransferType;
 use utils::bytes;
+use fs;
 
 #[derive(Clone, Copy)]
 pub enum CardType {
@@ -175,34 +176,11 @@ impl io::Seek for Card {
     }
 }
 
-pub fn nand_storage() -> File {
-    let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-nand.bin");
-    match OpenOptions::new().read(true).write(true)
-                            .open(&filename) {
-        Ok(file) => file,
-        Err(x) => panic!("Failed to open NAND file `{}`; {:?}", filename, x)
-    }
-}
-
 pub fn nand_cid() -> CardIdentReg {
-    let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-nand-cid.bin");
-    let mut file = match OpenOptions::new().read(true).write(true)
-                                           .open(&filename) {
-        Ok(file) => file,
-        Err(x) => panic!("Failed to open NAND CID file `{}`; {:?}", filename, x)
-    };
+    let mut file = fs::open_file(fs::LlamaFile::NandCid).unwrap();
     let mut bytes = [0u8; 16];
     file.read_exact(&mut bytes).unwrap();
     CardIdentReg::new(bytes::to_u128(&bytes))
-}
-
-pub fn sd_storage() -> File {
-    let filename = format!("{}/{}", env::var("HOME").unwrap(), "/.config/llama-sd.fat");
-    match OpenOptions::new().read(true).write(true)
-                            .open(&filename) {
-        Ok(file) => file,
-        Err(x) => panic!("Failed to open SD card file `{}`; {:?}", filename, x)
-    }
 }
 
 pub fn sd_cid() -> CardIdentReg {

@@ -8,6 +8,7 @@ use std::mem;
 
 use io::emmc::card::Card;
 use cpu::irq;
+use fs;
 
 bfdesc!(RegCmd: u16, {
     command_index: 0 => 5,
@@ -92,12 +93,15 @@ pub struct EmmcDeviceState {
 
 impl EmmcDeviceState {
     pub fn new(irq_reqs: irq::IrqRequests) -> EmmcDeviceState {
+        let sd_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();        
+        let nand_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();
+
         EmmcDeviceState {
             irq_reqs: irq_reqs,
             irq_statuses: [0 | (Status0::SigState as u16), 0],
             cards: [
-                Card::new(card::CardType::Sd, card::sd_storage(), card::sd_cid()),
-                Card::new(card::CardType::Mmc, card::nand_storage(), card::nand_cid())
+                Card::new(card::CardType::Sd, sd_storage, card::sd_cid()),
+                Card::new(card::CardType::Mmc, nand_storage, card::nand_cid())
             ]
         }
     }

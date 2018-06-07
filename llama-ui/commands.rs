@@ -98,22 +98,18 @@ fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
         aes::dump_keys(&mut aes_dev)
     };
 
-    let filename = aes::keydb_path();
-    info!("Dumping AES keys to disk at `{}`...", filename);
+    info!("Dumping AES keys to disk...");
 
-    use std::fs::OpenOptions;
+    use libllama::fs;
     use std::io::Write;
-    let mut file = match OpenOptions::new().create(true).read(true).write(true)
-                                            .truncate(true).open(&filename) {
-        Ok(file) => file,
-        Err(x) => { error!("Failed to open aeskeydb file `{}`; {:?}", filename, x); return }
-    };
-    for k in key_slots.iter() {
-        if let Err(x) = file.write_all(&k.data) {
-            error!("Failed to write to aeskeydb file `{}`; {:?}", filename, x);
-            return
+    fs::create_file(fs::LlamaFile::AesKeyDb, |file| {
+        for k in key_slots.iter() {
+            if let Err(x) = file.write_all(&k.data) {
+                error!("Failed to write to aeskeydb file; {:?}", x);
+                return
+            }
         }
-    }
+    });
 }
 
 /// Triggers the specified IRQ
