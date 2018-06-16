@@ -93,7 +93,7 @@ pub struct EmmcDeviceState {
 
 impl EmmcDeviceState {
     pub fn new(irq_reqs: irq::IrqRequests) -> EmmcDeviceState {
-        let sd_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();        
+        let sd_storage = fs::open_file(fs::LlamaFile::SdCardImg).unwrap();        
         let nand_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();
 
         EmmcDeviceState {
