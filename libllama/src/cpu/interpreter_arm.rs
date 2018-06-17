@@ -1,5 +1,5 @@
 use cpu::Cpu;
-use cpu::decoder_arm::ArmInstruction;
+use cpu::decoder_arm::InstFn;
 use cpu::instructions_arm;
 use cpu::regs::Psr;
 
@@ -43,65 +43,11 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     }
 }
 
-pub fn interpret_arm(cpu: &mut Cpu, instr: ArmInstruction) {
+pub fn interpret_arm(cpu: &mut Cpu, inst_fn: InstFn, inst: u32) {
     #[cfg(feature = "trace_instructions")]
     trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
 
-    let status = match instr {
-        ArmInstruction::adc(data) => instructions_arm::adc(cpu, data),
-        ArmInstruction::add(data) => instructions_arm::add(cpu, data),
-        ArmInstruction::and(data) => instructions_arm::and(cpu, data),
-        ArmInstruction::bic(data) => instructions_arm::bic(cpu, data),
-        ArmInstruction::bbl(data) => instructions_arm::bbl(cpu, data),
-        ArmInstruction::blx_2(data) => instructions_arm::blx(cpu, data),
-        ArmInstruction::bx(data) => instructions_arm::bx(cpu, data),
-        ArmInstruction::clz(data) => instructions_arm::clz(cpu, data),
-        ArmInstruction::cmn(data) => instructions_arm::cmn(cpu, data),
-        ArmInstruction::cmp(data) => instructions_arm::cmp(cpu, data),
-        ArmInstruction::eor(data) => instructions_arm::eor(cpu, data),
-        ArmInstruction::ldm_1(data) => instructions_arm::ldm_1(cpu, data),
-        ArmInstruction::ldm_2(data) => instructions_arm::ldm_2(cpu, data),
-        ArmInstruction::ldm_3(data) => instructions_arm::ldm_3(cpu, data),
-        ArmInstruction::ldr(data) => instructions_arm::ldr(cpu, data),
-        ArmInstruction::ldrb(data) => instructions_arm::ldrb(cpu, data),
-        ArmInstruction::ldrd(data) => instructions_arm::ldrd(cpu, data),
-        ArmInstruction::ldrh(data) => instructions_arm::ldrh(cpu, data),
-        ArmInstruction::ldrsb(data) => instructions_arm::ldrsb(cpu, data),
-        ArmInstruction::ldrsh(data) => instructions_arm::ldrsh(cpu, data),
-        ArmInstruction::mcr(data) => instructions_arm::mcr(cpu, data),
-        ArmInstruction::mla(data) => instructions_arm::mla(cpu, data),
-        ArmInstruction::mov(data) => instructions_arm::mov(cpu, data),
-        ArmInstruction::mrc(data) => instructions_arm::mrc(cpu, data),
-        ArmInstruction::mrs(data) => instructions_arm::mrs(cpu, data),
-        ArmInstruction::msr_1(data) => instructions_arm::msr_1(cpu, data),
-        ArmInstruction::msr_2(data) => instructions_arm::msr_2(cpu, data),
-        ArmInstruction::mul(data) => instructions_arm::mul(cpu, data),
-        ArmInstruction::mvn(data) => instructions_arm::mvn(cpu, data),
-        ArmInstruction::orr(data) => instructions_arm::orr(cpu, data),
-        ArmInstruction::rsb(data) => instructions_arm::rsb(cpu, data),
-        ArmInstruction::rsc(data) => instructions_arm::rsc(cpu, data),
-        ArmInstruction::sbc(data) => instructions_arm::sbc(cpu, data),
-        ArmInstruction::smlal(data) => instructions_arm::smlal(cpu, data),
-        ArmInstruction::smull(data) => instructions_arm::smull(cpu, data),
-        ArmInstruction::stm_1(data) => instructions_arm::stm_1(cpu, data),
-        ArmInstruction::stm_2(data) => instructions_arm::stm_2(cpu, data),
-        ArmInstruction::str(data) => instructions_arm::str(cpu, data),
-        ArmInstruction::strb(data) => instructions_arm::strb(cpu, data),
-        ArmInstruction::strd(data) => instructions_arm::strd(cpu, data),
-        ArmInstruction::strh(data) => instructions_arm::strh(cpu, data),
-        ArmInstruction::sub(data) => instructions_arm::sub(cpu, data),
-        ArmInstruction::swi(data) => instructions_arm::swi(cpu, data),
-        ArmInstruction::swp(data) => instructions_arm::swp(cpu, data),
-        ArmInstruction::swpb(data) => instructions_arm::swpb(cpu, data),
-        ArmInstruction::teq(data) => instructions_arm::teq(cpu, data),
-        ArmInstruction::tst(data) => instructions_arm::tst(cpu, data),
-        ArmInstruction::umlal(data) => instructions_arm::umlal(cpu, data),
-        ArmInstruction::umull(data) => instructions_arm::umull(cpu, data),
-
-        ArmInstruction::mod_blx(data) => instructions_arm::mod_blx(cpu, data),
-
-        _ => panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
-    };
+    let status = inst_fn(cpu, inst);
 
     match status {
         InstrStatus::InBlock => cpu.regs[15] += 4,

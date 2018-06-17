@@ -1,3 +1,21 @@
+use cpu;
+
+pub type InstFn = fn(&mut cpu::Cpu, u32) -> cpu::InstrStatus;
+
+mod interpreter {
+    use cpu;
+    pub use cpu::instructions_arm::*;
+
+    pub fn undef(cpu: &mut cpu::Cpu, instr: u32) -> cpu::InstrStatus {
+        panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
+    }
+
+    #[inline(always)]
+    pub fn blx_2(cpu: &mut cpu::Cpu, instr: super::blx_2::InstrDesc) -> cpu::InstrStatus {
+        blx(cpu, instr)
+    }
+}
+
 define_insts!(ArmInstruction: u32, {
     with [ {0b1111}.4; {}.28 ] // Unconditional instructions
     {

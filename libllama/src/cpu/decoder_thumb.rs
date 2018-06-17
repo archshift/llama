@@ -1,3 +1,15 @@
+use cpu;
+use cpu::instructions_thumb::*;
+
+pub type InstFn = fn(&mut cpu::Cpu, u16) -> cpu::InstrStatus;
+mod interpreter {
+    use cpu;
+    pub use cpu::instructions_thumb::*;
+    pub fn undef(cpu: &mut cpu::Cpu, instr: u16) -> cpu::InstrStatus {
+        panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
+    }
+}
+
 define_insts!(ThumbInstruction: u16, {
     with [ {}.16 ]
     {
@@ -14,11 +26,11 @@ define_insts!(ThumbInstruction: u16, {
         asr_2: [ {0b0100000100}.10; rs.3; rd.3 ],
         b_1: [ {0b1101}.4; cond.4; signed_imm_8.8 ],
         bic: [ {0b0100001110}.10; rm.3; rd.3 ],
-        bkpt: [ {0b10111110}.8; immed_8.8 ],
+        // bkpt: [ {0b10111110}.8; immed_8.8 ],
         branch: [ {0b111}.3; h_bits.2; offset_11.11 ],
         blx_2: [ {0b010001111}.9; h2.1; rm.3; {0b000}.3 ],
         bx: [ {0b010001110}.9; h2.1; rm.3; {0b000}.3 ],
-        cmn: [ {0b0100001011}.10; rm.3; rn.3 ],
+        //cmn: [ {0b0100001011}.10; rm.3; rn.3 ],
         cmp_1: [ {0b00101}.5; rn.3; immed_8.8 ],
         cmp_2: [ {0b0100001010}.10; rm.3; rn.3 ],
         cmp_3: [ {0b01000101}.8; h1.1; h2.1; rm.3; rn.3 ],
@@ -61,7 +73,7 @@ define_insts!(ThumbInstruction: u16, {
         sub_2: [ {0b00111}.5; rd.3; immed_8.8 ],
         sub_3: [ {0b0001101}.7; rm.3; rn.3; rd.3 ],
         sub_4: [ {0b101100001}.9; immed_7.7 ],
-        swi: [ {0b11011111}.8; immed_8.8 ],
+        // swi: [ {0b11011111}.8; immed_8.8 ],
         tst: [ {0b0100001000}.10; rm.3; rn.3 ]
     }
 });

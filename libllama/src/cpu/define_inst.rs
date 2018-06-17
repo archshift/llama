@@ -116,24 +116,22 @@ macro_rules! define_insts {
         #[derive(Clone, Copy, Debug)]
         #[allow(non_camel_case_types)]
         pub enum $enumname {
-            $($( $name($name::InstrDesc), )*)*
-            Unknown
         }
 
         impl $enumname {
-            pub fn decode(encoding: $ty) -> $enumname {
+            pub fn decode(encoding: $ty) -> InstFn {
                 $(
                     if $({ __inst_gen_decode!(::std::mem::size_of::<$ty>()*8, [ $($wpart.$wwidth);* ], 0, 0, $ty);
                          decodable(encoding) })||* {
                     $(
                         if $name::decodable(encoding) {
-                            return $enumname::$name($name::InstrDesc::new(encoding))
+                            return unsafe { ::std::mem::transmute(interpreter::$name as usize) }
                         }
                     )*
                     }
                 )*
 
-                $enumname::Unknown
+                interpreter::undef
             }
         }
     )

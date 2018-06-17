@@ -156,12 +156,14 @@ impl Cpu {
 
             if bf!((self.cpsr).thumb_bit) == 0 {
                 assert_eq!(addr & 0b11, 0);
-                let instr = cpu::decoder_arm::ArmInstruction::decode(self.mpu.imem_read::<u32>(addr));
-                cpu::interpret_arm(self, instr);
+                let instr = self.mpu.imem_read::<u32>(addr);
+                let inst_fn = cpu::decoder_arm::ArmInstruction::decode(instr);
+                cpu::interpret_arm(self, inst_fn, instr);
             } else {
                 assert_eq!(addr & 0b1, 0);
-                let instr = cpu::decoder_thumb::ThumbInstruction::decode(self.mpu.imem_read::<u16>(addr));
-                cpu::interpret_thumb(self, instr);
+                let instr = self.mpu.imem_read::<u16>(addr);
+                let inst_fn = cpu::decoder_thumb::ThumbInstruction::decode(instr);
+                cpu::interpret_thumb(self, inst_fn, instr);
             }
         }
 
