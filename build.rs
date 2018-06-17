@@ -1,12 +1,39 @@
 extern crate bindgen;
 
 use std::env;
+use std::fs;
 use std::path;
 use std::process;
+
+fn exe_dir() -> path::PathBuf {
+    let base_dir = env::current_dir().unwrap();
+    let host = env::var("HOST").unwrap();
+    let target = env::var("TARGET").unwrap();
+    let profile = env::var("PROFILE").unwrap();
+    let mut exe_dir = base_dir.join("target");
+    if host != target {
+        exe_dir = exe_dir.join(target);
+    }
+    exe_dir = exe_dir.join(profile);
+    exe_dir
+}
+
+fn to_lib_name(base_name: &str) -> String {
+    let target = env::var("TARGET").unwrap();
+    let (prefix, suffix) = if target.contains("apple") {
+        ("lib", ".dylib")
+    } else if target.contains("linux") {
+        ("lib", ".so")
+    } else {
+        unimplemented!()
+    };
+    format!("{}{}{}", prefix, base_name, suffix)
+}
 
 fn main() {
     let base_dir = env::current_dir().unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();
+    let exe_dir = exe_dir();
 
     let qml_dir = base_dir.join("llama-ui/qml");
 
@@ -29,7 +56,10 @@ fn main() {
 
     assert!(status.success(), "failed to execute make");
 
-    println!("cargo:rustc-link-search=native={}", out_dir);
+    let lib_name = to_lib_name("llamagui");
+    fs::copy(format!("{}/{}", out_dir, lib_name), exe_dir.join(lib_name)).unwrap();
+
+    println!("cargo:rustc-link-search=native={}", exe_dir.as_os_str().to_str().unwrap());
     println!("cargo:rustc-link-lib=dylib={}", "llamagui");
 
     bindgen::Builder::default()
