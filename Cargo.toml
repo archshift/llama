@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["archshift <gh@archshift.com>"]
 build = "build.rs"
 
+[profile.release]
+debug = true
+
 [[bin]]
 name = "llama-ui"
 path = "llama-ui/main.rs"
