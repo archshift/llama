@@ -1,7 +1,6 @@
 use std::io::{self, Read, Write};
 use std::ops::{Add, AddAssign};
 use std::str;
-use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
@@ -78,7 +77,7 @@ impl BreakData {
     }
 }
 
-fn handle_gdb_cmd_q(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
+fn handle_gdb_cmd_q(cmd: &str, _ctx: &mut GdbCtx) -> Result<String> {
     let mut s = cmd.splitn(2, ':');
     let ty = parse_next(&mut s)?;
     let mut out = String::new();
@@ -210,7 +209,7 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             let mut params = params.split(',');
             let brk_ty = parse_next(&mut params)?;
             let addr = parse_next_hex(&mut params)?;
-            let kind = parse_next(&mut params)?;
+            let _kind = parse_next(&mut params)?;
             assert!(brk_ty == "0");
             if ty == 'Z' {
                 hw.set_breakpoint(addr);
@@ -393,7 +392,7 @@ impl GdbStub {
                         Message::Arm9Halted(reason) => {
                             if let Some(ref mut stream) = connection.socket {
                                 let break_data = BreakData::new(reason, ctx.dbg);
-                                write_gdb_packet(&break_data.to_signal(), stream);
+                                write_gdb_packet(&break_data.to_signal(), stream).unwrap();
                             }
                         }
                         _ => {}
@@ -437,7 +436,7 @@ fn handle_event<F>(event: &mio::Event, connection: &mut Connection, mut client_r
                 e => panic!("GDB stub IO error! {:?}", e)
             }
         }
-        TOKEN_CLIENT => for i in 0..128 {
+        TOKEN_CLIENT => for _ in 0..128 {
             match connection.socket.as_mut().unwrap().read(&mut buf) {
                 Ok(0) => {
                     connection.socket = None;

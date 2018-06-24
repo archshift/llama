@@ -1,5 +1,3 @@
-use io::regs;
-
 use std::fmt;
 use std::mem;
 

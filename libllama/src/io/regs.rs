@@ -24,10 +24,10 @@ impl<T> IoReg<T>
         self.val &= !self.write_bits;
         self.val |= new_val & self.write_bits;
     }
-    pub fn bitadd_unchecked(&mut self, bits: T) {
+    pub fn _bitadd_unchecked(&mut self, bits: T) {
         self.val |= bits;
     }
-    pub fn bitclr_unchecked(&mut self, bits: T) {
+    pub fn _bitclr_unchecked(&mut self, bits: T) {
         self.val &= !bits;
     }
     pub fn set_unchecked(&mut self, new_val: T) {
@@ -90,6 +90,7 @@ macro_rules! __iodevice__ {
 
         impl $crate::io::regs::IoRegAccess for $name {
             unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
+                #![allow(unused_comparisons)]
                 trace!("Reading from {} at +0x{:X}", stringify!($name), offset);
                 match offset {
                     $( $reg_offs => {
@@ -116,6 +117,7 @@ macro_rules! __iodevice__ {
             }
 
             unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+                #![allow(unused_comparisons)]
                 trace!("Writing to {} at +0x{:X}", stringify!($name), offset);
                 match offset {
                     $( $reg_offs => {

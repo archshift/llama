@@ -8,15 +8,15 @@ bitfield!(RegGlobalCnt: u32, {
 });
 
 bfdesc!(RegChannelCnt: u32, {
-    dst_addr_writeback_mode: 10 => 11,
-    dst_addr_reload: 12 => 12,
-    src_addr_writeback_mode: 13 => 14,
-    src_addr_reload: 15 => 15,
-    xfer_size: 16 => 19,
-    startup_mode: 24 => 27,
-    immed_mode: 28 => 28,
-    repeat_mode: 29 => 29,
-    enable_irq: 30 => 30,
+    _dst_addr_writeback_mode: 10 => 11,
+    _dst_addr_reload: 12 => 12,
+    _src_addr_writeback_mode: 13 => 14,
+    _src_addr_reload: 15 => 15,
+    _xfer_size: 16 => 19,
+    _startup_mode: 24 => 27,
+    _immed_mode: 28 => 28,
+    _repeat_mode: 29 => 29,
+    _enable_irq: 30 => 30,
     enabled: 31 => 31
 });
 
@@ -81,16 +81,12 @@ iodevice!(NdmaDevice, {
             read_effect = |dev: &mut NdmaDevice, buf_pos: usize, dest: &mut [u8]| {
                 let channel = buf_pos / 0x1C;
                 let new_buf_pos = buf_pos % 0x1C + 4; // As if the pos was for channel 0
-                unsafe {
-                    dev._internal_state.channels[channel].read_reg(new_buf_pos, dest.as_mut_ptr(), dest.len());
-                }
+                dev._internal_state.channels[channel].read_reg(new_buf_pos, dest.as_mut_ptr(), dest.len());
             };
             write_effect = |dev: &mut NdmaDevice, buf_pos: usize, src: &[u8]| {
                 let channel = buf_pos / 0x1C;
                 let new_buf_pos = buf_pos % 0x1C + 4; // As if the pos was for channel 0
-                unsafe {
-                    dev._internal_state.channels[channel].write_reg(new_buf_pos, src.as_ptr(), src.len());
-                }
+                dev._internal_state.channels[channel].write_reg(new_buf_pos, src.as_ptr(), src.len());
             };
         }
     }

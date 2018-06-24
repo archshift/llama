@@ -1,9 +1,9 @@
 bfdesc!(RegSync: u32, {
-    data_recv: 0 => 7,
-    data_sent: 8 => 15
+    _data_recv: 0 => 7,
+    _data_sent: 8 => 15
 });
 
-fn reg_sync_write(dev: &mut PxiDevice) {
+fn reg_sync_write(_dev: &mut PxiDevice) {
     warn!("STUBBED: Write to PXI_SYNC");
 }
 

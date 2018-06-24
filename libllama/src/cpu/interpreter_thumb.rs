@@ -7,9 +7,9 @@ mod interpreter {
     pub fn undef(cpu: &mut cpu::Cpu, instr: u16) -> cpu::InstrStatus {
         panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
     }
-    pub const bkpt: super::InstFn = undef;
-    pub const cmn: super::InstFn = undef;
-    pub const swi: super::InstFn = undef;
+    #[allow(non_upper_case_globals)] pub const bkpt: super::InstFn = undef;
+    #[allow(non_upper_case_globals)] pub const cmn: super::InstFn = undef;
+    #[allow(non_upper_case_globals)] pub const swi: super::InstFn = undef;
 }
 
 include!(concat!(env!("OUT_DIR"), "/thumb.decoder.rs"));

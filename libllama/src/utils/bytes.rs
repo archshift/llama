@@ -36,6 +36,7 @@ pub unsafe fn to_val<T: Copy>(data: &[u8]) -> T {
     out
 }
 
+#[allow(non_snake_case)]
 pub fn Tpos<T: Copy>(start: usize) -> ::std::ops::Range<usize> {
     start .. start + mem::size_of::<T>()
 }

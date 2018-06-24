@@ -13,10 +13,10 @@ use fs;
 bfdesc!(RegCmd: u16, {
     command_index: 0 => 5,
     command_type: 6 => 7,
-    response_type: 8 => 10,
-    has_data: 11 => 11,
-    is_reading: 12 => 12,
-    has_multi_block: 13 => 13
+    _response_type: 8 => 10,
+    _has_data: 11 => 11,
+    _is_reading: 12 => 12,
+    _has_multi_block: 13 => 13
 });
 
 bfdesc!(RegData16Ctl: u16, {
@@ -24,10 +24,10 @@ bfdesc!(RegData16Ctl: u16, {
 });
 
 bfdesc!(RegData32Ctl: u16, {
-    tx32rq_enable: 12 => 12,
-    rx32rdy_enable: 11 => 11,
-    clear_fifo32: 10 => 10,
-    tx32rq: 9 => 9,
+    _tx32rq_enable: 12 => 12,
+    _rx32rdy_enable: 11 => 11,
+    _clear_fifo32: 10 => 10,
+    _tx32rq: 9 => 9,
     rx32rdy: 8 => 8,
     use_32bit: 1 => 1
 });
@@ -42,13 +42,13 @@ enum Status {
 enum Status0 {
     CmdResponseEnd = (1 << 0),
     DataEnd     = (1 << 2),
-    CardRemove  = (1 << 3),
-    CardInsert  = (1 << 4),
+    _CardRemove  = (1 << 3),
+    _CardInsert  = (1 << 4),
     SigState    = (1 << 5),
-    WRProtect   = (1 << 7),
-    CardRemoveA = (1 << 8),
-    CardInsertA = (1 << 9),
-    SigStateA   = (1 << 10),
+    _WRProtect   = (1 << 7),
+    _CardRemoveA = (1 << 8),
+    _CardInsertA = (1 << 9),
+    _SigStateA   = (1 << 10),
 }
 
 impl Into<Status> for Status0 {
@@ -59,16 +59,16 @@ impl Into<Status> for Status0 {
 
 #[derive(Clone, Copy)]
 enum Status1 {
-    CmdIndexErr = (1 << 0),
-    CrcFail     = (1 << 1),
-    StopBitErr  = (1 << 2),
-    DataTimeout = (1 << 3),
-    RxOverflow  = (1 << 4),
-    TxUnderrun  = (1 << 5),
-    CmdTimeout  = (1 << 6),
+    _CmdIndexErr = (1 << 0),
+    _CrcFail     = (1 << 1),
+    _StopBitErr  = (1 << 2),
+    _DataTimeout = (1 << 3),
+    _RxOverflow  = (1 << 4),
+    _TxUnderrun  = (1 << 5),
+    _CmdTimeout  = (1 << 6),
     RxReady     = (1 << 8),
     TxRq        = (1 << 9),
-    IllFunc     = (1 << 13),
+    _IllFunc     = (1 << 13),
     CmdBusy     = (1 << 14),
     IllegalCmd  = (1 << 15),
 }
@@ -132,7 +132,7 @@ fn push_resp_u32(dev: &mut EmmcDevice, data: u32) {
     dev.response0.set_unchecked(data as u16)
 }
 
-fn set_resp_u16(dev: &mut EmmcDevice, data: &[u16]) {
+fn _set_resp_u16(dev: &mut EmmcDevice, data: &[u16]) {
     let mut resps = [ &mut dev.response0, &mut dev.response1, &mut dev.response2, &mut dev.response3,
                       &mut dev.response4, &mut dev.response5, &mut dev.response6, &mut dev.response7 ];
     for (r, d) in resps.iter_mut().zip(data.iter()) {

@@ -1,4 +1,3 @@
-use cpu;
 use cpu::coproc::{CpEffect, Coprocessor};
 
 bitfield!(RegControl: u32, {
@@ -65,7 +64,7 @@ impl Coprocessor for SysControl {
     fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) -> CpEffect {
         assert_eq!(op1, 0);
 
-        let mut effect: CpEffect = Box::new(move |cpu| {});
+        let mut effect: CpEffect = Box::new(move |_cpu| {});
         match cpreg1 {
             1 => match op2 {
                 0b000 => {

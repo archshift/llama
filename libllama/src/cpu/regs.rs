@@ -1,6 +1,6 @@
 use cpu;
 
-use std::iter::{Chain, Iterator, Take};
+use std::iter::Iterator;
 use std::ops;
 
 // Program status register

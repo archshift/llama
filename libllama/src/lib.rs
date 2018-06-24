@@ -1,3 +1,6 @@
+#![deny(warnings)]
+#![allow(unused_parens)]
+
 #[macro_use]
 extern crate bitutils;
 #[macro_use]

@@ -1,5 +1,3 @@
-use std::sync::mpsc;
-
 #[derive(Clone, Copy)]
 pub enum Button {
     A = 0,

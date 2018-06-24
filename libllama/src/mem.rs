@@ -4,7 +4,7 @@ use std::cmp;
 use std::ptr;
 use std::sync::Arc;
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 
 use io;
 

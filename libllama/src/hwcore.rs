@@ -1,6 +1,5 @@
 use std::sync::{self, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use clock;
 use cpu;
@@ -102,9 +101,9 @@ pub struct HwCore {
 
     _pump_thread: msgs::PumpThread,
     client_this: msgs::Client<Message>,
-    arm9_thread: thread::JoinHandle<()>,
-    arm11_thread: thread::JoinHandle<()>,
-    io_thread: thread::JoinHandle<()>,
+    _arm9_thread: thread::JoinHandle<()>,
+    _arm11_thread: thread::JoinHandle<()>,
+    _io_thread: thread::JoinHandle<()>,
 
     mem_pica: mem::MemController,
     pub irq_tx: cpu::irq::IrqRequests,
@@ -161,10 +160,10 @@ impl HwCore {
         let arm9_thread = thread::Builder::new().name("ARM9".to_owned()).spawn(move || {
             let client = client_arm9;
             loop {
-                emu_idle(&client) || break;
+                if !emu_idle(&client) { break }
                 {
                     let mut hw_guard = hardware.lock().unwrap();
-                    arm9_run(&client, &mut hw_guard) || break;
+                    if !arm9_run(&client, &mut hw_guard) { break }
                 }
             }
         }).unwrap();
@@ -173,10 +172,10 @@ impl HwCore {
         let arm11_thread = thread::Builder::new().name("ARM11".to_owned()).spawn(move || {
             let client = client_arm11;
             loop {
-                emu_idle(&client) || break;
+                if !emu_idle(&client) { break }
                 {
                     let mut hw_guard = hardware.lock().unwrap();
-                    arm11_run(&client, &mut hw_guard) || break;
+                    if !arm11_run(&client, &mut hw_guard) { break }
                 }
             }
         }).unwrap();
@@ -193,9 +192,9 @@ impl HwCore {
             hardware_io: hardware_io,
             _pump_thread: pump_thread,
             client_this: client_this,
-            arm9_thread: arm9_thread,
-            arm11_thread: arm11_thread,
-            io_thread: io_thread,
+            _arm9_thread: arm9_thread,
+            _arm11_thread: arm11_thread,
+            _io_thread: io_thread,
 
             mem_pica: mem_pica,
             irq_tx: irq_tx,
@@ -218,8 +217,8 @@ impl HwCore {
 
     pub fn stop(&mut self) {
         self.client_this.send(Message::SuspendEmulation).unwrap();
-        self.hardware9.lock().unwrap();
-        self.hardware11.lock().unwrap();
+        { let _ = self.hardware9.lock().unwrap(); }
+        { let _ = self.hardware11.lock().unwrap(); }
     }
 
     pub fn copy_framebuffers(&mut self, fbs: &mut Framebuffers) {
@@ -234,7 +233,7 @@ impl HwCore {
 }
 
 fn io_run(client: &msgs::Client<Message>, hardware: (io::IoRegsArm9, io::IoRegsShared)) {
-    let (io9, shared) = hardware;
+    let (_io9, shared) = hardware;
     for msg in client.iter() {
         match msg {
             Message::HidUpdate(btn) => {

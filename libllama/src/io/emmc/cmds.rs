@@ -2,7 +2,7 @@ use std::io::{Seek, SeekFrom};
 
 use extprim::u128::u128 as u128_t;
 
-use io::emmc::{self, EmmcDevice, Status0, Status1, TransferType};
+use io::emmc::{self, EmmcDevice, Status1, TransferType};
 use io::emmc::card::{CardState, TransferLoc};
 
 pub fn go_idle_state(dev: &mut EmmcDevice) {
@@ -38,7 +38,7 @@ pub fn get_relative_addr(dev: &mut EmmcDevice) -> u16 {
     rca
 }
 
-pub fn switch(dev: &mut EmmcDevice) {
+pub fn switch(_dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC CMD6 SWITCH!");
 }
 
@@ -66,7 +66,7 @@ pub fn stop_transmission(dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC CMD12 STOP_TRANSMISSION!");
 }
 
-pub fn set_blocklen(dev: &mut EmmcDevice) {
+pub fn set_blocklen(_dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC CMD16 SET_BLOCKLEN!");
 }
 
@@ -98,7 +98,7 @@ pub fn app_cmd(dev: &mut EmmcDevice) {
     bf!((emmc::get_active_card(dev).csr).app_cmd = 1);
 }
 
-pub fn set_bus_width(dev: &mut EmmcDevice) {
+pub fn set_bus_width(_dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC ACMD6 SET_BUS_WIDTH!");
 }
 
@@ -109,7 +109,7 @@ pub fn app_send_op_cond(dev: &mut EmmcDevice) -> u32 {
     return voltages | (1 << 31);
 }
 
-pub fn set_clr_card_detect(dev: &mut EmmcDevice) {
+pub fn set_clr_card_detect(_dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC ACMD42 SET_CLR_CARD_DETECT!");
 }
 

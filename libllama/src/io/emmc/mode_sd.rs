@@ -1,9 +1,7 @@
-use std::mem;
-
 use extprim::u128::u128 as u128_t;
 
 use io::emmc::{self, EmmcDevice, TransferType};
-use io::emmc::card::{CardStatusReg, CardType};
+use io::emmc::card::{CardType};
 use io::emmc::cmds;
 use utils::bytes;
 
@@ -15,7 +13,7 @@ enum CmdHandler {
     R7(fn(&mut EmmcDevice) -> u32)
 }
 
-static CMDs: [(usize, CmdHandler, CardType); 16] = [
+static CMDS: [(usize, CmdHandler, CardType); 16] = [
     (0, CmdHandler::R1(cmds::go_idle_state), CardType::Sdmmc),
     (1, CmdHandler::R3(cmds::send_op_cond), CardType::Mmc),
     (2, CmdHandler::R2(cmds::all_send_cid), CardType::Sdmmc),
@@ -38,7 +36,7 @@ static CMDs: [(usize, CmdHandler, CardType); 16] = [
     // (58, CmdHandler::R3(cmds::read_ocr))
 ];
 
-static ACMDs: [(usize, CmdHandler, CardType); 4] = [
+static ACMDS: [(usize, CmdHandler, CardType); 4] = [
     (6, CmdHandler::R1(cmds::set_bus_width), CardType::Sd),
     (41, CmdHandler::R3(cmds::app_send_op_cond), CardType::Sd),
     (42, CmdHandler::R1(cmds::set_clr_card_detect), CardType::Sd),
@@ -99,9 +97,9 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
 }
 
 pub fn handle_cmd(dev: &mut EmmcDevice, cmd_index: u16) {
-    handle_any_cmd(dev, &CMDs, cmd_index);
+    handle_any_cmd(dev, &CMDS, cmd_index);
 }
 
 pub fn handle_acmd(dev: &mut EmmcDevice, cmd_index: u16) {
-    handle_any_cmd(dev, &ACMDs, cmd_index);
+    handle_any_cmd(dev, &ACMDS, cmd_index);
 }

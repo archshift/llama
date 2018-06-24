@@ -165,7 +165,6 @@ impl Cpu {
                 let inst_fn = cpu::thumb::decode(instr);
                 cpu::thumb::interpret(self, inst_fn, instr);
             }
-            }
         }
 
         self.cycles = cycles;
@@ -173,19 +172,19 @@ impl Cpu {
     }
 
     pub fn enter_exception(&mut self, return_loc: u32, mode: Mode) {
-        let R14_exc = return_loc;
-        let SPSR_exc = self.cpsr;
+        let r14_exc = return_loc;
+        let spsr_exc = self.cpsr;
 
         self.regs.swap(mode);
         bf!((self.cpsr).mode = mode as u32);
 
-        self.regs[14] = R14_exc;
-        *self.get_current_spsr() = SPSR_exc;
+        self.regs[14] = r14_exc;
+        *self.get_current_spsr() = spsr_exc;
         bf!((self.cpsr).thumb_bit = 0);
         bf!((self.cpsr).disable_irq_bit = 1);
 
         // These vectors look like 0x080000XX because that's where the bootrom redirects them
-        let mut vector_addr = match mode {
+        let vector_addr = match mode {
             Mode::Irq => 0x08000000,
             Mode::Fiq => unimplemented!(),
             Mode::Svc => 0x08000010,

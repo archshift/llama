@@ -29,13 +29,12 @@ macro_rules! dmnode {
 }
 
 pub mod modes {
-    use std::time;
     use std::thread;
 
     use super::*;
 
     pub fn idle() -> BoxedSteppable {
-        let mut program = Program::<()>::new(());
+        let program = Program::<()>::new(());
         program.build()
     }
 
@@ -113,6 +112,7 @@ impl Dummy11 {
 type OpFn<State> = fn(&mut State, &mut Dummy11HW) -> Result<(), ()>;
 type CondFn<State> = fn(&State, &Dummy11HW) -> Result<bool, ()>;
 
+#[allow(dead_code)] 
 enum ProgramOp<State> {
     Nop,
     Block,

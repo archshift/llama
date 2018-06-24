@@ -109,7 +109,7 @@ fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
                 return
             }
         }
-    });
+    }).unwrap();
 }
 
 /// Triggers the specified IRQ

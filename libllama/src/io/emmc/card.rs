@@ -1,4 +1,3 @@
-use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 
@@ -17,17 +16,17 @@ pub enum CardType {
 
 #[derive(Clone, Copy)]
 pub enum CardState {
-    Idle = 0,
+    _Idle = 0,
     Ready = 1,
     Ident = 2,
     Stby = 3,
     Tran = 4,
-    Data = 5,
-    Rcv = 6,
-    Prg = 7,
-    Dis = 8,
-    Btst = 9,
-    Slp = 10
+    _Data = 5,
+    _Rcv = 6,
+    _Prg = 7,
+    _Dis = 8,
+    _Btst = 9,
+    _Slp = 10
 }
 
 bitfield!(CardStatusReg: u32, {
@@ -83,7 +82,7 @@ impl Card {
         }
     }
 
-    pub fn make_transfer(&mut self, loc: TransferLoc, ttype: TransferType, num_blocks: u16) {
+    pub fn make_transfer(&mut self, _loc: TransferLoc, ttype: TransferType, num_blocks: u16) {
         let transfer = ActiveTransfer {
             loc: TransferLoc::Storage,
             ty: ttype,
@@ -107,7 +106,7 @@ impl Card {
         bf!((self.csr).current_state = state as u32);
     }
 
-    pub fn reset(&mut self, spi: bool) {
+    pub fn reset(&mut self, _spi: bool) {
         // TODO: stubbed
     }
 }
@@ -165,7 +164,7 @@ impl io::Seek for Card {
             TransferLoc::Storage => self.storage.seek(seek_from),
             _ => Ok(match seek_from {
                 io::SeekFrom::Current(v) => ((xfer.seek_pos as i64) + v as i64) as u64,
-                io::SeekFrom::End(v) => unimplemented!(),
+                io::SeekFrom::End(_v) => unimplemented!(),
                 io::SeekFrom::Start(v) => v as u64,
             })
         };

@@ -1,19 +1,16 @@
-use io::regs;
-
 use std::fmt;
-use std::mem;
 
-use openssl::hash::{Hasher, MessageDigest, DigestBytes};
+use openssl::hash::{Hasher, MessageDigest};
 
 bfdesc!(RegCnt: u32, {
     busy: 0 => 0,
     final_round: 1 => 1,
-    enable_irq0: 2 => 2,
+    _enable_irq0: 2 => 2,
     big_endian: 3 => 3,
     hash_mode: 4 => 5,
     clear_fifo: 8 => 8,
-    enable_fifo: 9 => 9,
-    enable_irq1: 10 => 10
+    _enable_fifo: 9 => 9,
+    _enable_irq1: 10 => 10
 });
 
 #[derive(Default)]
@@ -81,7 +78,7 @@ fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
 fn reg_fifo_write(dev: &mut ShaDevice, buf_pos: usize, source: &[u8]) {
     println!("Writing {} bytes to SHA FIFO at +0x{:X}", source.len(), buf_pos);
 
-    let cnt = dev.cnt.get();
+    let _cnt = dev.cnt.get();
     let hasher = match dev._internal_state.hasher {
         Some(ref mut h) => h,
         None => return

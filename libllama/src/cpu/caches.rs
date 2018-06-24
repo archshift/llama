@@ -24,7 +24,7 @@ impl MemCache {
     #[inline]
     fn write<T: Copy>(&mut self, addr: u32, val: T) {
         let (line_base, line_rem) = Self::decompose_addr(addr);
-        self.0.update_in(line_base, |k, line| {
+        self.0.update_in(line_base, |_k, line| {
             unsafe { *(((line.as_mut_ptr() as usize) + line_rem as usize) as *mut T) = val; }
         });
     }
@@ -80,7 +80,7 @@ impl Mpu {
             }
         }
 
-        mask != 0 || panic!("Attempted to read memory from {:#08X} in nonexistent MpuRegion!", addr);
+        if mask == 0 { panic!("Attempted to read memory from {:#08X} in nonexistent MpuRegion!", addr) };
         mask
     }
 

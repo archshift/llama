@@ -63,7 +63,7 @@ impl Key {
         Key::from_int(common)
     }
 
-    fn from_int(mut num: u128_t) -> Key {
+    fn from_int(num: u128_t) -> Key {
         Key { data: bytes::from_u128(num) }
     }
 
@@ -294,7 +294,10 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
 
             let mut dec_words = [0u32; 8]; // Double size because of library silliness
             unsafe {
-                active_process.update(bytes::from_val(&words), bytes::from_mut_val(&mut dec_words));
+                active_process.update(
+                    bytes::from_val(&words),
+                    bytes::from_mut_val(&mut dec_words)
+                ).unwrap();
             }
 
             let dec_words_iter = dec_words[..4].iter();
@@ -373,7 +376,7 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
     }
 }
 
-fn reg_twlkey_write(dev: &mut AesDevice, buf_pos: usize, src: &[u8], keyslot: usize) {
+fn reg_twlkey_write(_dev: &mut AesDevice, buf_pos: usize, src: &[u8], keyslot: usize) {
     warn!("STUBBED: Writing {} bytes to AES TWLKEY{} at +0x{:X}", src.len(), keyslot, buf_pos);
 }
 
