@@ -34,6 +34,7 @@ decoder u32 ArmInstruction {
         clz = [ cond:4; 0b000101101111:12; rd:4; 0b1111:4; 0b0001:4; rm:4 ]
         mrs = [ cond:4; 0b00010:5; r_bit:1; 0b00:2; 0b1111:4; rd:4; 0b000000000000:12 ]
         msr_2 = [ cond:4; 0b00010:5; r_bit:1; 0b10:2; field_mask:4; 0b111100000000:12; rm:4 ]
+        bkpt = [ 0b111000010010:12; immed_hi:11; 0b0111:4; immed_lo:4 ]
     }
 
     category [ _:4; 0b000:3; _:17; 0b1:1; _:2; 0b1:1; _:4 ] // Multiplies extra loads/stores

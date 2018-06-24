@@ -115,6 +115,13 @@ pub fn bic(cpu: &mut Cpu, data: thumb::Bic) -> cpu::InstrStatus {
     instr_bitwise(cpu, thumb::And::new(data.raw()), ProcessInstrBitOp::AndNot)
 }
 
+pub fn cmn(cpu: &mut Cpu, data: thumb::Cmn) -> cpu::InstrStatus {
+    let arminst: u32 = 0b111000010111_0000_0000_00000000_0000
+                                      | ((bf!(data.rn) as u32) << 16)
+                                                         | ((bf!(data.rm) as u32) << 0);
+    cpu::instructions_arm::cmn(cpu, arm::Cmn::new(arminst))
+}
+
 pub fn cmp_1(cpu: &mut Cpu, data: thumb::Cmp1) -> cpu::InstrStatus {
     let base_val = cpu.regs[bf!(data.rn) as usize];
     let immed = bf!(data.immed_8) as u32;

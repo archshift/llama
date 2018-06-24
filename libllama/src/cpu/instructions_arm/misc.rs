@@ -11,3 +11,8 @@ pub fn swi(cpu: &mut Cpu, data: arm::Swi) -> cpu::InstrStatus {
     cpu.enter_exception(next_instr, cpu::Mode::Svc);
     cpu::InstrStatus::Branched
 }
+
+pub fn bkpt(_cpu: &mut Cpu, data: arm::Bkpt) -> cpu::InstrStatus {
+    let brk_num = bf!(data.immed_lo) | (bf!(data.immed_hi) << 4);
+    panic!("Hit breakpoint instruction! (#{})", brk_num);
+}
