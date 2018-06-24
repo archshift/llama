@@ -14,11 +14,9 @@ mod interpreter {
 
 include!(concat!(env!("OUT_DIR"), "/thumb.decoder.rs"));
 
-pub fn interpret(cpu: &mut Cpu, inst_fn: InstFn, inst: u16) {
-    let status = inst_fn(cpu, inst);
-
-    match status {
-        InstrStatus::InBlock => cpu.regs[15] += 2,
-        InstrStatus::Branched => {},
-    }
+#[inline]
+pub fn interpret_next(cpu: &mut Cpu, addr: u32) -> InstrStatus {
+    let instr = cpu.mpu.imem_read::<u16>(addr);
+    let inst_fn = *cpu.thumb_decode_cache.get_or(instr as u32, &mut ());
+    inst_fn(cpu, instr)
 }

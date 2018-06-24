@@ -55,11 +55,9 @@ mod interpreter {
 
 include!(concat!(env!("OUT_DIR"), "/arm.decoder.rs"));
 
-pub fn interpret(cpu: &mut Cpu, inst_fn: InstFn, inst: u32) {
-    let status = inst_fn(cpu, inst);
-
-    match status {
-        InstrStatus::InBlock => cpu.regs[15] += 4,
-        InstrStatus::Branched => {},
-    }
+#[inline]
+pub fn interpret_next(cpu: &mut Cpu, addr: u32) -> InstrStatus {
+    let instr = cpu.mpu.imem_read::<u32>(addr);
+    let inst_fn = *cpu.arm_decode_cache.get_or(instr, &mut ());
+    inst_fn(cpu, instr)
 }

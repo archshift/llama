@@ -1,5 +1,6 @@
 use clock;
 use cpu;
+use cpu::InstrStatus;
 use cpu::caches;
 use cpu::coproc;
 use cpu::irq;
@@ -52,8 +53,8 @@ pub struct Cpu {
     cycles: usize,
     sys_clk: clock::SysClock,
 
-    thumb_decode_cache: TinyCache<cpu::thumb::InstFn, ()>,
-    arm_decode_cache: TinyCache<cpu::arm::InstFn, ()>,
+    pub(crate) thumb_decode_cache: TinyCache<cpu::thumb::InstFn, ()>,
+    pub(crate) arm_decode_cache: TinyCache<cpu::arm::InstFn, ()>,
 
     pub breakpoints: HashSet<u32> // addr, is_triggered
 }
@@ -65,7 +66,6 @@ pub enum BreakReason {
     Trapped,
     WFI
 }
-
 
 const PAUSE_CYCLES: usize = 128;
 
@@ -105,11 +105,27 @@ impl Cpu {
         bf!((self.cpsr).disable_fiq_bit = 0b1);
         bf!((self.cpsr).disable_irq_bit = 0b1);
 
-        self.regs[15] = entry + self.get_pc_offset();
+        self.regs[15] = entry + Self::pc_offset(0);
     }
 
+    #[inline]
+    fn instr_size(thumb_bit: u32) -> u32 {
+        4 >> thumb_bit
+    }
+
+    #[inline]
+    fn pc_offset(thumb_bit: u32) -> u32 {
+        Self::instr_size(thumb_bit) * 2
+    }
+
+    // For external interface
     pub fn get_pc_offset(&self) -> u32 {
-        8 >> bf!((self.cpsr).thumb_bit)
+        let thumb_bit = bf!((self.cpsr).thumb_bit);
+        Self::pc_offset(thumb_bit)
+    }
+
+    pub fn check_alignment(&self, thumb_bit: u32) {
+        assert_eq!(self.regs[15] & (Self::instr_size(thumb_bit) - 1), 0);
         }
 
     pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor {
@@ -137,16 +153,19 @@ impl Cpu {
 
     #[inline(always)]
     pub fn branch(&mut self, addr: u32) {
-        self.regs[15] = addr + self.get_pc_offset();
-        // TODO: Invalidate pipeline once/if we have one
+        let thumb_bit = bf!((self.cpsr).thumb_bit);
+        self.regs[15] = addr + Self::pc_offset(thumb_bit);
+        self.check_alignment(thumb_bit);
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
         let mut cycles = self.cycles;
         let mut irq_known_pending = false;
+        let mut thumb_bit = bf!((self.cpsr).thumb_bit);
+        self.check_alignment(thumb_bit);
 
         for _ in 0..num_instrs {
-            let addr = self.regs[15] - self.get_pc_offset();
+            let addr = self.regs[15] - Self::pc_offset(thumb_bit);
 
             cycles -= 1;
             // Amortize the cost of checking for IRQs, updating clock
@@ -166,16 +185,14 @@ impl Cpu {
                 return BreakReason::Breakpoint;
             }
 
-            if bf!((self.cpsr).thumb_bit) == 0 {
-                assert_eq!(addr & 0b11, 0);
-                let instr = self.mpu.imem_read::<u32>(addr);
-                let inst_fn = *self.arm_decode_cache.get_or(instr, &mut ());
-                cpu::arm::interpret(self, inst_fn, instr);
+            let status = if thumb_bit == 0 {
+                cpu::arm::interpret_next(self, addr)
             } else {
-                assert_eq!(addr & 0b1, 0);
-                let instr = self.mpu.imem_read::<u16>(addr);
-                let inst_fn = *self.thumb_decode_cache.get_or(instr as u32, &mut ());
-                cpu::thumb::interpret(self, inst_fn, instr);
+                cpu::thumb::interpret_next(self, addr)
+            };
+            match status {
+                InstrStatus::InBlock => self.regs[15] += Self::instr_size(thumb_bit),
+                InstrStatus::Branched => thumb_bit = bf!((self.cpsr).thumb_bit),
             }
         }
 
