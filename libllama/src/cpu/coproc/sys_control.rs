@@ -89,9 +89,7 @@ impl Coprocessor for SysControl {
                     self.r2_dcacheability = val;
                     let cacheable = val;
                     effect = Box::new(move |cpu| {
-                        for (i, region) in cpu.mpu.regions.iter_mut().enumerate() {
-                            region.use_dcache = bit!(cacheable, i) == 1;
-                        }
+                        cpu.mpu.region_use_dcache = cacheable as u8
                     });
                 }
                 1 => {
@@ -99,9 +97,7 @@ impl Coprocessor for SysControl {
                     self.r2_icacheability = val;
                     let cacheable = val;
                     effect = Box::new(move |cpu| {
-                        for (i, region) in cpu.mpu.regions.iter_mut().enumerate() {
-                            region.use_icache = bit!(cacheable, i) == 1;
-                        }
+                        cpu.mpu.region_use_icache = cacheable as u8
                     });
                 }
                 _ => unreachable!()
@@ -131,10 +127,10 @@ impl Coprocessor for SysControl {
 
                 let region_data = self.r6_memregions[index];
                 effect = Box::new(move |cpu| {
-                    let region = &mut cpu.mpu.regions[index];
-                    region.size_exp = (bf!(region_data.size) + 1) as u16;
-                    region.base_sigbits = bf!(region_data.base_shr_12) << 12 >> region.size_exp;
-                    region.enabled = bf!(region_data.enabled) == 1;
+                    let size_exp = bf!(region_data.size) + 1;
+                    cpu.mpu.region_size_exp[index] = size_exp;
+                    cpu.mpu.region_base_sigbits[index] = bf!(region_data.base_shr_12) << 12 >> size_exp;
+                    cpu.mpu.region_enabled |= (bf!(region_data.enabled) << index) as u8;
                 });
             }
 

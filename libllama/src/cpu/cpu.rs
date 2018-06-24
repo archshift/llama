@@ -61,6 +61,9 @@ pub enum BreakReason {
     WFI
 }
 
+
+const PAUSE_CYCLES: usize = 128;
+
 impl Cpu {
     pub fn new(memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu {
         Cpu {
@@ -76,7 +79,7 @@ impl Cpu {
             mpu: caches::Mpu::new(memory),
 
             irq_line: irq_line,
-            cycles: 0usize,
+            cycles: PAUSE_CYCLES,
             sys_clk: clk,
 
             breakpoints: HashSet::new()
@@ -137,11 +140,12 @@ impl Cpu {
         for _ in 0..num_instrs {
             let addr = self.regs[15] - self.get_pc_offset();
 
-            cycles = cycles.wrapping_add(1);
+            cycles -= 1;
             // Amortize the cost of checking for IRQs, updating clock
-            if cycles % 128 == 0 {
-                self.sys_clk.increment(128 * 8); // Probably speeds up time but w/e
+            if cycles == 0 {
+                self.sys_clk.increment(PAUSE_CYCLES * 8); // Probably speeds up time but w/e
                 irq_known_pending = self.irq_line.is_high();
+                cycles = PAUSE_CYCLES;
             }
             if irq_known_pending && bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
                 trace!("ARM9 IRQ triggered!");

@@ -35,20 +35,16 @@ impl MemCache {
 }
 
 
-#[derive(Default, Copy, Clone)]
-pub struct MpuRegion {
-    pub base_sigbits: u32,
-    pub size_exp: u16,
-    pub enabled: bool,
-    pub use_icache: bool,
-    pub use_dcache: bool,
-}
-
 pub struct Mpu {
     pub enabled: bool,
     pub icache_enabled: bool,
     pub dcache_enabled: bool,
-    pub regions: [MpuRegion; 8],
+
+    pub region_enabled: u8,
+    pub region_use_icache: u8,
+    pub region_use_dcache: u8,
+    pub region_base_sigbits: [u32; 8],
+    pub region_size_exp: [u32; 8],
 
     pub memory: mem::MemController,
     pub icache: MemCache,
@@ -61,20 +57,31 @@ impl Mpu {
             enabled: false,
             icache_enabled: false,
             dcache_enabled: false,
-            regions: [Default::default(); 8],
+
+            region_enabled: 0,
+            region_use_icache: 0,
+            region_use_dcache: 0,
+            region_base_sigbits: [0; 8],
+            region_size_exp: [0; 8],
+
             memory: memory,
             icache: MemCache::new(),
             dcache: MemCache::new(),
         }
     }
 
-    fn addr_region(&self, addr: u32) -> &MpuRegion {
-        for region in self.regions.iter().rev() {
-            if region.enabled && ((addr >> region.size_exp as u32) == region.base_sigbits) {
-                return region
+    fn region_mask(&self, addr: u32) -> u8 {
+        let mut mask = 0;
+        for i in (0..8).rev() {
+            let bit = 1 << i;
+            if (self.region_enabled & bit != 0) && ((addr >> self.region_size_exp[i]) == self.region_base_sigbits[i]) {
+                mask |= bit;
+                break;
             }
         }
-        panic!("Attempted to read memory from {:#08X} in nonexistent MpuRegion!", addr);
+
+        mask != 0 || panic!("Attempted to read memory from {:#08X} in nonexistent MpuRegion!", addr);
+        mask
     }
 
     fn icache_enabled(&self) -> bool {
@@ -86,7 +93,7 @@ impl Mpu {
     }
 
     pub fn imem_read<T: Copy>(&mut self, addr: u32) -> T {
-        if self.icache_enabled() && self.addr_region(addr).use_icache {
+        if self.icache_enabled() && (self.region_use_icache & self.region_mask(addr)) != 0 {
             self.icache.read(addr, &self.memory)
         } else {
             self.memory.read(addr)
@@ -94,7 +101,7 @@ impl Mpu {
     }
 
     pub fn dmem_read<T: Copy>(&mut self, addr: u32) -> T {
-        if self.dcache_enabled() && self.addr_region(addr).use_dcache {
+        if self.dcache_enabled() && (self.region_use_dcache & self.region_mask(addr)) != 0 {
             self.dcache.read(addr, &self.memory)
         } else {
             self.memory.read(addr)
@@ -103,7 +110,7 @@ impl Mpu {
 
     pub fn dmem_write<T: Copy>(&mut self, addr: u32, val: T) {
         self.memory.write(addr, val);
-        if self.dcache_enabled() && self.addr_region(addr).use_dcache {
+        if self.dcache_enabled() && (self.region_use_dcache & self.region_mask(addr)) != 0 {
             self.dcache.write(addr, val);
         }
     }
