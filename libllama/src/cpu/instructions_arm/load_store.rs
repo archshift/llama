@@ -1,12 +1,12 @@
 use cpu;
 use cpu::Cpu;
-use cpu::decoder_arm as arm;
+use cpu::interpreter_arm as arm;
 
 use bitutils::sign_extend;
 
 mod addressing {
     use cpu::Cpu;
-    use cpu::decoder_arm as arm;
+    use cpu::interpreter_arm as arm;
 
     pub struct LsAddr(pub u32);
     pub struct WbAddr(pub u32);
@@ -73,7 +73,7 @@ mod addressing {
     }
 
     pub fn decode_normal(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
-        let instr_data = arm::ldr::InstrDesc::new(instr_data);
+        let instr_data = arm::Ldr::new(instr_data);
         let carry_bit = bf!((cpu.cpsr).c_bit) as u32;
 
         let offset = if bf!(instr_data.i_bit) == 1 {
@@ -89,7 +89,7 @@ mod addressing {
     }
 
     pub fn decode_misc(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
-        let instr_data = arm::ldrh::InstrDesc::new(instr_data);
+        let instr_data = arm::Ldrh::new(instr_data);
 
         let offset = if bf!(instr_data.i_bit) == 1 {
             misc_immed_offset(instr_data.raw())
@@ -111,7 +111,7 @@ enum MiscLsType {
     SignedHalfword
 }
 
-fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::InstrStatus {
+fn instr_load(cpu: &mut Cpu, data: arm::Ldr, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -141,7 +141,7 @@ fn instr_load(cpu: &mut Cpu, data: arm::ldr::InstrDesc, byte: bool) -> cpu::Inst
     cpu::InstrStatus::InBlock
 }
 
-fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
+fn instr_load_misc(cpu: &mut Cpu, data: arm::Ldrh, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -170,7 +170,7 @@ fn instr_load_misc(cpu: &mut Cpu, data: arm::ldrh::InstrDesc, ty: MiscLsType) ->
     cpu::InstrStatus::InBlock
 }
 
-fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::InstrStatus {
+fn instr_store(cpu: &mut Cpu, data: arm::Str, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -190,7 +190,7 @@ fn instr_store(cpu: &mut Cpu, data: arm::str::InstrDesc, byte: bool) -> cpu::Ins
     cpu::InstrStatus::InBlock
 }
 
-fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -> cpu::InstrStatus {
+fn instr_store_misc(cpu: &mut Cpu, data: arm::Strh, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -214,47 +214,47 @@ fn instr_store_misc(cpu: &mut Cpu, data: arm::strh::InstrDesc, ty: MiscLsType) -
     cpu::InstrStatus::InBlock
 }
 
-pub fn ldr(cpu: &mut Cpu, data: arm::ldr::InstrDesc) -> cpu::InstrStatus {
+pub fn ldr(cpu: &mut Cpu, data: arm::Ldr) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
 
-pub fn ldrb(cpu: &mut Cpu, data: arm::ldrb::InstrDesc) -> cpu::InstrStatus {
-    instr_load(cpu, arm::ldr::InstrDesc::new(data.raw()), true)
+pub fn ldrb(cpu: &mut Cpu, data: arm::Ldrb) -> cpu::InstrStatus {
+    instr_load(cpu, arm::Ldr::new(data.raw()), true)
 }
 
-pub fn ldrd(cpu: &mut Cpu, data: arm::ldrd::InstrDesc) -> cpu::InstrStatus {
-    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
+pub fn ldrd(cpu: &mut Cpu, data: arm::Ldrd) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::Ldrh::new(data.raw()), MiscLsType::Doubleword)
 }
 
-pub fn ldrh(cpu: &mut Cpu, data: arm::ldrh::InstrDesc) -> cpu::InstrStatus {
+pub fn ldrh(cpu: &mut Cpu, data: arm::Ldrh) -> cpu::InstrStatus {
     instr_load_misc(cpu, data, MiscLsType::Halfword)
 }
 
-pub fn ldrsb(cpu: &mut Cpu, data: arm::ldrsb::InstrDesc) -> cpu::InstrStatus {
-    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedByte)
+pub fn ldrsb(cpu: &mut Cpu, data: arm::Ldrsb) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::Ldrh::new(data.raw()), MiscLsType::SignedByte)
 }
 
-pub fn ldrsh(cpu: &mut Cpu, data: arm::ldrsh::InstrDesc) -> cpu::InstrStatus {
-    instr_load_misc(cpu, arm::ldrh::InstrDesc::new(data.raw()), MiscLsType::SignedHalfword)
+pub fn ldrsh(cpu: &mut Cpu, data: arm::Ldrsh) -> cpu::InstrStatus {
+    instr_load_misc(cpu, arm::Ldrh::new(data.raw()), MiscLsType::SignedHalfword)
 }
 
-pub fn str(cpu: &mut Cpu, data: arm::str::InstrDesc) -> cpu::InstrStatus {
+pub fn str(cpu: &mut Cpu, data: arm::Str) -> cpu::InstrStatus {
     instr_store(cpu, data, false)
 }
 
-pub fn strb(cpu: &mut Cpu, data: arm::strb::InstrDesc) -> cpu::InstrStatus {
-    instr_store(cpu, arm::str::InstrDesc::new(data.raw()), true)
+pub fn strb(cpu: &mut Cpu, data: arm::Strb) -> cpu::InstrStatus {
+    instr_store(cpu, arm::Str::new(data.raw()), true)
 }
 
-pub fn strd(cpu: &mut Cpu, data: arm::strd::InstrDesc) -> cpu::InstrStatus {
-    instr_store_misc(cpu, arm::strh::InstrDesc::new(data.raw()), MiscLsType::Doubleword)
+pub fn strd(cpu: &mut Cpu, data: arm::Strd) -> cpu::InstrStatus {
+    instr_store_misc(cpu, arm::Strh::new(data.raw()), MiscLsType::Doubleword)
 }
 
-pub fn strh(cpu: &mut Cpu, data: arm::strh::InstrDesc) -> cpu::InstrStatus {
+pub fn strh(cpu: &mut Cpu, data: arm::Strh) -> cpu::InstrStatus {
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
 
-pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
+pub fn swp(cpu: &mut Cpu, data: arm::Swp) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -270,7 +270,7 @@ pub fn swp(cpu: &mut Cpu, data: arm::swp::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn swpb(cpu: &mut Cpu, data: arm::swpb::InstrDesc) -> cpu::InstrStatus {
+pub fn swpb(cpu: &mut Cpu, data: arm::Swpb) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

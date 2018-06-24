@@ -1,9 +1,9 @@
 use cpu;
 use cpu::Cpu;
-use cpu::decoder_arm as arm;
+use cpu::interpreter_arm as arm;
 
 fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
-    let instr_data = arm::ldm_1::InstrDesc::new(instr_data);
+    let instr_data = arm::Ldm1::new(instr_data);
 
     let register_list = bf!(instr_data.register_list);
     let num_registers = register_list.count_ones();
@@ -20,7 +20,7 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
     }
 }
 
-pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
+pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -49,7 +49,7 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::ldm_1::InstrDesc) -> cpu::InstrStatus {
     }
 }
 
-pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
+pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -70,7 +70,7 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::ldm_2::InstrDesc) -> cpu::InstrStatus {
     return cpu::InstrStatus::InBlock;
 }
 
-pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
+pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -95,7 +95,7 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::ldm_3::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::Branched
 }
 
-pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
+pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -117,7 +117,7 @@ pub fn stm_1(cpu: &mut Cpu, data: arm::stm_1::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn stm_2(cpu: &mut Cpu, data: arm::stm_2::InstrDesc) -> cpu::InstrStatus {
+pub fn stm_2(cpu: &mut Cpu, data: arm::Stm2) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

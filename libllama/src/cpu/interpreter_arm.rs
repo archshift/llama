@@ -1,12 +1,6 @@
 use cpu::Cpu;
-use cpu::decoder_arm::InstFn;
-use cpu::instructions_arm;
 use cpu::regs::Psr;
-
-pub enum InstrStatus {
-    InBlock, // Advance PC by instruction width
-    Branched, // Do not advance PC
-}
+use cpu::InstrStatus;
 
 pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     match cond_opcode {
@@ -43,10 +37,25 @@ pub fn cond_passed(cond_opcode: u32, cpsr: &Psr) -> bool {
     }
 }
 
-pub fn interpret_arm(cpu: &mut Cpu, inst_fn: InstFn, inst: u32) {
-    #[cfg(feature = "trace_instructions")]
-    trace!("Instruction {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr);
+pub type InstFn = fn(&mut Cpu, u32) -> InstrStatus;
 
+mod interpreter {
+    use cpu;
+    pub use cpu::instructions_arm::*;
+
+    pub fn undef(cpu: &mut cpu::Cpu, instr: u32) -> cpu::InstrStatus {
+        panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
+    }
+
+    #[inline(always)]
+    pub fn blx_2(cpu: &mut cpu::Cpu, instr: super::Blx2) -> cpu::InstrStatus {
+        blx(cpu, instr)
+    }
+}
+
+include!(concat!(env!("OUT_DIR"), "/arm.decoder.rs"));
+
+pub fn interpret(cpu: &mut Cpu, inst_fn: InstFn, inst: u32) {
     let status = inst_fn(cpu, inst);
 
     match status {

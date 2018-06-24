@@ -97,12 +97,8 @@ impl Cpu {
     }
 
     pub fn get_pc_offset(&self) -> u32 {
-        if bf!((self.cpsr).thumb_bit) == 1 {
-            4
-        } else {
-            8
+        8 >> bf!((self.cpsr).thumb_bit)
         }
-    }
 
     pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor {
         match cp_index {
@@ -161,13 +157,14 @@ impl Cpu {
             if bf!((self.cpsr).thumb_bit) == 0 {
                 assert_eq!(addr & 0b11, 0);
                 let instr = self.mpu.imem_read::<u32>(addr);
-                let inst_fn = cpu::decoder_arm::ArmInstruction::decode(instr);
-                cpu::interpret_arm(self, inst_fn, instr);
+                let inst_fn = cpu::arm::decode(instr);
+                cpu::arm::interpret(self, inst_fn, instr);
             } else {
                 assert_eq!(addr & 0b1, 0);
                 let instr = self.mpu.imem_read::<u16>(addr);
-                let inst_fn = cpu::decoder_thumb::ThumbInstruction::decode(instr);
-                cpu::interpret_thumb(self, inst_fn, instr);
+                let inst_fn = cpu::thumb::decode(instr);
+                cpu::thumb::interpret(self, inst_fn, instr);
+            }
             }
         }
 

@@ -1,8 +1,8 @@
 use cpu;
 use cpu::Cpu;
-use cpu::decoder_arm as arm;
+use cpu::interpreter_arm as arm;
 
-pub fn mcr(cpu: &mut Cpu, data: arm::mcr::InstrDesc) -> cpu::InstrStatus {
+pub fn mcr(cpu: &mut Cpu, data: arm::Mcr) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -22,7 +22,7 @@ pub fn mcr(cpu: &mut Cpu, data: arm::mcr::InstrDesc) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn mrc(cpu: &mut Cpu, data: arm::mrc::InstrDesc) -> cpu::InstrStatus {
+pub fn mrc(cpu: &mut Cpu, data: arm::Mrc) -> cpu::InstrStatus {
     if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

@@ -64,8 +64,4 @@ impl<T: Copy> TinyCache<T> {
             updater(key, &mut self.map_vals[idx]);
         }
     }
-
-    pub fn hit_rate(&self) -> f64 {
-        (self.hits as f64) / ((self.hits as f64) + (self.misses as f64))
-    }
 }
