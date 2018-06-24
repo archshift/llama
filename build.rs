@@ -39,7 +39,7 @@ fn main() {
 
     let status = process::Command::new("qmake")
         .current_dir(&out_dir)
-        .arg(qml_dir)
+        .arg(&qml_dir)
         .spawn()
         .expect("failed to start qmake")
         .wait()
@@ -61,6 +61,7 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}", exe_dir.as_os_str().to_str().unwrap());
     println!("cargo:rustc-link-lib=dylib={}", "llamagui");
+    println!("cargo:rerun-if-changed={}", qml_dir.as_os_str().to_str().unwrap());
 
     bindgen::Builder::default()
         .header("llama-ui/qml/interop.h")

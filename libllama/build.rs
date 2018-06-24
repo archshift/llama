@@ -20,5 +20,7 @@ fn main() {
             .stdout(File::create(out).unwrap())
             .spawn()
             .expect("failed to execute child");
+        
+        println!("cargo:rerun-if-changed={}", decoder);
     }
 }
