@@ -71,8 +71,8 @@ impl<'a> DbgHwContext<'a> {
 
     pub fn write_mem(&mut self, address: u32, bytes: &[u8]) {
         self.hw.arm9.mpu.memory.write_buf(address, bytes);
-        self.hw.arm9.mpu.icache.invalidate();
-        self.hw.arm9.mpu.dcache.invalidate();
+        self.hw.arm9.mpu.icache_invalidate();
+        self.hw.arm9.mpu.dcache_invalidate();
     }
 
     pub fn read_reg(&self, reg: usize) -> u32 {
