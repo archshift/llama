@@ -6,6 +6,8 @@ use cpu::irq;
 use cpu::regs::{GpRegs, Psr};
 use mem;
 
+use utils::cache::TinyCache;
+
 use std::collections::HashSet;
 
 #[derive(Copy, Clone, Debug)]
@@ -50,6 +52,9 @@ pub struct Cpu {
     cycles: usize,
     sys_clk: clock::SysClock,
 
+    thumb_decode_cache: TinyCache<cpu::thumb::InstFn, ()>,
+    arm_decode_cache: TinyCache<cpu::arm::InstFn, ()>,
+
     pub breakpoints: HashSet<u32> // addr, is_triggered
 }
 
@@ -81,6 +86,13 @@ impl Cpu {
             irq_line: irq_line,
             cycles: PAUSE_CYCLES,
             sys_clk: clk,
+
+            thumb_decode_cache: TinyCache::new(
+                |_, k| cpu::thumb::decode(k as u16), |_, _, _| {}
+            ),
+            arm_decode_cache: TinyCache::new(
+                |_, k| cpu::arm::decode(k), |_, _, _| {}
+            ),
 
             breakpoints: HashSet::new()
         }
@@ -157,12 +169,12 @@ impl Cpu {
             if bf!((self.cpsr).thumb_bit) == 0 {
                 assert_eq!(addr & 0b11, 0);
                 let instr = self.mpu.imem_read::<u32>(addr);
-                let inst_fn = cpu::arm::decode(instr);
+                let inst_fn = *self.arm_decode_cache.get_or(instr, &mut ());
                 cpu::arm::interpret(self, inst_fn, instr);
             } else {
                 assert_eq!(addr & 0b1, 0);
                 let instr = self.mpu.imem_read::<u16>(addr);
-                let inst_fn = cpu::thumb::decode(instr);
+                let inst_fn = *self.thumb_decode_cache.get_or(instr as u32, &mut ());
                 cpu::thumb::interpret(self, inst_fn, instr);
             }
         }
