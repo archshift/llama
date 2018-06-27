@@ -86,7 +86,7 @@ impl Cpu {
             irq_line: irq_line,
             cycles: PAUSE_CYCLES,
             sys_clk: clk,
-
+ 
             thumb_decode_cache: TinyCache::new(
                 |_, k| cpu::thumb::decode(k as u16), |_, _, _| {}
             ),
@@ -126,7 +126,7 @@ impl Cpu {
 
     pub fn check_alignment(&self, thumb_bit: u32) {
         assert_eq!(self.regs[15] & (Self::instr_size(thumb_bit) - 1), 0);
-        }
+    }
 
     pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor {
         match cp_index {
@@ -164,6 +164,11 @@ impl Cpu {
         let mut thumb_bit = bf!((self.cpsr).thumb_bit);
         self.check_alignment(thumb_bit);
 
+        static mut SECS: f64 = 0.;
+        static mut CYC: u64 = 0;
+
+        let currtime = ::std::time::Instant::now();
+
         for _ in 0..num_instrs {
             let addr = self.regs[15] - Self::pc_offset(thumb_bit);
 
@@ -172,11 +177,13 @@ impl Cpu {
             if cycles == 0 {
                 self.sys_clk.increment(PAUSE_CYCLES * 8); // Probably speeds up time but w/e
                 irq_known_pending = self.irq_line.is_high();
+                unsafe { CYC += PAUSE_CYCLES as u64 };
                 cycles = PAUSE_CYCLES;
             }
             if irq_known_pending && bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
                 trace!("ARM9 IRQ triggered!");
                 self.enter_exception(addr+4, Mode::Irq);
+                thumb_bit = 0;
                 irq_known_pending = false;
                 continue
             }
@@ -194,6 +201,14 @@ impl Cpu {
                 InstrStatus::InBlock => self.regs[15] += Self::instr_size(thumb_bit),
                 InstrStatus::Branched => thumb_bit = bf!((self.cpsr).thumb_bit),
             }
+        }
+
+        let endtime = ::std::time::Instant::now();
+        let diff = endtime - currtime;
+        unsafe {
+            SECS += (diff.as_secs() as f64) + (diff.subsec_nanos() as f64) / 1.0E9;
+            CYC += (PAUSE_CYCLES - cycles) as u64;
+            println!("Avg. MHz: {:.4}", (CYC as f64) / SECS / 1E6);
         }
 
         self.cycles = cycles;

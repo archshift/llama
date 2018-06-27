@@ -12,11 +12,17 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
     let u_bit = bf!(instr_data.u_bit) == 1;
     let rn_val = cpu.regs[bf!(instr_data.rn) as usize];
 
-    match (p_bit, u_bit) {
+    let (addr, wb) = match (p_bit, u_bit) {
         (false, true)  => (rn_val, rn_val + num_registers * 4), // Increment after
         (true, true)   => (rn_val + 4, rn_val + num_registers * 4), // Increment before
         (false, false) => (rn_val - num_registers * 4 + 4, rn_val - num_registers * 4), // Decrement after
         (true, false)  => (rn_val - num_registers * 4, rn_val - num_registers * 4) // Decrement before
+    };
+
+    if bf!(instr_data.w_bit) == 0 {
+        (addr, addr)
+    } else {
+        (addr, wb)
     }
 }
 
@@ -30,16 +36,14 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1) -> cpu::InstrStatus {
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
+            cpu.regs[bf!(data.rn) as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
 
-    if bf!(data.w_bit) == 1 {
-        cpu.regs[bf!(data.rn) as usize] = writeback;
-    }
-
     if bit!(register_list, 15) == 1 {
+        cpu.regs[bf!(data.rn) as usize] = writeback;
         let val = cpu.mpu.dmem_read::<u32>(addr);
         bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
@@ -54,13 +58,14 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2) -> cpu::InstrStatus {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, _) = decode_addressing_mode(data.raw(), cpu);
+    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
     let register_list = bf!(data.register_list);
 
     let current_mode = cpu::Mode::from_num(bf!((cpu.cpsr).mode));
     cpu.regs.swap(cpu::Mode::Usr);
     for i in 0..14 {
         if bit!(register_list, i) == 1 {
+            cpu.regs[bf!(data.rn) as usize] = writeback;            
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
@@ -80,13 +85,10 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3) -> cpu::InstrStatus {
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
+            cpu.regs[bf!(data.rn) as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
-    }
-
-    if bf!(data.w_bit) == 1 {
-        cpu.regs[bf!(data.rn) as usize] = writeback;
     }
 
     cpu.spsr_make_current();

@@ -67,7 +67,7 @@ decoder u32 ArmInstruction {
     category [ _:4; 0b100:3; _:25 ] // Load/store multiple
     {
         ldm_1 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b0:1; w_bit:1; 0b1:1; rn:4; register_list:16 ]
-        ldm_2 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b101:3; rn:4; 0b0:1; register_list:15 ]
+        ldm_2 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b1:1; w_bit:1; 0b1:1; rn:4; 0b0:1; register_list:15 ]
         ldm_3 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b1:1; w_bit:1; 0b1:1; rn:4; 0b1:1; register_list:15 ]
         stm_1 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b0:1; w_bit:1; 0b0:1; rn:4; register_list:16 ]
         stm_2 = [ cond:4; 0b100:3; p_bit:1; u_bit:1; 0b100:3; rn:4; register_list:16 ]
