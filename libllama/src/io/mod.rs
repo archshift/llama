@@ -38,12 +38,15 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
         ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
     }
 
+    let pxi_shared = pxi::PxiShared::make_channel();
+
     let cfg    = make_dev! { config::ConfigDevice };
     let irq    = make_dev! { irq::IrqDevice:     irq_requests.clone() };
     let emmc   = make_dev! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
     let ndma   = make_dev! { ndma::NdmaDevice:   Default::default() };
     let otp    = make_dev! { otp::OtpDevice:     Default::default() };
-    let pxi    = make_dev! { pxi::PxiDevice };
+    let pxi9   = make_dev! { pxi::PxiDevice:     pxi_shared.0 };
+    let pxi11  = make_dev! { pxi::PxiDevice:     pxi_shared.1 };
     let timer  = make_dev! { timer::TimerDevice: clk.timer_states };
     let aes    = make_dev! { aes::AesDevice:     Default::default() };
     let sha    = make_dev! { sha::ShaDevice:     Default::default() };
@@ -59,7 +62,7 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
         emmc:   emmc.clone(),
         ndma:   ndma.clone(),
         otp:    otp.clone(),
-        pxi9:   pxi.clone(),
+        pxi9:   pxi9.clone(),
         timer:  timer.clone(),
         aes:    aes.clone(),
         sha:    sha.clone(),
@@ -69,7 +72,7 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
     },
     IoRegsShared {
         hid:    hid.clone(),
-        pxi11:  pxi.clone(),
+        pxi11:  pxi11.clone(),
     })
 }
 

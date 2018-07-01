@@ -45,11 +45,11 @@ pub mod modes {
 
             const PXI_SYNC_ADDR: u32 = 0x10163000;
             fn pxisync_read(hw: &Dummy11HW) -> u8 {
-                (hw.memory.read::<u32>(PXI_SYNC_ADDR) >> 8) as u8
+                hw.memory.read::<u32>(PXI_SYNC_ADDR) as u8
             }
             fn pxisync_write(hw: &mut Dummy11HW, val: u8) {
                 let current = hw.memory.read::<u32>(PXI_SYNC_ADDR);
-                let new = current & 0xFFFFFF00 | val as u32;
+                let new = current & 0xFFFF00FF | ((val as u32) << 8);
                 hw.memory.write::<u32>(PXI_SYNC_ADDR, new);
             }
 
