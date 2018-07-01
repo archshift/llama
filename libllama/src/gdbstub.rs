@@ -157,6 +157,9 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             hw.write_cpsr(nth_val(16)?);
             out += "OK";
         }
+        'H' => {
+            out += "OK";
+        }
         'm' => {
             let hw = ctx.dbg.hw();
             let mut params = params.split(',');
