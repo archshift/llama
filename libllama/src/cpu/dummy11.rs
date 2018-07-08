@@ -53,12 +53,52 @@ pub mod modes {
                 hw.memory.write::<u32>(PXI_SYNC_ADDR, new);
             }
 
+            const PXI_CNT_ADDR: u32 = 0x10163004;
+            const PXI_RECV_ADDR: u32 = 0x1016300C;
+            fn pxi_read(hw: &Dummy11HW) -> Option<u32> {
+                let cnt = hw.memory.read::<u16>(PXI_CNT_ADDR);
+                if cnt & 0x100 != 0 {
+                    None // Recv fifo empty
+                } else {
+                    Some(hw.memory.read::<u32>(PXI_RECV_ADDR))
+                }
+            } 
+
             let while_node = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 9));
             {
                 dmnode!(in a, while_node; do |_, _| Ok(thread::yield_now()));
             }
 
             dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 11)));
+            
+            let while_node_2 = dmnode!(in a, bn; while |_, hw| Ok(pxi_read(hw).is_none()));
+            #[allow(deprecated)] {
+                dmnode!(in a, while_node_2; do |_, _| Ok(thread::sleep_ms(100)));
+            }
+
+            dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 1)));
+            let while_node_3 = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 1));
+            {
+                dmnode!(in a, while_node_3; do |_, _| Ok(thread::yield_now()));
+            }
+
+            dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 14)));
+            let while_node_4 = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 14));
+            {
+                dmnode!(in a, while_node_4; do |_, _| Ok(thread::yield_now()));
+            }
+
+            let while_node_5 = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 1));
+            {
+                dmnode!(in a, while_node_5; do |_, _| Ok(thread::yield_now()));
+            }
+            dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 1)));
+
+            let while_node_6 = dmnode!(in a, bn; while |_, hw| Ok(pxisync_read(hw) != 0));
+            {
+                dmnode!(in a, while_node_6; do |_, _| Ok(thread::yield_now()));
+            }
+            dmnode!(in a, bn; do |_, hw| Ok(pxisync_write(hw, 0)));
         }
         program.build()
     }

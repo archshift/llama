@@ -6,6 +6,11 @@ bfdesc!(RegSync: u32, {
 });
 
 bfdesc!(RegCnt: u16, {
+    send_empty: 0 => 0,
+    send_full: 1 => 1,
+    flush_send: 3 => 3,
+    recv_empty: 8 => 8,
+    recv_full: 9 => 9,
     cannot_rw: 14 => 14
 });
 
@@ -20,8 +25,23 @@ fn reg_sync_write(dev: &mut PxiDevice) {
     dev._internal_state.sync_tx.store(byte as usize, atomic::Ordering::SeqCst);
 }
 
+fn reg_cnt_read(dev: &mut PxiDevice) {
+    let mut cnt = dev.cnt.get();
+    let tx_count = dev._internal_state.tx_count.load(atomic::Ordering::SeqCst);
+    let rx_count = dev._internal_state.rx_count.load(atomic::Ordering::SeqCst);
+    bf!(cnt @ RegCnt::send_empty = (tx_count == 0) as u16);
+    bf!(cnt @ RegCnt::send_full = (tx_count == 4) as u16);
+    bf!(cnt @ RegCnt::recv_empty = (rx_count == 0) as u16);
+    bf!(cnt @ RegCnt::recv_full = (rx_count == 4) as u16);
+    dev.cnt.set_unchecked(cnt);
+}
+
 fn reg_cnt_write(dev: &mut PxiDevice) {
     let mut cnt = dev.cnt.get();
+    if (bf!(cnt @ RegCnt::flush_send) == 1) {
+        warn!("STUBBED: cannot flush PXI tx channel!");
+        bf!(cnt @ RegCnt::flush_send = 0);
+    }
     if (bf!(cnt @ RegCnt::cannot_rw) == 1) {
         bf!(cnt @ RegCnt::cannot_rw = 0);
     }
@@ -79,6 +99,7 @@ iodevice!(PxiDevice, {
         }
         0x004 => cnt: u16 {
             write_bits = 0b11000100_00001100;
+            read_effect = reg_cnt_read;
             write_effect = reg_cnt_write;
         }
         0x008 => send: u32 {
