@@ -102,6 +102,13 @@ pub fn set_bus_width(_dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC ACMD6 SET_BUS_WIDTH!");
 }
 
+pub fn get_ssr(dev: &mut EmmcDevice) {
+    warn!("STUBBED: SDMMC ACMD13 GET_SSR!");
+    assert!(dev.data16_blk_len.get() == 64);
+    emmc::trigger_status(dev, Status1::RxReady);
+    emmc::get_active_card(dev).make_transfer(TransferLoc::RegSsr, TransferType::Read, 1);
+}
+
 pub fn app_send_op_cond(dev: &mut EmmcDevice) -> u32 {
     let voltages = emmc::get_params_u32(dev) & 0xFFF;
     emmc::get_active_card(dev).set_state(CardState::Ready);
@@ -115,7 +122,7 @@ pub fn set_clr_card_detect(_dev: &mut EmmcDevice) {
 
 pub fn get_scr(dev: &mut EmmcDevice) {
     warn!("STUBBED: SDMMC ACMD51 GET_SCR!");
-    let num_blocks = dev.data16_blk_cnt.get();
+    assert!(dev.data16_blk_len.get() == 8);
     emmc::trigger_status(dev, Status1::RxReady);
-    emmc::get_active_card(dev).make_transfer(TransferLoc::RegScr, TransferType::Read, num_blocks);
+    emmc::get_active_card(dev).make_transfer(TransferLoc::RegScr, TransferType::Read, 1);
 }

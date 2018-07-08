@@ -46,7 +46,8 @@ bitfield!(CardSpecificData: u128_t, {});
 #[derive(Clone, Copy, Debug)]
 pub enum TransferLoc {
     Storage,
-    RegScr
+    RegScr,
+    RegSsr
 }
 
 #[derive(Debug)]
@@ -122,6 +123,11 @@ impl io::Read for Card {
                 for b in buf.iter_mut() { *b = 0; }
                 Ok(buf.len().checked_sub(xfer.seek_pos as usize).unwrap())
             }
+            TransferLoc::RegSsr => {
+                warn!("STUBBED: Read from SD card SSR register");
+                for b in buf.iter_mut() { *b = 0; }
+                Ok(buf.len().checked_sub(xfer.seek_pos as usize).unwrap())
+            }
         };
         if let Ok(to_advance) = to_advance {
             xfer.seek_pos += to_advance as u64;
@@ -139,6 +145,9 @@ impl io::Write for Card {
             TransferLoc::RegScr => {
                 Err(io::Error::new(io::ErrorKind::PermissionDenied, "Cannot write to SCR register"))
             }
+            TransferLoc::RegSsr => {
+                Err(io::Error::new(io::ErrorKind::PermissionDenied, "Cannot write to SSR register"))
+            }
         };
         if let Ok(to_advance) = to_advance {
             xfer.seek_pos += to_advance as u64;
@@ -151,7 +160,8 @@ impl io::Write for Card {
             .ok_or(io::Error::new(io::ErrorKind::NotConnected, "No active transfer found"))?;
         match xfer.loc {
             TransferLoc::Storage => self.storage.flush(),
-            TransferLoc::RegScr => Ok(())
+            TransferLoc::RegScr => Ok(()),
+            TransferLoc::RegSsr => Ok(()),
         }
     }
 }

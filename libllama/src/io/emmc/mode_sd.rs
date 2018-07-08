@@ -36,8 +36,9 @@ static CMDS: [(usize, CmdHandler, CardType); 16] = [
     // (58, CmdHandler::R3(cmds::read_ocr))
 ];
 
-static ACMDS: [(usize, CmdHandler, CardType); 4] = [
+static ACMDS: [(usize, CmdHandler, CardType); 5] = [
     (6, CmdHandler::R1(cmds::set_bus_width), CardType::Sd),
+    (13, CmdHandler::R1(cmds::get_ssr), CardType::Sd),
     (41, CmdHandler::R3(cmds::app_send_op_cond), CardType::Sd),
     (42, CmdHandler::R1(cmds::set_clr_card_detect), CardType::Sd),
     (51, CmdHandler::R1(cmds::get_scr), CardType::Sd),

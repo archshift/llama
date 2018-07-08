@@ -287,10 +287,13 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         }
     };
 
-    let auto_stop = bf!((dev.stop.get()) @ RegStopInternal::should_auto_stop) == 1;
-    if should_stop && auto_stop {
+    if should_stop {
         trigger_status(dev, Status0::DataEnd);
-        mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
+        
+        let auto_stop = bf!((dev.stop.get()) @ RegStopInternal::should_auto_stop) == 1;
+        if auto_stop {
+            mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
+        }
     }
 }
 
