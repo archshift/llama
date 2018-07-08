@@ -82,9 +82,9 @@ impl Card {
         }
     }
 
-    pub fn make_transfer(&mut self, _loc: TransferLoc, ttype: TransferType, num_blocks: u16) {
+    pub fn make_transfer(&mut self, loc: TransferLoc, ttype: TransferType, num_blocks: u16) {
         let transfer = ActiveTransfer {
-            loc: TransferLoc::Storage,
+            loc: loc,
             ty: ttype,
             blocks_left: num_blocks,
             fifo_pos: 0,
@@ -118,7 +118,7 @@ impl io::Read for Card {
         let to_advance = match xfer.loc {
             TransferLoc::Storage => self.storage.read(buf),
             TransferLoc::RegScr => {
-                trace!("STUBBED: Read from SD card SCR register");
+                warn!("STUBBED: Read from SD card SCR register");
                 for b in buf.iter_mut() { *b = 0; }
                 Ok(buf.len().checked_sub(xfer.seek_pos as usize).unwrap())
             }

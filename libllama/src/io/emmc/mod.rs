@@ -32,6 +32,10 @@ bfdesc!(RegData32Ctl: u16, {
     use_32bit: 1 => 1
 });
 
+bfdesc!(RegStopInternal: u16, {
+    should_auto_stop: 8 => 8
+});
+
 #[derive(Clone, Copy)]
 enum Status {
     Lo(Status0),
@@ -101,7 +105,7 @@ impl EmmcDeviceState {
             irq_statuses: [0 | (Status0::SigState as u16), 0],
             cards: [
                 Card::new(card::CardType::Sd, sd_storage, card::sd_cid()),
-                Card::new(card::CardType::Mmc, nand_storage, card::nand_cid())
+                Card::new(card::CardType::Sd, nand_storage, card::nand_cid())
             ]
         }
     }
@@ -283,7 +287,8 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         }
     };
 
-    if should_stop {
+    let auto_stop = bf!((dev.stop.get()) @ RegStopInternal::should_auto_stop) == 1;
+    if should_stop && auto_stop {
         trigger_status(dev, Status0::DataEnd);
         mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
     }
