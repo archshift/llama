@@ -24,10 +24,10 @@ bfdesc!(RegData16Ctl: u16, {
 });
 
 bfdesc!(RegData32Ctl: u16, {
-    _tx32rq_enable: 12 => 12,
-    _rx32rdy_enable: 11 => 11,
+    tx32rq_irq: 12 => 12,
+    rx32rdy_irq: 11 => 11,
     _clear_fifo32: 10 => 10,
-    _tx32rq: 9 => 9,
+    tx32rq: 9 => 9,
     rx32rdy: 8 => 8,
     use_32bit: 1 => 1
 });
@@ -39,7 +39,8 @@ bfdesc!(RegStopInternal: u16, {
 #[derive(Clone, Copy)]
 enum Status {
     Lo(Status0),
-    Hi(Status1)
+    Hi(Status1),
+    B32(Status32),
 }
 
 #[derive(Clone, Copy)]
@@ -80,6 +81,18 @@ enum Status1 {
 impl Into<Status> for Status1 {
     fn into(self) -> Status {
         Status::Hi(self)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Status32 {
+    RxReady,
+    _TxRq
+}
+
+impl Into<Status> for Status32 {
+    fn into(self) -> Status {
+        Status::B32(self)
     }
 }
 
@@ -172,6 +185,21 @@ fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
             dev._internal_state.irq_statuses[1] |= s1;
             s1 & !dev.irq_mask1.get() & 0b10001011_01111111 != 0
         }
+        Status::B32(s32) => {
+            let mut ctl = dev.data32_ctl.get();
+            let res = match s32 {
+                Status32::RxReady => {
+                    bf!(ctl @ RegData32Ctl::rx32rdy = 1);
+                    bf!(ctl @ RegData32Ctl::rx32rdy_irq) == 1
+                }
+                Status32::_TxRq => {
+                    bf!(ctl @ RegData32Ctl::tx32rq = 1);
+                    bf!(ctl @ RegData32Ctl::tx32rq_irq) == 1
+                }
+            };
+            dev.data32_ctl.set_unchecked(ctl);
+            res
+        }
     };
     if irq_add {
         trace!("SDMMC: Triggering IRQs 0: {:08X}, 1: {:08X}",
@@ -191,6 +219,7 @@ fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
             let s1 = s1 as u16;
             dev._internal_state.irq_statuses[1] &= !s1;
         }
+        Status::B32(_) => unimplemented!()
     };
 }
 
@@ -276,8 +305,7 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
             get_active_card(dev).read(&mut buf32).unwrap();
             dev.data32_fifo.set_unchecked(unsafe { mem::transmute(buf32) });
 
-            let new_ctl = bf!((dev.data32_ctl.get()) @ RegData32Ctl::rx32rdy as 1);
-            dev.data32_ctl.set_unchecked(new_ctl);
+            trigger_status(dev, Status32::RxReady);
         }
         (TransferType::Write, true) => {
             buf32 = unsafe { mem::transmute(dev.data32_fifo.get()) };

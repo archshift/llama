@@ -2,7 +2,7 @@ use std::io::{Seek, SeekFrom};
 
 use extprim::u128::u128 as u128_t;
 
-use io::emmc::{self, EmmcDevice, Status1, TransferType};
+use io::emmc::{self, EmmcDevice, Status1, Status32, TransferType};
 use io::emmc::card::{CardState, TransferLoc};
 
 pub fn go_idle_state(dev: &mut EmmcDevice) {
@@ -74,11 +74,10 @@ pub fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
     let file_offset = emmc::get_params_u32(&*dev);
 
     let block_count = if emmc::use_32bit(dev) {
-        let ctl = match ttype {
-            TransferType::Read => bf!((dev.data32_ctl.get()) @ emmc::RegData32Ctl::rx32rdy as 1),
-            TransferType::Write => dev.data32_ctl.get() // TODO: Why is this?
-        };
-        dev.data32_ctl.set_unchecked(ctl);
+        match ttype {
+            TransferType::Read => emmc::trigger_status(dev, Status32::RxReady),
+            TransferType::Write => {} // TODO: Why is this?
+        }
         dev.data32_blk_cnt.get()
     } else {
         match ttype {
