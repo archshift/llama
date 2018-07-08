@@ -62,9 +62,12 @@ impl SysControl {
 
 impl Coprocessor for SysControl {
     fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) -> CpEffect {
-        assert_eq!(op1, 0);
-
         let mut effect: CpEffect = Box::new(move |_cpu| {});
+
+        if cpreg1 != 15 {
+            assert_eq!(op1, 0);
+        }
+
         match cpreg1 {
             1 => match op2 {
                 0b000 => {
@@ -168,6 +171,11 @@ impl Coprocessor for SysControl {
                 _ => unreachable!()
             },
 
+            15 => match op1 {
+                3 => warn!("STUBBED: Cache debug CP15 write! reg2={}, op2={}, val={:08X}", cpreg2, op2, val),
+                _ => unimplemented!(),
+            }
+
             _ => panic!("Unimplemented CP15 write to coproc reg {}", cpreg1)
         };
 
@@ -179,6 +187,11 @@ impl Coprocessor for SysControl {
         assert_eq!(op1, 0);
 
         let res = match cpreg1 {
+            0 => match op2 {
+                1 => 0x0F0D2112, // On the 3DS: 4k, 4-way dcache; 8k, 4-day icache
+                _ => unimplemented!(),
+            },
+
             1 => match op2 {
                 0b000 => {
                     warn!("STUBBED: System control register read");
