@@ -65,8 +65,8 @@ pub struct DbgHwContext<'a> {
 }
 
 impl<'a> DbgHwContext<'a> {
-    pub fn read_mem(&self, address: u32, bytes: &mut [u8]) {
-        self.hw.arm9.mpu.memory.read_buf(address, bytes)
+    pub fn read_mem(&self, address: u32, bytes: &mut [u8]) -> Result<(), String> {
+        self.hw.arm9.mpu.memory.try_read_buf(address, bytes)
     }
 
     pub fn write_mem(&mut self, address: u32, bytes: &[u8]) {

@@ -206,12 +206,18 @@ impl MemController {
         }
     }
 
-    pub fn read_buf(&self, addr: u32, buf: &mut [u8]) {
+    #[inline]
+    pub fn try_read_buf(&self, addr: u32, buf: &mut [u8]) -> Result<(), String> {
         let (block_addr, block) = self.match_address(addr)
-            .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
+            .ok_or(format!("Could not match address 0x{:X}", addr))?;
         unsafe {
             block.read_to_ptr((addr - block_addr) as usize, buf.as_mut_ptr(), buf.len());
         }
+        Ok(())
+    }
+
+    pub fn read_buf(&self, addr: u32, buf: &mut [u8]) {
+        self.try_read_buf(addr, buf).unwrap();
     }
 
     pub fn write<T: Copy>(&mut self, addr: u32, data: T) {

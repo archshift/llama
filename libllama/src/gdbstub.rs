@@ -167,8 +167,11 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             let size = parse_next_hex(&mut params)?;
             let mut buf = [0u8];
             for b in 0..size {
-                hw.read_mem(addr+b, &mut buf);
-                out += &format!("{:02X}", buf[0]);
+                if let Err(_) = hw.read_mem(addr+b, &mut buf) {
+                    out = "E99".into();
+                } else {
+                    out += &format!("{:02X}", buf[0]);
+                }
             }
         }
         'M' => {

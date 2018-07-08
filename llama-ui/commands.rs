@@ -37,7 +37,10 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     if let Ok(cs) = cs {
         let mut inst_bytes = [0u8; 4];
-        hw.read_mem(pause_addr, &mut inst_bytes);
+        if let Err(e) = hw.read_mem(pause_addr, &mut inst_bytes) {
+            error!("{}", e);
+            return;
+        }
 
         match cs.disasm_count(&inst_bytes, pause_addr as u64, 1) {
             Ok(insts) => {
@@ -166,14 +169,16 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let hw = ctx.hw();
 
     let mut mem_bytes = vec![0u8; num as usize];
-    hw.read_mem(start, &mut mem_bytes);
-
-    let mut strbuf = String::new();
-    strbuf.push_str(&format!("{:02X}", mem_bytes[0]));
-    for i in 1 .. num as usize {
-        strbuf.push_str(&format!(" {:02X}", mem_bytes[i]));
+    if let Err(e) = hw.read_mem(start, &mut mem_bytes) {
+        error!("{}", e);
+    } else {
+        let mut strbuf = String::new();
+        strbuf.push_str(&format!("{:02X}", mem_bytes[0]));
+        for i in 1 .. num as usize {
+            strbuf.push_str(&format!(" {:02X}", mem_bytes[i]));
+        }
+        info!("{}", &strbuf);
     }
-    info!("{}", &strbuf);
 }
 
 /// Prints registers to the screen based on provided register name
