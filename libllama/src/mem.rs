@@ -207,17 +207,25 @@ impl MemController {
     }
 
     #[inline]
-    pub fn try_read_buf(&self, addr: u32, buf: &mut [u8]) -> Result<(), String> {
+    fn try_read_buf(&self, addr: u32, buf: &mut [u8], debug: bool) -> Result<(), String> {
         let (block_addr, block) = self.match_address(addr)
             .ok_or(format!("Could not match address 0x{:X}", addr))?;
-        unsafe {
-            block.read_to_ptr((addr - block_addr) as usize, buf.as_mut_ptr(), buf.len());
+    
+        match (debug, block) {
+            (true, AddressBlock::Io(_)) => return Err(format!("Cannot issue debug read for IO address 0x{:X}", addr)),
+            (_, block) => unsafe {
+                block.read_to_ptr((addr - block_addr) as usize, buf.as_mut_ptr(), buf.len());
+            }
         }
         Ok(())
     }
 
     pub fn read_buf(&self, addr: u32, buf: &mut [u8]) {
-        self.try_read_buf(addr, buf).unwrap();
+        self.try_read_buf(addr, buf, false).unwrap();
+    }
+
+    pub fn debug_read_buf(&self, addr: u32, buf: &mut [u8]) -> Result<(), String> {
+        self.try_read_buf(addr, buf, true)
     }
 
     pub fn write<T: Copy>(&mut self, addr: u32, data: T) {

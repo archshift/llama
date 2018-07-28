@@ -68,7 +68,7 @@ Llama has a semi-useful built-in debugger controlled with textual commands.
 - `brk <address hex>`: Adds a CPU breakpoint at the specified address.
 - `irq <type>`: Triggers an interrupt request of the specified type.
 - `keydmp`: Dump AES keys.
-- `mem <start address hex> [# bytes hex]`: Prints n bytes of memory from the specified address.
+- `mem <start address hex> [# bytes hex] [dumpfile.bin]`: Prints n bytes of memory from the specified address, optionally dumping to file.
 - `reg [register name]`: Prints specified register, or all registers if none specified.
 - `step`: Runs one CPU instruction.
 

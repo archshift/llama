@@ -1,4 +1,6 @@
 use std::process::exit;
+use std::fs::File;
+use std::io::Write;
 
 use libllama::dbgcore;
 use libllama::utils::from_hex;
@@ -104,7 +106,6 @@ fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
     info!("Dumping AES keys to disk...");
 
     use libllama::fs;
-    use std::io::Write;
     fs::create_file(fs::LlamaFile::AesKeyDb, |file| {
         for k in key_slots.iter() {
             if let Err(x) = file.write_all(&k.data) {
@@ -153,7 +154,7 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let arg_res = match (args.next(), args.next()) {
         (Some(ss), Some(ns)) => from_hex(ss).and_then(|s| Ok((s, from_hex(ns)?))),
         (Some(ss), None) => from_hex(ss).and_then(|s| Ok((s, 1))),
-        (None, _) => { info!("Usage: `mem <start> [num]"); return }
+        (None, _) => { info!("Usage: `mem <start> [num] [outfile.bin]"); return }
     };
 
     // Check for from_hex errors, validate `num` input
@@ -171,6 +172,7 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let mut mem_bytes = vec![0u8; num as usize];
     if let Err(e) = hw.read_mem(start, &mut mem_bytes) {
         error!("{}", e);
+        return;
     } else {
         let mut strbuf = String::new();
         strbuf.push_str(&format!("{:02X}", mem_bytes[0]));
@@ -178,6 +180,23 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
             strbuf.push_str(&format!(" {:02X}", mem_bytes[i]));
         }
         info!("{}", &strbuf);
+    }
+
+    if let Some(filename) = args.next() {
+        let file = File::create(filename);
+        let mut file = match file {
+            Ok(file) => file,
+            Err(e) => {
+                error!("Unable to open file `{}` for dumping memory: {:?}!", filename, e);
+                return;
+            }
+        };
+
+        if let Err(e) = file.write_all(mem_bytes.as_slice()) {
+            error!("Unable to write into file `{}`: {:?}", filename, e);
+            return;
+        }
+        info!("Wrote 0x{:X} bytes to `{}`", num, filename);
     }
 }
 
