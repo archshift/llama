@@ -39,12 +39,12 @@ impl Mode {
 
 pub struct Cpu {
     pub regs: GpRegs,
-    pub cpsr: Psr,
-    pub spsr_fiq: Psr,
-    pub spsr_irq: Psr,
-    pub spsr_svc: Psr,
-    pub spsr_abt: Psr,
-    pub spsr_und: Psr,
+    pub cpsr: Psr::Bf,
+    pub spsr_fiq: Psr::Bf,
+    pub spsr_irq: Psr::Bf,
+    pub spsr_svc: Psr::Bf,
+    pub spsr_abt: Psr::Bf,
+    pub spsr_und: Psr::Bf,
 
     coproc_syscnt: coproc::SysControl,
     pub mpu: caches::Mpu,
@@ -100,10 +100,10 @@ impl Cpu {
 
     pub fn reset(&mut self, entry: u32) {
         self.regs.swap(Mode::Svc);
-        bf!((self.cpsr).mode = Mode::Svc as u32);
-        bf!((self.cpsr).thumb_bit = 0b0);
-        bf!((self.cpsr).disable_fiq_bit = 0b1);
-        bf!((self.cpsr).disable_irq_bit = 0b1);
+        self.cpsr.mode.set(Mode::Svc as u32);
+        self.cpsr.thumb_bit.set(0b0);
+        self.cpsr.disable_fiq_bit.set(0b1);
+        self.cpsr.disable_irq_bit.set(0b1);
 
         self.regs[15] = entry + Self::pc_offset(0);
     }
@@ -120,7 +120,7 @@ impl Cpu {
 
     // For external interface
     pub fn get_pc_offset(&self) -> u32 {
-        let thumb_bit = bf!((self.cpsr).thumb_bit);
+        let thumb_bit = self.cpsr.thumb_bit.get();
         Self::pc_offset(thumb_bit)
     }
 
@@ -135,8 +135,8 @@ impl Cpu {
         }
     }
 
-    pub fn get_current_spsr(&mut self) -> &mut Psr {
-        match Mode::from_num(bf!((self.cpsr).mode)) {
+    pub fn get_current_spsr(&mut self) -> &mut Psr::Bf {
+        match Mode::from_num(self.cpsr.mode.get()) {
             Mode::Fiq => &mut self.spsr_fiq,
             Mode::Irq => &mut self.spsr_irq,
             Mode::Svc => &mut self.spsr_svc,
@@ -148,12 +148,12 @@ impl Cpu {
 
     pub fn spsr_make_current(&mut self) {
         self.cpsr = self.get_current_spsr().clone();
-        self.regs.swap(cpu::Mode::from_num(bf!((self.cpsr).mode)));
+        self.regs.swap(cpu::Mode::from_num(self.cpsr.mode.get()));
     }
 
     #[inline(always)]
     pub fn branch(&mut self, addr: u32) {
-        let thumb_bit = bf!((self.cpsr).thumb_bit);
+        let thumb_bit = self.cpsr.thumb_bit.get();
         self.regs[15] = addr + Self::pc_offset(thumb_bit);
         self.check_alignment(thumb_bit);
     }
@@ -161,7 +161,7 @@ impl Cpu {
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
         let mut cycles = self.cycles;
         let mut irq_known_pending = false;
-        let mut thumb_bit = bf!((self.cpsr).thumb_bit);
+        let mut thumb_bit = self.cpsr.thumb_bit.get();
         self.check_alignment(thumb_bit);
 
         static mut SECS: f64 = 0.;
@@ -180,7 +180,7 @@ impl Cpu {
                 unsafe { CYC += PAUSE_CYCLES as u64 };
                 cycles = PAUSE_CYCLES;
             }
-            if irq_known_pending && bf!((self.cpsr).disable_irq_bit) == 0 && self.irq_line.is_high() {
+            if irq_known_pending && self.cpsr.disable_irq_bit.get() == 0 && self.irq_line.is_high() {
                 trace!("ARM9 IRQ triggered!");
                 self.enter_exception(addr+4, Mode::Irq);
                 thumb_bit = 0;
@@ -199,7 +199,7 @@ impl Cpu {
             };
             match status {
                 InstrStatus::InBlock => self.regs[15] += Self::instr_size(thumb_bit),
-                InstrStatus::Branched => thumb_bit = bf!((self.cpsr).thumb_bit),
+                InstrStatus::Branched => thumb_bit = self.cpsr.thumb_bit.get(),
             }
         }
 
@@ -220,12 +220,12 @@ impl Cpu {
         let spsr_exc = self.cpsr;
 
         self.regs.swap(mode);
-        bf!((self.cpsr).mode = mode as u32);
+        self.cpsr.mode.set(mode as u32);
 
         self.regs[14] = r14_exc;
         *self.get_current_spsr() = spsr_exc;
-        bf!((self.cpsr).thumb_bit = 0);
-        bf!((self.cpsr).disable_irq_bit = 1);
+        self.cpsr.thumb_bit.set(0);
+        self.cpsr.disable_irq_bit.set(1);
 
         // These vectors look like 0x080000XX because that's where the bootrom redirects them
         let vector_addr = match mode {

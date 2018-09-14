@@ -79,7 +79,7 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
 macro_rules! impl_rw {
     ($($num:expr => $name:tt),*) => {
         pub unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-            match bits!(offset, 12 => 23) {
+            match bits!(offset, 12:23) {
                 $($num => self.$name.lock().read_reg(offset & 0xFFF, buf, buf_size),)*
                 _ => {
                     error!("Unimplemented IO register read at offset 0x{:X}", offset);
@@ -89,7 +89,7 @@ macro_rules! impl_rw {
             }
         }
         pub unsafe fn write_reg(&self, offset: usize, buf: *const u8, buf_size: usize) {
-            match bits!(offset, 12 => 23) {
+            match bits!(offset, 12:23) {
                 $($num => self.$name.lock().write_reg(offset & 0xFFF, buf, buf_size),)*
                 _ => error!("Unimplemented IO register write at offset 0x{:X}", offset),
             };

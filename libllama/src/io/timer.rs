@@ -28,11 +28,11 @@ impl Prescaler {
     }
 }
 
-bfdesc!(CntReg: u16, {
-    prescaler: 0 => 1,
-    count_up: 2 => 2,
-    irq_enable: 6 => 6,
-    started: 7 => 7
+bf!(CntReg[u16] {
+    prescaler: 0:1,
+    count_up: 2:2,
+    irq_enable: 6:6,
+    started: 7:7
 });
 
 fn get_regs(dev: &mut TimerDevice, index: usize) -> (&mut IoReg<u16>, &mut IoReg<u16>) {
@@ -69,7 +69,7 @@ fn reg_val_read(dev: &mut TimerDevice, index: usize) {
 fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
     let (val, cnt) = {
         let (val, cnt) = get_regs(dev, index);
-        (val.get(), cnt.get())
+        (val.get(), CntReg::new(cnt.get()))
     };
     let mut timer = {
         let states = &dev._internal_state;
@@ -80,9 +80,9 @@ fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
         let state = match timer {
             Timer::Unit(_, ref mut state) | Timer::Joined { lowstate: ref mut state, .. } => state
         };
-        state.started = bf!(cnt @ CntReg::started) == 1;
-        state.count_up = bf!(cnt @ CntReg::count_up) == 1;
-        state.prescaler = Prescaler::new(bf!(cnt @ CntReg::prescaler));
+        state.started = cnt.started.get() == 1;
+        state.count_up = cnt.count_up.get() == 1;
+        state.prescaler = Prescaler::new(cnt.prescaler.get());
     }
 
     timer.set_val_hword(index, val);

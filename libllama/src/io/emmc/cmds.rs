@@ -1,7 +1,5 @@
 use std::io::{Seek, SeekFrom};
 
-use extprim::u128::u128 as u128_t;
-
 use io::emmc::{self, EmmcDevice, Status1, Status32, TransferType};
 use io::emmc::card::{CardState, TransferLoc};
 
@@ -19,10 +17,10 @@ pub fn send_op_cond(dev: &mut EmmcDevice) -> u32 {
     return ocr | (1 << 31);
 }
 
-pub fn all_send_cid(dev: &mut EmmcDevice) -> u128_t {
+pub fn all_send_cid(dev: &mut EmmcDevice) -> u128 {
     let cid = emmc::get_active_card(dev).cid;
     emmc::get_active_card(dev).set_state(CardState::Ident);
-    return cid.raw();
+    return cid.val;
 }
 
 pub fn set_relative_addr(dev: &mut EmmcDevice) {
@@ -53,10 +51,10 @@ pub fn send_if_cond(dev: &mut EmmcDevice) -> u32 {
     out
 }
 
-pub fn send_csd(dev: &mut EmmcDevice) -> u128_t {
+pub fn send_csd(dev: &mut EmmcDevice) -> u128 {
     let csd = emmc::get_active_card(dev).csd;
     emmc::get_active_card(dev).set_state(CardState::Ident);
-    return csd.raw();
+    return csd.val;
 }
 
 pub fn stop_transmission(dev: &mut EmmcDevice) {
@@ -94,7 +92,7 @@ pub fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
 }
 
 pub fn app_cmd(dev: &mut EmmcDevice) {
-    bf!((emmc::get_active_card(dev).csr).app_cmd = 1);
+    emmc::get_active_card(dev).csr.app_cmd.set(1);
 }
 
 pub fn set_bus_width(_dev: &mut EmmcDevice) {

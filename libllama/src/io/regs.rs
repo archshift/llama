@@ -36,6 +36,9 @@ impl<T> IoReg<T>
     pub fn get(&self) -> T {
         self.val
     }
+    pub fn ref_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut self.val
+    }
 
     pub unsafe fn mem_load<BUF: Copy>(&self, buf: *mut BUF, buf_size: usize) {
         assert_eq!(mem::size_of::<T>(), buf_size);

@@ -103,12 +103,12 @@ fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
     // Just to make it a little bit easier to use this
     let instr_data = arm::Add::new(instr_data);
 
-    let shifter_bits = bf!(instr_data.shifter_operand);
-    let c_bit = bf!((cpu.cpsr).c_bit) == 1;
+    let shifter_bits = instr_data.shifter_operand.get();
+    let c_bit = cpu.cpsr.c_bit.get() == 1;
 
-    if bf!(instr_data.i_bit) == 1 {
-        let immed_8 = bits!(shifter_bits, 0 => 7);
-        let rotate_imm = bits!(shifter_bits, 8 => 11);
+    if instr_data.i_bit.get() == 1 {
+        let immed_8 = bits!(shifter_bits, 0:7);
+        let rotate_imm = bits!(shifter_bits, 8:11);
 
         let res = immed_8.rotate_right(rotate_imm * 2);
         let carry = if rotate_imm == 0 { c_bit }
@@ -119,14 +119,14 @@ fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
     let is_reg_shift = bit!(shifter_bits, 4) == 1;
 
     let amount = if !is_reg_shift {
-        bits!(shifter_bits, 7 => 11) as usize
+        bits!(shifter_bits, 7:11) as usize
     } else {
-        let reg = bits!(shifter_bits, 8 => 11) as usize;
+        let reg = bits!(shifter_bits, 8:11) as usize;
         getreg(cpu, is_reg_shift, reg) as usize
     };
-    let pre_shift = getreg(cpu, is_reg_shift, bits!(shifter_bits, 0 => 3) as usize);
+    let pre_shift = getreg(cpu, is_reg_shift, bits!(shifter_bits, 0:3) as usize);
 
-    let shift_fn = match bits!(shifter_bits, 4 => 6) {
+    let shift_fn = match bits!(shifter_bits, 4:6) {
         0b000 | 0b001 => shifter_lsl,
         0b010 => shifter_lsr_imm,
         0b011 => shifter_lsr_reg,
@@ -148,15 +148,15 @@ enum ProcessInstrBitOp {
     Xor,
 }
 
-fn instr_bitwise(cpu: &mut Cpu, data: arm::And, op: ProcessInstrBitOp) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_bitwise(cpu: &mut Cpu, data: arm::And::Bf, op: ProcessInstrBitOp) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let dst_reg = bf!(data.rd);
-    let s_bit = bf!(data.s_bit) == 1;
-    let shift_out = get_shifter_val(data.raw(), cpu);
-    let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
+    let dst_reg = data.rd.get();
+    let s_bit = data.s_bit.get() == 1;
+    let shift_out = get_shifter_val(data.val, cpu);
+    let base_val = getreg(cpu, shift_out.pc_advanced, data.rn.get() as usize);
 
     let val = match op {
         ProcessInstrBitOp::And => base_val & shift_out.val,
@@ -169,9 +169,9 @@ fn instr_bitwise(cpu: &mut Cpu, data: arm::And, op: ProcessInstrBitOp) -> cpu::I
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            bf!((cpu.cpsr).n_bit = bit!(val, 31));
-            bf!((cpu.cpsr).z_bit = (val == 0) as u32);
-            bf!((cpu.cpsr).c_bit = shift_out.has_carry as u32);
+            cpu.cpsr.n_bit.set(bit!(val, 31));
+            cpu.cpsr.z_bit.set((val == 0) as u32);
+            cpu.cpsr.c_bit.set(shift_out.has_carry as u32);
         }
     }
 
@@ -185,13 +185,13 @@ fn instr_bitwise(cpu: &mut Cpu, data: arm::And, op: ProcessInstrBitOp) -> cpu::I
     }
 }
 
-fn instr_compare(cpu: &mut Cpu, data: arm::Cmp, negative: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_compare(cpu: &mut Cpu, data: arm::Cmp::Bf, negative: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let shift_out = get_shifter_val(data.raw(), cpu);
-    let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
+    let shift_out = get_shifter_val(data.val, cpu);
+    let base_val = getreg(cpu, shift_out.pc_advanced, data.rn.get() as usize);
 
     let (val, carry_bit, overflow_bit) = if !negative {
         let val = base_val.wrapping_sub(shift_out.val);
@@ -205,10 +205,10 @@ fn instr_compare(cpu: &mut Cpu, data: arm::Cmp, negative: bool) -> cpu::InstrSta
         (val, u_overflow, s_overflow)
     };
 
-    bf!((cpu.cpsr).n_bit = bit!(val, 31));
-    bf!((cpu.cpsr).z_bit = (val == 0) as u32);
-    bf!((cpu.cpsr).c_bit = carry_bit as u32);
-    bf!((cpu.cpsr).v_bit = overflow_bit as u32);
+    cpu.cpsr.n_bit.set(bit!(val, 31));
+    cpu.cpsr.z_bit.set((val == 0) as u32);
+    cpu.cpsr.c_bit.set(carry_bit as u32);
+    cpu.cpsr.v_bit.set(overflow_bit as u32);
 
     cpu::InstrStatus::InBlock
 }
@@ -222,16 +222,16 @@ enum ProcessInstrLogicalOp {
     SubCarry,
 }
 
-fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_logical(cpu: &mut Cpu, data: arm::Add::Bf, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let dst_reg = bf!(data.rd);
-    let s_bit = bf!(data.s_bit) == 1;
+    let dst_reg = data.rd.get();
+    let s_bit = data.s_bit.get() == 1;
 
-    let shift_out = get_shifter_val(data.raw(), cpu);
-    let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
+    let shift_out = get_shifter_val(data.val, cpu);
+    let base_val = getreg(cpu, shift_out.pc_advanced, data.rn.get() as usize);
 
     let (val, carry_bit, overflow_bit) = match op {
         ProcessInstrLogicalOp::Add => {
@@ -241,7 +241,7 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cp
             (val, u_overflow, s_overflow)
         },
         ProcessInstrLogicalOp::AddCarry => {
-            let carry = bf!((cpu.cpsr).c_bit) as u32;
+            let carry = cpu.cpsr.c_bit.get() as u32;
             let val = wrapping_sum!(base_val, shift_out.val, carry);
             let u_overflow = checked_sum!(base_val, shift_out.val, carry).is_none();
             let s_overflow = checked_sum!(base_val as i32, shift_out.val as i32, carry as i32).is_none();
@@ -254,7 +254,7 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cp
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::ReverseSubCarry => {
-            let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
+            let ncarry = cpu.cpsr.c_bit.get() as u32 ^ 1;
             let val = wrapping_diff!(shift_out.val, base_val, ncarry);
             let u_overflow = checked_diff!(shift_out.val, base_val, ncarry).is_none();
             let s_overflow = checked_diff!(shift_out.val as i32, base_val as i32, ncarry as i32).is_none();
@@ -267,7 +267,7 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cp
             (val, !u_overflow, s_overflow)
         }
         ProcessInstrLogicalOp::SubCarry => {
-            let ncarry = bf!((cpu.cpsr).c_bit) as u32 ^ 1;
+            let ncarry = cpu.cpsr.c_bit.get() as u32 ^ 1;
             let val = wrapping_diff!(base_val, shift_out.val, ncarry);
             let u_overflow = checked_diff!(base_val, shift_out.val, ncarry).is_none();
             let s_overflow = checked_diff!(base_val as i32, shift_out.val as i32, ncarry as i32).is_none();
@@ -279,10 +279,10 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cp
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            bf!((cpu.cpsr).n_bit = bit!(val, 31));
-            bf!((cpu.cpsr).z_bit = (val == 0) as u32);
-            bf!((cpu.cpsr).c_bit = carry_bit as u32);
-            bf!((cpu.cpsr).v_bit = overflow_bit as u32);
+            cpu.cpsr.n_bit.set(bit!(val, 31));
+            cpu.cpsr.z_bit.set((val == 0) as u32);
+            cpu.cpsr.c_bit.set(carry_bit as u32);
+            cpu.cpsr.v_bit.set(overflow_bit as u32);
         }
     }
 
@@ -296,14 +296,14 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add, op: ProcessInstrLogicalOp) -> cp
     }
 }
 
-fn instr_move(cpu: &mut Cpu, data: arm::Mov, negate: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_move(cpu: &mut Cpu, data: arm::Mov::Bf, negate: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let dst_reg = bf!(data.rd) as usize;
-    let s_bit = bf!(data.s_bit) == 1;
-    let shift_out = get_shifter_val(data.raw(), cpu);
+    let dst_reg = data.rd.get() as usize;
+    let s_bit = data.s_bit.get() == 1;
+    let shift_out = get_shifter_val(data.val, cpu);
 
     let src_val = if negate { !shift_out.val }
                   else { shift_out.val };
@@ -312,9 +312,9 @@ fn instr_move(cpu: &mut Cpu, data: arm::Mov, negate: bool) -> cpu::InstrStatus {
         if dst_reg == 15 {
             cpu.spsr_make_current();
         } else {
-            bf!((cpu.cpsr).n_bit = bit!(src_val, 31));
-            bf!((cpu.cpsr).z_bit = (src_val == 0) as u32);
-            bf!((cpu.cpsr).c_bit = shift_out.has_carry as u32);
+            cpu.cpsr.n_bit.set(bit!(src_val, 31));
+            cpu.cpsr.z_bit.set((src_val == 0) as u32);
+            cpu.cpsr.c_bit.set(shift_out.has_carry as u32);
         }
     }
 
@@ -328,16 +328,16 @@ fn instr_move(cpu: &mut Cpu, data: arm::Mov, negate: bool) -> cpu::InstrStatus {
     }
 }
 
-pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::Umlal, signed: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::Umlal::Bf, signed: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let rd_hi = bf!(data.rd_hi) as usize;
-    let rd_lo = bf!(data.rd_lo) as usize;
+    let rd_hi = data.rd_hi.get() as usize;
+    let rd_lo = data.rd_lo.get() as usize;
 
-    let base_val = cpu.regs[bf!(data.rm) as usize];
-    let multiplier = cpu.regs[bf!(data.rs) as usize];
+    let base_val = cpu.regs[data.rm.get() as usize];
+    let multiplier = cpu.regs[data.rs.get() as usize];
 
     let mul_val = if signed {
         // Double cast to ensure sign extension
@@ -353,21 +353,21 @@ pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::Umlal, signed: bool) -> 
     cpu.regs[rd_hi] = val_hi;
     cpu.regs[rd_lo] = val_lo;
 
-    if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val_hi, 31) as u32);
-        bf!((cpu.cpsr).z_bit = (val_lo == 0 && val_hi == 0) as u32);
+    if data.s_bit.get() == 1 {
+        cpu.cpsr.n_bit.set(bit!(val_hi, 31) as u32);
+        cpu.cpsr.z_bit.set((val_lo == 0 && val_hi == 0) as u32);
     };
 
     cpu::InstrStatus::InBlock
 }
 
-fn instr_test(cpu: &mut Cpu, data: arm::Tst, equiv: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_test(cpu: &mut Cpu, data: arm::Tst::Bf, equiv: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let shift_out = get_shifter_val(data.raw(), cpu);
-    let base_val = getreg(cpu, shift_out.pc_advanced, bf!(data.rn) as usize);
+    let shift_out = get_shifter_val(data.val, cpu);
+    let base_val = getreg(cpu, shift_out.pc_advanced, data.rn.get() as usize);
 
     let val = if equiv {
         base_val ^ shift_out.val
@@ -375,170 +375,170 @@ fn instr_test(cpu: &mut Cpu, data: arm::Tst, equiv: bool) -> cpu::InstrStatus {
         base_val & shift_out.val
     };
 
-    bf!((cpu.cpsr).n_bit = bit!(val, 31));
-    bf!((cpu.cpsr).z_bit = (val == 0) as u32);
-    bf!((cpu.cpsr).c_bit = shift_out.has_carry as u32);
+    cpu.cpsr.n_bit.set(bit!(val, 31));
+    cpu.cpsr.z_bit.set((val == 0) as u32);
+    cpu.cpsr.c_bit.set(shift_out.has_carry as u32);
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn adc(cpu: &mut Cpu, data: arm::Adc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::Add::new(data.raw()), ProcessInstrLogicalOp::AddCarry)
+pub fn adc(cpu: &mut Cpu, data: arm::Adc::Bf) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::AddCarry)
 }
 
-pub fn add(cpu: &mut Cpu, data: arm::Add) -> cpu::InstrStatus {
+pub fn add(cpu: &mut Cpu, data: arm::Add::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::Add)
 }
 
-pub fn and(cpu: &mut Cpu, data: arm::And) -> cpu::InstrStatus {
+pub fn and(cpu: &mut Cpu, data: arm::And::Bf) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
-pub fn bic(cpu: &mut Cpu, data: arm::Bic) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::And::new(data.raw()), ProcessInstrBitOp::AndNot)
+pub fn bic(cpu: &mut Cpu, data: arm::Bic::Bf) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::AndNot)
 }
 
-pub fn clz(cpu: &mut Cpu, data: arm::Clz) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn clz(cpu: &mut Cpu, data: arm::Clz::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize];
-    cpu.regs[bf!(data.rd) as usize] = base_val.leading_zeros();
+    let base_val = cpu.regs[data.rm.get() as usize];
+    cpu.regs[data.rd.get() as usize] = base_val.leading_zeros();
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn cmn(cpu: &mut Cpu, data: arm::Cmn) -> cpu::InstrStatus {
-    instr_compare(cpu, arm::Cmp::new(data.raw()), true)
+pub fn cmn(cpu: &mut Cpu, data: arm::Cmn::Bf) -> cpu::InstrStatus {
+    instr_compare(cpu, arm::Cmp::new(data.val), true)
 }
 
-pub fn cmp(cpu: &mut Cpu, data: arm::Cmp) -> cpu::InstrStatus {
+pub fn cmp(cpu: &mut Cpu, data: arm::Cmp::Bf) -> cpu::InstrStatus {
     instr_compare(cpu, data, false)
 }
 
-pub fn eor(cpu: &mut Cpu, data: arm::Eor) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::And::new(data.raw()), ProcessInstrBitOp::Xor)
+pub fn eor(cpu: &mut Cpu, data: arm::Eor::Bf) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Xor)
 }
 
-pub fn orr(cpu: &mut Cpu, data: arm::Orr) -> cpu::InstrStatus {
-    instr_bitwise(cpu, arm::And::new(data.raw()), ProcessInstrBitOp::Or)
+pub fn orr(cpu: &mut Cpu, data: arm::Orr::Bf) -> cpu::InstrStatus {
+    instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Or)
 }
 
-pub fn mla(cpu: &mut Cpu, data: arm::Mla) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn mla(cpu: &mut Cpu, data: arm::Mla::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
-    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
-    let accumulated = cpu.regs[bf!(data.rn) as usize] as u64;
+    let base_val = cpu.regs[data.rm.get() as usize] as u64;
+    let multiplier = cpu.regs[data.rs.get() as usize] as u64;
+    let accumulated = cpu.regs[data.rn.get() as usize] as u64;
     let val = (base_val * multiplier + accumulated) as u32;
 
-    cpu.regs[bf!(data.rd) as usize] = val;
+    cpu.regs[data.rd.get() as usize] = val;
 
-    if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val, 31));
-        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    if data.s_bit.get() == 1 {
+        cpu.cpsr.n_bit.set(bit!(val, 31));
+        cpu.cpsr.z_bit.set((val == 0) as u32);
     };
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn mov(cpu: &mut Cpu, data: arm::Mov) -> cpu::InstrStatus {
+pub fn mov(cpu: &mut Cpu, data: arm::Mov::Bf) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
 }
 
-pub fn mul(cpu: &mut Cpu, data: arm::Mul) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn mul(cpu: &mut Cpu, data: arm::Mul::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
-    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
+    let base_val = cpu.regs[data.rm.get() as usize] as u64;
+    let multiplier = cpu.regs[data.rs.get() as usize] as u64;
     let val = (base_val * multiplier) as u32;
 
-    cpu.regs[bf!(data.rd) as usize] = val;
+    cpu.regs[data.rd.get() as usize] = val;
 
-    if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val, 31));
-        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    if data.s_bit.get() == 1 {
+        cpu.cpsr.n_bit.set(bit!(val, 31));
+        cpu.cpsr.z_bit.set((val == 0) as u32);
     };
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn mvn(cpu: &mut Cpu, data: arm::Mvn) -> cpu::InstrStatus {
-    instr_move(cpu, arm::Mov::new(data.raw()), true)
+pub fn mvn(cpu: &mut Cpu, data: arm::Mvn::Bf) -> cpu::InstrStatus {
+    instr_move(cpu, arm::Mov::new(data.val), true)
 }
 
-pub fn rsb(cpu: &mut Cpu, data: arm::Rsb) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::Add::new(data.raw()), ProcessInstrLogicalOp::ReverseSub)
+pub fn rsb(cpu: &mut Cpu, data: arm::Rsb::Bf) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSub)
 }
 
-pub fn rsc(cpu: &mut Cpu, data: arm::Rsc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::Add::new(data.raw()), ProcessInstrLogicalOp::ReverseSubCarry)
+pub fn rsc(cpu: &mut Cpu, data: arm::Rsc::Bf) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSubCarry)
 }
 
-pub fn sbc(cpu: &mut Cpu, data: arm::Sbc) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::Add::new(data.raw()), ProcessInstrLogicalOp::SubCarry)
+pub fn sbc(cpu: &mut Cpu, data: arm::Sbc::Bf) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::SubCarry)
 }
 
-pub fn smlal(cpu: &mut Cpu, data: arm::Smlal) -> cpu::InstrStatus {
-    instr_mul64_accumulate(cpu, arm::Umlal::new(data.raw()), true)
+pub fn smlal(cpu: &mut Cpu, data: arm::Smlal::Bf) -> cpu::InstrStatus {
+    instr_mul64_accumulate(cpu, arm::Umlal::new(data.val), true)
 }
 
-pub fn smull(cpu: &mut Cpu, data: arm::Smull) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn smull(cpu: &mut Cpu, data: arm::Smull::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize] as i32;
-    let multiplier = cpu.regs[bf!(data.rs) as usize] as i32;
+    let base_val = cpu.regs[data.rm.get() as usize] as i32;
+    let multiplier = cpu.regs[data.rs.get() as usize] as i32;
     let val = (base_val as i64).wrapping_mul(multiplier as i64) as u64;
 
-    cpu.regs[bf!(data.rd_hi) as usize] = (val >> 32) as u32;
-    cpu.regs[bf!(data.rd_lo) as usize] = val as u32;
+    cpu.regs[data.rd_hi.get() as usize] = (val >> 32) as u32;
+    cpu.regs[data.rd_lo.get() as usize] = val as u32;
 
-    if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val, 63) as u32);
-        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    if data.s_bit.get() == 1 {
+        cpu.cpsr.n_bit.set(bit!(val, 63) as u32);
+        cpu.cpsr.z_bit.set((val == 0) as u32);
     };
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn sub(cpu: &mut Cpu, data: arm::Sub) -> cpu::InstrStatus {
-    instr_logical(cpu, arm::Add::new(data.raw()), ProcessInstrLogicalOp::Sub)
+pub fn sub(cpu: &mut Cpu, data: arm::Sub::Bf) -> cpu::InstrStatus {
+    instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::Sub)
 }
 
-pub fn teq(cpu: &mut Cpu, data: arm::Teq) -> cpu::InstrStatus {
-    instr_test(cpu, arm::Tst::new(data.raw()), true)
+pub fn teq(cpu: &mut Cpu, data: arm::Teq::Bf) -> cpu::InstrStatus {
+    instr_test(cpu, arm::Tst::new(data.val), true)
 }
 
-pub fn tst(cpu: &mut Cpu, data: arm::Tst) -> cpu::InstrStatus {
+pub fn tst(cpu: &mut Cpu, data: arm::Tst::Bf) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
 }
 
-pub fn umlal(cpu: &mut Cpu, data: arm::Umlal) -> cpu::InstrStatus {
+pub fn umlal(cpu: &mut Cpu, data: arm::Umlal::Bf) -> cpu::InstrStatus {
     instr_mul64_accumulate(cpu, data, false)
 }
 
-pub fn umull(cpu: &mut Cpu, data: arm::Umull) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn umull(cpu: &mut Cpu, data: arm::Umull::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let base_val = cpu.regs[bf!(data.rm) as usize] as u64;
-    let multiplier = cpu.regs[bf!(data.rs) as usize] as u64;
+    let base_val = cpu.regs[data.rm.get() as usize] as u64;
+    let multiplier = cpu.regs[data.rs.get() as usize] as u64;
     let val = base_val.wrapping_mul(multiplier);
 
-    cpu.regs[bf!(data.rd_hi) as usize] = (val >> 32) as u32;
-    cpu.regs[bf!(data.rd_lo) as usize] = val as u32;
+    cpu.regs[data.rd_hi.get() as usize] = (val >> 32) as u32;
+    cpu.regs[data.rd_lo.get() as usize] = val as u32;
 
-    if bf!(data.s_bit) == 1 {
-        bf!((cpu.cpsr).n_bit = bit!(val, 63) as u32);
-        bf!((cpu.cpsr).z_bit = (val == 0) as u32);
+    if data.s_bit.get() == 1 {
+        cpu.cpsr.n_bit.set(bit!(val, 63) as u32);
+        cpu.cpsr.z_bit.set((val == 0) as u32);
     };
 
     cpu::InstrStatus::InBlock

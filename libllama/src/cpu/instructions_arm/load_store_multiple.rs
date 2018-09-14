@@ -5,12 +5,12 @@ use cpu::interpreter_arm as arm;
 fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
     let instr_data = arm::Ldm1::new(instr_data);
 
-    let register_list = bf!(instr_data.register_list);
+    let register_list = instr_data.register_list.get();
     let num_registers = register_list.count_ones();
 
-    let p_bit = bf!(instr_data.p_bit) == 1;
-    let u_bit = bf!(instr_data.u_bit) == 1;
-    let rn_val = cpu.regs[bf!(instr_data.rn) as usize];
+    let p_bit = instr_data.p_bit.get() == 1;
+    let u_bit = instr_data.u_bit.get() == 1;
+    let rn_val = cpu.regs[instr_data.rn.get() as usize];
 
     let (addr, wb) = match (p_bit, u_bit) {
         (false, true)  => (rn_val, rn_val + num_registers * 4), // Increment after
@@ -19,33 +19,33 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
         (true, false)  => (rn_val - num_registers * 4, rn_val - num_registers * 4) // Decrement before
     };
 
-    if bf!(instr_data.w_bit) == 0 {
+    if instr_data.w_bit.get() == 0 {
         (addr, addr)
     } else {
         (addr, wb)
     }
 }
 
-pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
-    let register_list = bf!(data.register_list);
+    let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
+    let register_list = data.register_list.get();
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[bf!(data.rn) as usize] = writeback;
+            cpu.regs[data.rn.get() as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
 
     if bit!(register_list, 15) == 1 {
-        cpu.regs[bf!(data.rn) as usize] = writeback;
+        cpu.regs[data.rn.get() as usize] = writeback;
         let val = cpu.mpu.dmem_read::<u32>(addr);
-        bf!((cpu.cpsr).thumb_bit = bit!(val, 0));
+        cpu.cpsr.thumb_bit.set(bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
         return cpu::InstrStatus::Branched;
     } else {
@@ -53,19 +53,19 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1) -> cpu::InstrStatus {
     }
 }
 
-pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
-    let register_list = bf!(data.register_list);
+    let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
+    let register_list = data.register_list.get();
 
-    let current_mode = cpu::Mode::from_num(bf!((cpu.cpsr).mode));
+    let current_mode = cpu::Mode::from_num(cpu.cpsr.mode.get());
     cpu.regs.swap(cpu::Mode::Usr);
     for i in 0..14 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[bf!(data.rn) as usize] = writeback;            
+            cpu.regs[data.rn.get() as usize] = writeback;            
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
@@ -75,17 +75,17 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2) -> cpu::InstrStatus {
     return cpu::InstrStatus::InBlock;
 }
 
-pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
-    let register_list = bf!(data.register_list);
+    let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
+    let register_list = data.register_list.get();
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[bf!(data.rn) as usize] = writeback;
+            cpu.regs[data.rn.get() as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
@@ -97,13 +97,13 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3) -> cpu::InstrStatus {
     cpu::InstrStatus::Branched
 }
 
-pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, writeback) = decode_addressing_mode(data.raw(), cpu);
-    let register_list = bf!(data.register_list);
+    let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
+    let register_list = data.register_list.get();
 
     for i in 0..16 {
         if bit!(register_list, i) == 1 {
@@ -112,22 +112,22 @@ pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1) -> cpu::InstrStatus {
         }
     }
 
-    if bf!(data.w_bit) == 1 {
-        cpu.regs[bf!(data.rn) as usize] = writeback;
+    if data.w_bit.get() == 1 {
+        cpu.regs[data.rn.get() as usize] = writeback;
     }
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn stm_2(cpu: &mut Cpu, data: arm::Stm2) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn stm_2(cpu: &mut Cpu, data: arm::Stm2::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let (mut addr, _) = decode_addressing_mode(data.raw(), cpu);
-    let register_list = bf!(data.register_list);
+    let (mut addr, _) = decode_addressing_mode(data.val, cpu);
+    let register_list = data.register_list.get();
 
-    let current_mode = cpu::Mode::from_num(bf!((cpu.cpsr).mode));
+    let current_mode = cpu::Mode::from_num(cpu.cpsr.mode.get());
     cpu.regs.swap(cpu::Mode::Usr);
     for i in 0..16 {
         if bit!(register_list, i) == 1 {

@@ -3,36 +3,35 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::mem;
 
-use extprim::u128::u128 as u128_t;
 use openssl::symm;
 
 use utils::bytes;
 use fs;
 
-bfdesc!(RegCnt: u32, {
-    fifo_in_count: 0 => 4,
-    fifo_out_count: 5 => 9,
-    flush_fifo_in: 10 => 10,
-    flush_fifo_out: 11 => 11,
-    fifo_in_dma_size: 12 => 13,
-    fifo_out_dma_size: 14 => 15,
-    mac_size: 16 => 18,
-    mac_source_reg: 20 => 20,
-    mac_verified: 21 => 21,
-    out_big_endian: 22 => 22,
-    in_big_endian: 23 => 23,
-    out_normal_order: 24 => 24,
-    in_normal_order: 25 => 25,
-    update_keyslot: 26 => 26,
-    mode: 27 => 29,
-    enable_irq: 30 => 30,
-    busy: 31 => 31
+bf!(RegCnt[u32] {
+    fifo_in_count: 0:4,
+    fifo_out_count: 5:9,
+    flush_fifo_in: 10:10,
+    flush_fifo_out: 11:11,
+    fifo_in_dma_size: 12:13,
+    fifo_out_dma_size: 14:15,
+    mac_size: 16:18,
+    mac_source_reg: 20:20,
+    mac_verified: 21:21,
+    out_big_endian: 22:22,
+    in_big_endian: 23:23,
+    out_normal_order: 24:24,
+    in_normal_order: 25:25,
+    update_keyslot: 26:26,
+    mode: 27:29,
+    enable_irq: 30:30,
+    busy: 31:31
 });
 
-bfdesc!(RegKeyCnt: u8, {
-    keyslot: 0 => 5,
-    force_dsi_keygen: 6 => 6,
-    enable_fifo_flush: 7 => 7
+bf!(RegKeyCnt[u8] {
+    keyslot: 0:5,
+    force_dsi_keygen: 6:6,
+    enable_fifo_flush: 7:7
 });
 
 #[derive(Clone, Copy)]
@@ -52,22 +51,22 @@ impl Key {
         let keyy = keyy.to_u128();
         let common = match mode {
             KeygenMode::THREEDS => {
-                let c = u128_t::from_str_radix("1FF9E9AAC5FE0408024591DC5D52768A", 16).unwrap();
+                let c = 0x1FF9E9AAC5FE0408024591DC5D52768Au128;
                 (keyx.rotate_left(2) ^ keyy).wrapping_add(c).rotate_right(41)
             }
             KeygenMode::DSi => {
-                let c = u128_t::from_str_radix("FFFEFB4E295902582A680F5F1A4F3E79", 16).unwrap();
+                let c = 0xFFFEFB4E295902582A680F5F1A4F3E79u128;
                 (keyx ^ keyy).wrapping_add(c).rotate_left(42)
             }
         };
         Key::from_int(common)
     }
 
-    fn from_int(num: u128_t) -> Key {
+    fn from_int(num: u128) -> Key {
         Key { data: bytes::from_u128(num) }
     }
 
-    fn to_u128(&self) -> u128_t {
+    fn to_u128(&self) -> u128 {
         bytes::to_u128(&self.data)
     }
 }
@@ -79,7 +78,7 @@ mod test {
     #[test]
     fn test_tofrom128() {
         let key = Key { data: [0xd2, 0x2f, 0x5e, 0x15, 0xee, 0xfb, 0x12, 0x0d, 0x50, 0xf7, 0x6b, 0xbc, 0x76, 0x1a, 0x8f, 0x41] };
-        let int = u128_t::from_str_radix("D22F5E15EEFB120D50F76BBC761A8F41", 16).unwrap();
+        let int = 0xD22F5E15EEFB120D50F76BBC761A8F41u128;
 
         assert_eq!(key.data, Key::from_int(int).data);
         assert_eq!(key.to_u128(), int);
@@ -170,19 +169,18 @@ impl fmt::Debug for AesDeviceState {
 }
 
 fn reg_cnt_onread(dev: &mut AesDevice) {
-    let mut cnt = dev.cnt.get();
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     let in_count = cmp::min(16, dev._internal_state.fifo_in_buf.len());
     let out_count = cmp::min(16, dev._internal_state.fifo_out_buf.len());
-    bf!(cnt @ RegCnt::fifo_in_count = in_count as u32);
-    bf!(cnt @ RegCnt::fifo_out_count = out_count as u32);
-    dev.cnt.set_unchecked(cnt);
+    cnt.fifo_in_count.set(in_count as u32);
+    cnt.fifo_out_count.set(out_count as u32);
 }
 
 fn reg_cnt_update(dev: &mut AesDevice) {
-    let cnt = dev.cnt.get();
-    warn!("STUBBED: Wrote 0x{:08X} to AES CNT register!", cnt);
+    let cnt = RegCnt::new(dev.cnt.get());
+    warn!("STUBBED: Wrote 0x{:08X} to AES CNT register!", cnt.val);
 
-    if bf!(cnt @ RegCnt::update_keyslot) == 1 {
+    if cnt.update_keyslot.get() == 1 {
         dev._internal_state.active_keyslot = dev.key_sel.get() as usize;
         trace!("Setting AES active keyslot to 0x{:X}", dev._internal_state.active_keyslot);
 
@@ -191,16 +189,18 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         }
 
         // Remove update_keyslot bit
-        dev.cnt.set_unchecked(bf!(cnt @ RegCnt::update_keyslot as 0));
+        let mut without_keyslot = cnt;
+        without_keyslot.update_keyslot.set(0);
+        dev.cnt.set_unchecked(without_keyslot.val);
     }
 
-    if bf!(cnt @ RegCnt::busy) == 1 {
-        let mode = bf!(cnt @ RegCnt::mode);
+    if cnt.busy.get() == 1 {
+        let mode = cnt.mode.get();
         let keyslot = dev._internal_state.active_keyslot;
         let key = dev._internal_state.key_slots[keyslot];
         let bytes = dev.blk_cnt.get() << 4;
 
-        let mut ctr = if bf!(cnt @ RegCnt::in_normal_order) == 1 {
+        let mut ctr = if cnt.in_normal_order.get() == 1 {
             // Reverse word order for CTR
             dev._internal_state.reg_ctr.chunks(4).rev()
                                        .flat_map(|x| x.iter().map(|b| *b))
@@ -209,7 +209,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
             dev._internal_state.reg_ctr.to_vec()
         };
 
-        if bf!(cnt @ RegCnt::in_big_endian) == 0 {
+        if cnt.in_big_endian.get() == 0 {
             // Reverse CTR byte order
             for c in ctr.chunks_mut(4) {
                 c.reverse();
@@ -217,7 +217,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         }
 
         assert!(dev.mac_blk_cnt.get() == 0);
-        if bf!(cnt @ RegCnt::in_normal_order) == 0 {
+        if cnt.in_normal_order.get() == 0 {
             warn!("Setting up AES for untested in_normal_order value (0)");
         }
 
@@ -249,12 +249,12 @@ fn reg_cnt_update(dev: &mut AesDevice) {
 }
 
 fn reg_key_cnt_update(dev: &mut AesDevice) {
-    let key_cnt = dev.key_cnt.get();
-    let flush_fifo = bf!(key_cnt @ RegKeyCnt::enable_fifo_flush) == 1;
+    let key_cnt = RegKeyCnt::new(dev.key_cnt.get());
+    let flush_fifo = key_cnt.enable_fifo_flush.get() == 1;
 
     trace!("Wrote to AES KEYCNT register; keyslot: 0x{:X}, Mode: {}, FIFO flush: {}",
-        bf!(key_cnt @ RegKeyCnt::keyslot),
-        if bf!(key_cnt @ RegKeyCnt::force_dsi_keygen) == 1 { "DSi" } else { "3DS" },
+        key_cnt.keyslot.get(),
+        if key_cnt.force_dsi_keygen.get() == 1 { "DSi" } else { "3DS" },
         flush_fifo
     );
 
@@ -268,13 +268,13 @@ fn reg_key_cnt_update(dev: &mut AesDevice) {
 }
 
 fn reg_fifo_in_update(dev: &mut AesDevice) {
-    let cnt = dev.cnt.get();
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     {
         let active_process = dev._internal_state.active_process.as_mut()
-            .expect(&format!("Attempted to write to AES FIFO-IN when not started! cnt={:08X}", cnt));
+            .expect(&format!("Attempted to write to AES FIFO-IN when not started! cnt={:08X}", cnt.val));
 
         let word = dev.fifo_in.get();
-        let word = if bf!(cnt @ RegCnt::in_big_endian) == 1 { word }
+        let word = if cnt.in_big_endian.get() == 1 { word }
                    else { word.swap_bytes() };
         dev._internal_state.fifo_in_buf.push_back(word);
 
@@ -287,7 +287,7 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
             ];
 
             // TODO: Test this
-            if bf!(cnt @ RegCnt::in_normal_order) == 0 {
+            if cnt.in_normal_order.get() == 0 {
                 warn!("STUBBED: AES crypto with in_normal_order unset");
                 words.reverse();
             }
@@ -302,7 +302,7 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
 
             let dec_words_iter = dec_words[..4].iter();
 
-            if bf!(cnt @ RegCnt::out_normal_order) == 1 {
+            if cnt.out_normal_order.get() == 1 {
                 dev._internal_state.fifo_out_buf.extend(dec_words_iter);
             } else {
                 dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
@@ -313,13 +313,14 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
     dev._internal_state.bytes_left -= 4;
     if dev._internal_state.bytes_left == 0 {
         dev._internal_state.active_process = None;
-        dev.cnt.set_unchecked(bf!(cnt @ RegCnt::busy as 0));
+        cnt.busy.set(0);
     }
 }
 
 fn reg_fifo_out_onread(dev: &mut AesDevice) {
+    let cnt = RegCnt::new(dev.cnt.get());
     if let Some(mut word) = dev._internal_state.fifo_out_buf.pop_front() {
-        if bf!((dev.cnt.get()) @ RegCnt::out_big_endian) == 0 {
+        if cnt.out_big_endian.get() == 0 {
             word = word.swap_bytes();
         }
         dev.fifo_out.set_unchecked(word);
@@ -334,7 +335,7 @@ enum KeyType {
 }
 
 fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
-    let cnt = dev.cnt.get();
+    let cnt = RegCnt::new(dev.cnt.get());
     let (word, state) = match key_ty {
         KeyType::CommonKey => (dev.key_fifo.get(), &mut dev._internal_state.keyfifo_state),
         KeyType::KeyX => (dev.keyx_fifo.get(), &mut dev._internal_state.keyxfifo_state),
@@ -347,20 +348,20 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
 
     // TODO: Can you write to keyslots <4 this way?
 
-    let word = if bf!(cnt @ RegCnt::in_big_endian) == 1 { word }
+    let word = if cnt.in_big_endian.get() == 1 { word }
                else { word.swap_bytes() };
     state.buf[state.pos / 4] = word;
     state.pos += 4;
     if state.pos >= 0x10 {
         // Done updating the key
-        let key_cnt = dev.key_cnt.get();
-        let keygen_mode = if bf!(key_cnt @ RegKeyCnt::force_dsi_keygen) == 1 {
+        let key_cnt = RegKeyCnt::new(dev.key_cnt.get());
+        let keygen_mode = if key_cnt.force_dsi_keygen.get() == 1 {
             KeygenMode::DSi
         } else {
             KeygenMode::THREEDS
         };
 
-        let keyslot = bf!(key_cnt @ RegKeyCnt::keyslot) as usize;
+        let keyslot = key_cnt.keyslot.get() as usize;
         let key = Key {
             data: unsafe { mem::transmute(state.buf) }
         };

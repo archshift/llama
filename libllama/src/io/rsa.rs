@@ -3,16 +3,16 @@ use std::mem;
 
 use openssl::bn;
 
-bfdesc!(RegCnt: u32, {
-    busy: 0 => 0,
-    keyslot: 4 => 5,
-    little_endian: 8 => 8,
-    normal_order: 9 => 9
+bf!(RegCnt[u32] {
+    busy: 0:0,
+    keyslot: 4:5,
+    little_endian: 8:8,
+    normal_order: 9:9
 });
 
-bfdesc!(RegSlotCnt: u32, {
-    key_set: 0 => 0,
-    key_prot: 1 => 1
+bf!(RegSlotCnt[u32] {
+    key_set: 0:0,
+    key_prot: 1:1
 });
 
 pub struct RsaKeyslot {
@@ -59,19 +59,19 @@ impl fmt::Debug for RsaDeviceState {
     }
 }
 
-fn get_keydata(dev: &RsaDevice, keyslot: usize) -> (u32, u32) {
+fn get_keydata(dev: &RsaDevice, keyslot: usize) -> (RegSlotCnt::Bf, u32) {
     match keyslot {
-        0 => (dev.slot0_cnt.get(), dev.slot0_len.get()),
-        1 => (dev.slot1_cnt.get(), dev.slot1_len.get()),
-        2 => (dev.slot2_cnt.get(), dev.slot2_len.get()),
-        3 => (dev.slot3_cnt.get(), dev.slot3_len.get()),
+        0 => (RegSlotCnt::new(dev.slot0_cnt.get()), dev.slot0_len.get()),
+        1 => (RegSlotCnt::new(dev.slot1_cnt.get()), dev.slot1_len.get()),
+        2 => (RegSlotCnt::new(dev.slot2_cnt.get()), dev.slot2_len.get()),
+        3 => (RegSlotCnt::new(dev.slot3_cnt.get()), dev.slot3_len.get()),
         _ => unreachable!()
     }
 }
 
 fn reg_slot_cnt_update(dev: &mut RsaDevice, keyslot: usize) {
     let (slot_cnt, _) = get_keydata(dev, keyslot);
-    if bf!(slot_cnt @ RegSlotCnt::key_set) == 1 {
+    if slot_cnt.key_set.get() == 1 {
         assert_eq!(dev._internal_state.slots[keyslot].write_pos, 0x100);
     } else {
         dev._internal_state.slots[keyslot].write_pos = 0;
@@ -79,13 +79,13 @@ fn reg_slot_cnt_update(dev: &mut RsaDevice, keyslot: usize) {
 }
 
 fn reg_cnt_update(dev: &mut RsaDevice) {
-    let cnt = dev.cnt.get();
-    trace!("Wrote 0x{:08X} to RSA CNT register!", cnt);
+    let cnt = RegCnt::new(dev.cnt.get());
+    trace!("Wrote 0x{:08X} to RSA CNT register!", cnt.val);
 
-    if bf!(cnt @ RegCnt::busy) == 1 {
-        let keyslot = bf!(cnt @ RegCnt::keyslot) as usize;
+    if cnt.busy.get() == 1 {
+        let keyslot = cnt.keyslot.get() as usize;
         let (slot_cnt, _) = get_keydata(dev, keyslot);
-        assert_eq!(bf!(slot_cnt @ RegSlotCnt::key_set), 1);
+        assert_eq!(slot_cnt.key_set.get(), 1);
 
         info!("Performing RSA arithmetic!");
 
@@ -94,7 +94,7 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
         let mut modulus_buf = [0u8; 0x100];
         modulus_buf.copy_from_slice(&dev._internal_state.modulus[..]);
 
-        match (bf!(cnt @ RegCnt::little_endian), bf!(cnt @ RegCnt::normal_order)) {
+        match (cnt.little_endian.get(), cnt.normal_order.get()) {
             (1, 1) => {},
             (0, 0) => {
                 base_buf.reverse();
@@ -117,7 +117,8 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
         // Copy result to the back of the buffer
         dev._internal_state.message[0x100 - res_vec.len() .. 0x100].copy_from_slice(res_vec.as_slice());
 
-        dev.cnt.set_unchecked(bf!(cnt @ RegCnt::busy as 0));
+        let cnt_ref = RegCnt::alias_mut(dev.cnt.ref_mut());
+        cnt_ref.busy.set(0);
     }
 }
 
@@ -146,11 +147,12 @@ fn reg_txt_write(dev: &mut RsaDevice, buf_pos: usize, src: &[u8]) {
 }
 
 fn reg_exp_fifo_write(dev: &mut RsaDevice) {
-    let keyslot = bf!((dev.cnt.get()) @ RegCnt::keyslot) as usize;
+    let cnt = RegCnt::new(dev.cnt.get());
+    let keyslot = cnt.keyslot.get() as usize;
     let (slot_cnt, _) = get_keydata(dev, keyslot);
 
-    assert_eq!(bf!(slot_cnt @ RegSlotCnt::key_set), 0);
-    assert_eq!(bf!(slot_cnt @ RegSlotCnt::key_prot), 0);
+    assert_eq!(slot_cnt.key_set.get(), 0);
+    assert_eq!(slot_cnt.key_prot.get(), 0);
 
     let write_pos = dev._internal_state.slots[keyslot].write_pos;
     if write_pos == 0 { // Just starting to update key, clear previous key

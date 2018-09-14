@@ -1,59 +1,59 @@
 use cpu;
 use cpu::Cpu;
 use cpu::interpreter_arm as arm;
-use bitutils::sign_extend;
+use bitutils::sign_extend32;
 
-fn instr_branch_exchange(cpu: &mut Cpu, data: arm::Bx, link: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+fn instr_branch_exchange(cpu: &mut Cpu, data: arm::Bx::Bf, link: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let addr = cpu.regs[bf!(data.rm) as usize];
+    let addr = cpu.regs[data.rm.get() as usize];
 
     if link {
         cpu.regs[14] = cpu.regs[15] - 4;
     }
 
-    bf!((cpu.cpsr).thumb_bit = bit!(addr, 0));
+    cpu.cpsr.thumb_bit.set(bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
 
     cpu::InstrStatus::Branched
 }
 
-pub fn bbl(cpu: &mut Cpu, data: arm::Bbl) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn bbl(cpu: &mut Cpu, data: arm::Bbl::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let signed_imm_24 = bf!(data.signed_imm_24);
+    let signed_imm_24 = data.signed_imm_24.get();
 
-    if bf!(data.link_bit) == 1 {
+    if data.link_bit.get() == 1 {
         cpu.regs[14] = cpu.regs[15] - 4;
     }
 
     let pc = cpu.regs[15];
-    cpu.branch(((pc as i32) + (sign_extend(signed_imm_24, 24) << 2)) as u32);
+    cpu.branch(((pc as i32) + (sign_extend32(signed_imm_24, 24) << 2)) as u32);
 
     cpu::InstrStatus::Branched
 }
 
-pub fn blx(cpu: &mut Cpu, data: arm::Blx2) -> cpu::InstrStatus {
-    instr_branch_exchange(cpu, arm::Bx::new(data.raw()), true)
+pub fn blx(cpu: &mut Cpu, data: arm::Blx2::Bf) -> cpu::InstrStatus {
+    instr_branch_exchange(cpu, arm::Bx::new(data.val), true)
 }
 
-pub fn bx(cpu: &mut Cpu, data: arm::Bx) -> cpu::InstrStatus {
+pub fn bx(cpu: &mut Cpu, data: arm::Bx::Bf) -> cpu::InstrStatus {
     instr_branch_exchange(cpu, data, false)
 }
 
-pub fn mod_blx(cpu: &mut Cpu, data: arm::ModBlx) -> cpu::InstrStatus {
-    let signed_imm_24 = bf!(data.signed_imm_24);
-    let h_bit = bf!(data.h_bit);
+pub fn mod_blx(cpu: &mut Cpu, data: arm::ModBlx::Bf) -> cpu::InstrStatus {
+    let signed_imm_24 = data.signed_imm_24.get();
+    let h_bit = data.h_bit.get();
 
     cpu.regs[14] = cpu.regs[15] - 4;
-    bf!((cpu.cpsr).thumb_bit = 1);
+    cpu.cpsr.thumb_bit.set(1);
 
     let pc = cpu.regs[15];
-    cpu.branch((pc as i32 + (sign_extend(signed_imm_24, 24) << 2)) as u32 + (h_bit << 1));
+    cpu.branch((pc as i32 + (sign_extend32(signed_imm_24, 24) << 2)) as u32 + (h_bit << 1));
 
     cpu::InstrStatus::Branched
 }

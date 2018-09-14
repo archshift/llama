@@ -4,16 +4,16 @@ use std::iter::Iterator;
 use std::ops;
 
 // Program status register
-bitfield!(Psr: u32, {
-    mode: 0 => 4,
-    thumb_bit: 5 => 5,
-    disable_fiq_bit: 6 => 6,
-    disable_irq_bit: 7 => 7,
-    q_bit: 27 => 27,
-    v_bit: 28 => 28,
-    c_bit: 29 => 29,
-    z_bit: 30 => 30,
-    n_bit: 31 => 31
+bf!(Psr[u32] {
+    mode: 0:4,
+    thumb_bit: 5:5,
+    disable_fiq_bit: 6:6,
+    disable_irq_bit: 7:7,
+    q_bit: 27:27,
+    v_bit: 28:28,
+    c_bit: 29:29,
+    z_bit: 30:30,
+    n_bit: 31:31
 });
 
 #[derive(Debug)]

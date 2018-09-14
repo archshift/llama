@@ -73,7 +73,7 @@ def generate(file):
 
     for category in decoder.categories:
         for instr in category.instructions:
-            pcode(f"bitfield!({to_CamelCase(instr.name)}: {decoder.ty}, {{")
+            pcode(f"bf!({to_CamelCase(instr.name)}[{decoder.ty}] {{")
             indent()
 
             pos = 0
@@ -85,7 +85,7 @@ def generate(file):
                 if isinstance(bitgroup, parser.BitGroup.Labeled):
                     name = bitgroup.lhs
                     start = pos
-                    pcode(f"{name}: {start}usize => {start + size - 1}usize{comma}") 
+                    pcode(f"{name}: {start}usize:{start + size - 1}usize{comma}") 
                     labeled_i += 1
                 pos += size
 

@@ -1,35 +1,35 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-bitfield!(RegGlobalCnt: u32, {
-    enabled: 0 => 0,
-    cycle_select: 16 => 19,
-    round_robin: 31 => 31
+bf!(RegGlobalCnt[u32] {
+    enabled: 0:0,
+    cycle_select: 16:19,
+    round_robin: 31:31
 });
 
-bfdesc!(RegChannelCnt: u32, {
-    _dst_addr_writeback_mode: 10 => 11,
-    _dst_addr_reload: 12 => 12,
-    _src_addr_writeback_mode: 13 => 14,
-    _src_addr_reload: 15 => 15,
-    _xfer_size: 16 => 19,
-    _startup_mode: 24 => 27,
-    _immed_mode: 28 => 28,
-    _repeat_mode: 29 => 29,
-    _enable_irq: 30 => 30,
-    enabled: 31 => 31
+bf!(RegChannelCnt[u32] {
+    _dst_addr_writeback_mode: 10:11,
+    _dst_addr_reload: 12:12,
+    _src_addr_writeback_mode: 13:14,
+    _src_addr_reload: 15:15,
+    _xfer_size: 16:19,
+    _startup_mode: 24:27,
+    _immed_mode: 28:28,
+    _repeat_mode: 29:29,
+    _enable_irq: 30:30,
+    enabled: 31:31
 });
 
 fn reg_chan_cnt_write(dev: &mut NdmaChannel) {
-    let chan_cnt = dev.chan_cnt.get();
-    if bf!(chan_cnt @ RegChannelCnt::enabled) == 1 {
+    let chan_cnt = RegChannelCnt::new(dev.chan_cnt.get());
+    if chan_cnt.enabled.get() == 1 {
         unimplemented!()
     }
-    warn!("STUBBED: NDMA chan_cnt write {:08X}", chan_cnt);
+    warn!("STUBBED: NDMA chan_cnt write {:X?}", chan_cnt);
 }
 
 iodevice!(NdmaChannel, {
-    internal_state: Rc<Cell<RegGlobalCnt>>;
+    internal_state: Rc<Cell<RegGlobalCnt::Bf>>;
     regs: {
         0x004 => src_addr: u32 { }
         0x008 => dst_addr: u32 { }
@@ -45,7 +45,7 @@ iodevice!(NdmaChannel, {
 
 #[derive(Debug)]
 pub struct NdmaDeviceState {
-    global_cnt: Rc<Cell<RegGlobalCnt>>,
+    global_cnt: Rc<Cell<RegGlobalCnt::Bf>>,
     channels: [NdmaChannel; 8],
 }
 

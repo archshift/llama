@@ -1,41 +1,41 @@
 use cpu::coproc::{CpEffect, Coprocessor};
 
-bitfield!(RegControl: u32, {
-    use_mpu: 0 => 0,
-    align_fault: 1 => 1,
-    use_dcache: 2 => 2,
-    write_buf: 3 => 3,
-    big_endian: 7 => 7,
-    sys_protect: 8 => 8,
-    rom_protect: 9 => 9,
-    f_bit: 10 => 10,
-    predict_branches: 11 => 11,
-    use_icache: 12 => 12,
-    high_vectors: 13 => 13,
-    predictable_cache: 14 => 14,
-    disable_thumb: 15 => 15,
-    low_latency_frq: 21 => 21,
-    allow_unaligned: 22 => 22,
-    disable_subpage_ap: 23 => 23,
-    vectored_interrupts: 24 => 24,
-    mixed_endian_exceptions: 25 => 25,
-    use_l2cache: 26 => 26
+bf!(RegControl[u32] {
+    use_mpu: 0:0,
+    align_fault: 1:1,
+    use_dcache: 2:2,
+    write_buf: 3:3,
+    big_endian: 7:7,
+    sys_protect: 8:8,
+    rom_protect: 9:9,
+    f_bit: 10:10,
+    predict_branches: 11:11,
+    use_icache: 12:12,
+    high_vectors: 13:13,
+    predictable_cache: 14:14,
+    disable_thumb: 15:15,
+    low_latency_frq: 21:21,
+    allow_unaligned: 22:22,
+    disable_subpage_ap: 23:23,
+    vectored_interrupts: 24:24,
+    mixed_endian_exceptions: 25:25,
+    use_l2cache: 26:26
 });
 
-bitfield!(MpuRegion: u32, {
-    enabled: 0 => 0,
-    size: 1 => 5,
-    base_shr_12: 12 => 31
+bf!(MpuRegion[u32] {
+    enabled: 0:0,
+    size: 1:5,
+    base_shr_12: 12:31
 });
 
 pub struct SysControl {
-    r1_control: RegControl,
+    r1_control: RegControl::Bf,
     r2_dcacheability: u32,
     r2_icacheability: u32,
     r3_bufferability: u32,
     r5_daccessperms: u32,
     r5_iaccessperms: u32,
-    r6_memregions: [MpuRegion; 8],
+    r6_memregions: [MpuRegion::Bf; 8],
     r9_dcache_lockdown: u32,
     r9_icache_lockdown: u32,
     r9_dtcm_size: u32,
@@ -72,13 +72,13 @@ impl Coprocessor for SysControl {
             1 => match op2 {
                 0b000 => {
                     warn!("STUBBED: System control register write");
-                    self.r1_control.set_raw(val);
+                    self.r1_control.val = val;
 
                     let control = self.r1_control;
                     effect = Box::new(move |cpu| {
-                        cpu.mpu.enabled = bf!(control.use_mpu) == 1;
-                        cpu.mpu.icache_enabled = bf!(control.use_icache) == 1;
-                        cpu.mpu.dcache_enabled = bf!(control.use_dcache) == 1;
+                        cpu.mpu.enabled = control.use_mpu.get() == 1;
+                        cpu.mpu.icache_enabled = control.use_icache.get() == 1;
+                        cpu.mpu.dcache_enabled = control.use_dcache.get() == 1;
                     });
                 }
                 0b001 | 0b010 => unimplemented!(),
@@ -125,14 +125,14 @@ impl Coprocessor for SysControl {
             6 => {
                 trace!("MPU region {} register write", cpreg2);
                 let index = cpreg2;
-                self.r6_memregions[index].set_raw(val);
+                self.r6_memregions[index].val = val;
 
                 let region_data = self.r6_memregions[index];
                 effect = Box::new(move |cpu| {
-                    let size_exp = bf!(region_data.size) + 1;
+                    let size_exp = region_data.size.get() + 1;
                     cpu.mpu.region_size_exp[index] = size_exp;
-                    cpu.mpu.region_base_sigbits[index] = bf!(region_data.base_shr_12) << 12 >> size_exp;
-                    cpu.mpu.region_enabled |= (bf!(region_data.enabled) << index) as u8;
+                    cpu.mpu.region_base_sigbits[index] = region_data.base_shr_12.get() << 12 >> size_exp;
+                    cpu.mpu.region_enabled |= (region_data.enabled.get() << index) as u8;
                 });
             }
 
@@ -195,7 +195,7 @@ impl Coprocessor for SysControl {
             1 => match op2 {
                 0b000 => {
                     warn!("STUBBED: System control register read");
-                    self.r1_control.raw()
+                    self.r1_control.val
                 }
                 0b001 | 0b010 => unimplemented!(),
                 _ => unreachable!()
@@ -232,7 +232,7 @@ impl Coprocessor for SysControl {
 
             6 => {
                 warn!("STUBBED: MPU region {} register read", cpreg2);
-                self.r6_memregions[cpreg2].raw()
+                self.r6_memregions[cpreg2].val
             }
 
             7 => panic!("Cannot read from cache control register!"),

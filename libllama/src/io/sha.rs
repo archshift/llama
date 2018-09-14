@@ -2,15 +2,15 @@ use std::fmt;
 
 use openssl::hash::{Hasher, MessageDigest};
 
-bfdesc!(RegCnt: u32, {
-    busy: 0 => 0,
-    final_round: 1 => 1,
-    _enable_irq0: 2 => 2,
-    big_endian: 3 => 3,
-    hash_mode: 4 => 5,
-    clear_fifo: 8 => 8,
-    _enable_fifo: 9 => 9,
-    _enable_irq1: 10 => 10
+bf!(RegCnt[u32] {
+    busy: 0:0,
+    final_round: 1:1,
+    _enable_irq0: 2:2,
+    big_endian: 3:3,
+    hash_mode: 4:5,
+    clear_fifo: 8:8,
+    _enable_fifo: 9:9,
+    _enable_irq1: 10:10
 });
 
 #[derive(Default)]
@@ -30,31 +30,31 @@ unsafe impl Send for ShaDeviceState {} // TODO: Not good!
 // more hardware testing to determine the source of errors.
 
 fn reg_cnt_update(dev: &mut ShaDevice) {
-    let mut cnt = dev.cnt.get();
-    trace!("Wrote 0x{:08X} to SHA CNT register!", cnt);
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
+    trace!("Wrote 0x{:08X} to SHA CNT register!", cnt.val);
 
-    if bf!(cnt @ RegCnt::final_round) == 1 && bf!(cnt @ RegCnt::busy) == 0 {
+    if cnt.final_round.get() == 1 && cnt.busy.get() == 0 {
         info!("Reached end of final round!");
         if let Some(ref mut h) = dev._internal_state.hasher {
             let hash_slice = &*h.finish2().unwrap();
             dev._internal_state.hash = [0u8; 32];
             dev._internal_state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }
-        bf!(cnt @ RegCnt::final_round = 0);
+        cnt.final_round.set(0);
     }
 
-    else if bf!(cnt @ RegCnt::clear_fifo) == 1 {
+    else if cnt.clear_fifo.get() == 1 {
         dev._internal_state.hasher = None;
     }
 
-    else if bf!(cnt @ RegCnt::busy) == 0 {
+    else if cnt.busy.get() == 0 {
     }
 
     else if dev._internal_state.hasher.is_none() {
         // Create new hasher
-        assert_eq!(bf!(cnt @ RegCnt::big_endian), 1);
+        assert_eq!(cnt.big_endian.get(), 1);
 
-        let mode = match bf!(cnt @ RegCnt::hash_mode) {
+        let mode = match cnt.hash_mode.get() {
             0b00 => MessageDigest::sha256(),
             0b01 => MessageDigest::sha224(),
             _ => MessageDigest::sha1()
@@ -63,8 +63,7 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
         dev._internal_state.hasher = Some(Hasher::new(mode).unwrap());
     }
 
-    bf!(cnt @ RegCnt::busy = 0);
-    dev.cnt.set_unchecked(cnt);
+    cnt.busy.set(0);
 }
 
 fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
@@ -78,7 +77,6 @@ fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
 fn reg_fifo_write(dev: &mut ShaDevice, buf_pos: usize, source: &[u8]) {
     println!("Writing {} bytes to SHA FIFO at +0x{:X}", source.len(), buf_pos);
 
-    let _cnt = dev.cnt.get();
     let hasher = match dev._internal_state.hasher {
         Some(ref mut h) => h,
         None => return

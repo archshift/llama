@@ -1,5 +1,3 @@
-use extprim::u128::u128 as u128_t;
-
 use io::emmc::{self, EmmcDevice, TransferType};
 use io::emmc::card::{CardType};
 use io::emmc::cmds;
@@ -7,7 +5,7 @@ use utils::bytes;
 
 enum CmdHandler {
     R1(fn(&mut EmmcDevice) -> ()),
-    R2(fn(&mut EmmcDevice) -> u128_t),
+    R2(fn(&mut EmmcDevice) -> u128),
     R3(fn(&mut EmmcDevice) -> u32),
     R6(fn(&mut EmmcDevice) -> u16),
     R7(fn(&mut EmmcDevice) -> u32)
@@ -65,7 +63,7 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
             &CmdHandler::R1(f) => {
                 f(dev);
                 let csr = emmc::get_active_card(dev).csr;
-                emmc::push_resp_u32(dev, csr.raw());
+                emmc::push_resp_u32(dev, csr.val);
             }
             &CmdHandler::R2(f) => {
                 let data = f(dev);
@@ -77,7 +75,7 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
             }
             &CmdHandler::R6(f) => {
                 let data = f(dev);
-                let csr = emmc::get_active_card(dev).csr.raw();
+                let csr = emmc::get_active_card(dev).csr.val;
                 let data32 = (data as u32) << 16
                              | (((csr >> 22) & 0b11) << 14)
                              | (((csr >> 19) & 0b1) << 13)
@@ -89,7 +87,7 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
     }
 
     if found_wrong_type {
-        bf!((emmc::get_active_card(dev).csr).illegal_cmd = 1);
+        emmc::get_active_card(dev).csr.illegal_cmd.set(1);
         warn!("Tried to run illegal SDMMC (APP_?')CMD{}", cmd_index);
         emmc::trigger_status(dev, emmc::Status1::IllegalCmd);
     } else {

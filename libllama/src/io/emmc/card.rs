@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io::{self, Read};
 
-use extprim::u128::u128 as u128_t;
-
 use io::emmc::TransferType;
 use utils::bytes;
 use fs;
@@ -29,19 +27,19 @@ pub enum CardState {
     _Slp = 10
 }
 
-bitfield!(CardStatusReg: u32, {
-    app_cmd: 5 => 5,
-    ready_for_data: 8 => 8,
-    current_state: 9 => 12,
-    erase_reset: 13 => 13,
-    illegal_cmd: 22 => 22,
-    cmd_crc_err: 23 => 23,
-    erase_seq_err: 28 => 28,
-    address_err: 30 => 30
+bf!(CardStatusReg[u32] {
+    app_cmd: 5:5,
+    ready_for_data: 8:8,
+    current_state: 9:12,
+    erase_reset: 13:13,
+    illegal_cmd: 22:22,
+    cmd_crc_err: 23:23,
+    erase_seq_err: 28:28,
+    address_err: 30:30
 });
 
-bitfield!(CardIdentReg: u128_t, {});
-bitfield!(CardSpecificData: u128_t, {});
+bf!(CardIdentReg[u128] {});
+bf!(CardSpecificData[u128] {});
 
 #[derive(Clone, Copy, Debug)]
 pub enum TransferLoc {
@@ -61,9 +59,9 @@ pub struct ActiveTransfer {
 
 pub struct Card {
     pub ty: CardType,
-    pub csr: CardStatusReg,
-    pub cid: CardIdentReg,
-    pub csd: CardSpecificData,
+    pub csr: CardStatusReg::Bf,
+    pub cid: CardIdentReg::Bf,
+    pub csd: CardSpecificData::Bf,
     pub rca: u16,
 
     storage: File,
@@ -71,12 +69,12 @@ pub struct Card {
 }
 
 impl Card {
-    pub fn new(ty: CardType, storage: File, cid: CardIdentReg) -> Card {
+    pub fn new(ty: CardType, storage: File, cid: CardIdentReg::Bf) -> Card {
         Card {
             ty: ty,
             csr: CardStatusReg::new(0),
             cid: cid,
-            csd: CardSpecificData::new(u128_t::new(0)),
+            csd: CardSpecificData::new(0),
             rca: 1,
             storage: storage,
             transfer: None
@@ -104,7 +102,7 @@ impl Card {
     }
 
     pub fn set_state(&mut self, state: CardState) {
-        bf!((self.csr).current_state = state as u32);
+        self.csr.current_state.set(state as u32);
     }
 
     pub fn reset(&mut self, _spi: bool) {
@@ -185,13 +183,13 @@ impl io::Seek for Card {
     }
 }
 
-pub fn nand_cid() -> CardIdentReg {
+pub fn nand_cid() -> CardIdentReg::Bf {
     let mut file = fs::open_file(fs::LlamaFile::NandCid).unwrap();
     let mut bytes = [0u8; 16];
     file.read_exact(&mut bytes).unwrap();
     CardIdentReg::new(bytes::to_u128(&bytes))
 }
 
-pub fn sd_cid() -> CardIdentReg {
-    CardIdentReg::new(u128_t::new(0))
+pub fn sd_cid() -> CardIdentReg::Bf {
+    CardIdentReg::new(0)
 }

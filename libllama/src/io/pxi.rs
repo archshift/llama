@@ -1,51 +1,50 @@
 use std::sync::{Arc, atomic, mpsc};
 
-bfdesc!(RegSync: u32, {
-    data_recv: 0 => 7,
-    data_sent: 8 => 15
+bf!(RegSync[u32] {
+    data_recv: 0:7,
+    data_sent: 8:15
 });
 
-bfdesc!(RegCnt: u16, {
-    send_empty: 0 => 0,
-    send_full: 1 => 1,
-    flush_send: 3 => 3,
-    recv_empty: 8 => 8,
-    recv_full: 9 => 9,
-    cannot_rw: 14 => 14
+bf!(RegCnt[u16] {
+    send_empty: 0:0,
+    send_full: 1:1,
+    flush_send: 3:3,
+    recv_empty: 8:8,
+    recv_full: 9:9,
+    cannot_rw: 14:14
 });
 
 fn reg_sync_read(dev: &mut PxiDevice) {
     let byte = dev._internal_state.sync_rx.load(atomic::Ordering::SeqCst) as u32;
-    let new = bf!((dev.sync.get()) @ RegSync::data_recv as byte);
-    dev.sync.set_unchecked(new);
+    let sync_ref = RegSync::alias_mut(dev.sync.ref_mut());
+    sync_ref.data_recv.set(byte);
 }
 
 fn reg_sync_write(dev: &mut PxiDevice) {
-    let byte = bf!((dev.sync.get()) @ RegSync::data_sent);
+    let sync = RegSync::new(dev.sync.get());
+    let byte = sync.data_sent.get();
     dev._internal_state.sync_tx.store(byte as usize, atomic::Ordering::SeqCst);
 }
 
 fn reg_cnt_read(dev: &mut PxiDevice) {
-    let mut cnt = dev.cnt.get();
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     let tx_count = dev._internal_state.tx_count.load(atomic::Ordering::SeqCst);
     let rx_count = dev._internal_state.rx_count.load(atomic::Ordering::SeqCst);
-    bf!(cnt @ RegCnt::send_empty = (tx_count == 0) as u16);
-    bf!(cnt @ RegCnt::send_full = (tx_count == 4) as u16);
-    bf!(cnt @ RegCnt::recv_empty = (rx_count == 0) as u16);
-    bf!(cnt @ RegCnt::recv_full = (rx_count == 4) as u16);
-    dev.cnt.set_unchecked(cnt);
+    cnt.send_empty.set((tx_count == 0) as u16);
+    cnt.send_full.set((tx_count == 4) as u16);
+    cnt.recv_empty.set((rx_count == 0) as u16);
+    cnt.recv_full.set((rx_count == 4) as u16);
 }
 
 fn reg_cnt_write(dev: &mut PxiDevice) {
-    let mut cnt = dev.cnt.get();
-    if (bf!(cnt @ RegCnt::flush_send) == 1) {
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
+    if (cnt.flush_send.get() == 1) {
         warn!("STUBBED: cannot flush PXI tx channel!");
-        bf!(cnt @ RegCnt::flush_send = 0);
+        cnt.flush_send.set(0);
     }
-    if (bf!(cnt @ RegCnt::cannot_rw) == 1) {
-        bf!(cnt @ RegCnt::cannot_rw = 0);
+    if (cnt.cannot_rw.get() == 1) {
+        cnt.cannot_rw.set(0);
     }
-    dev.cnt.set_unchecked(cnt);
     warn!("STUBBED: Write to PXI_CNT");
 }
 

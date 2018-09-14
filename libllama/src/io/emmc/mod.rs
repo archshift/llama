@@ -10,30 +10,30 @@ use io::emmc::card::Card;
 use cpu::irq;
 use fs;
 
-bfdesc!(RegCmd: u16, {
-    command_index: 0 => 5,
-    command_type: 6 => 7,
-    _response_type: 8 => 10,
-    _has_data: 11 => 11,
-    _is_reading: 12 => 12,
-    _has_multi_block: 13 => 13
+bf!(RegCmd[u16] {
+    command_index: 0:5,
+    command_type: 6:7,
+    _response_type: 8:10,
+    _has_data: 11:11,
+    _is_reading: 12:12,
+    _has_multi_block: 13:13
 });
 
-bfdesc!(RegData16Ctl: u16, {
-    use_32bit: 1 => 1
+bf!(RegData16Ctl[u16] {
+    use_32bit: 1:1
 });
 
-bfdesc!(RegData32Ctl: u16, {
-    tx32rq_irq: 12 => 12,
-    rx32rdy_irq: 11 => 11,
-    _clear_fifo32: 10 => 10,
-    tx32rq: 9 => 9,
-    rx32rdy: 8 => 8,
-    use_32bit: 1 => 1
+bf!(RegData32Ctl[u16] {
+    tx32rq_irq: 12:12,
+    rx32rdy_irq: 11:11,
+    _clear_fifo32: 10:10,
+    tx32rq: 9:9,
+    rx32rdy: 8:8,
+    use_32bit: 1:1
 });
 
-bfdesc!(RegStopInternal: u16, {
-    should_auto_stop: 8 => 8
+bf!(RegStopInternal[u16] {
+    should_auto_stop: 8:8
 });
 
 #[derive(Clone, Copy)]
@@ -169,8 +169,9 @@ fn set_resp_u8(dev: &mut EmmcDevice, data: &[u8]) {
 }
 
 fn use_32bit(dev: &EmmcDevice) -> bool {
-    bf!((dev.data16_ctl.get()) @ RegData16Ctl::use_32bit) == 1
-    && bf!((dev.data32_ctl.get()) @ RegData32Ctl::use_32bit) == 1
+    let d16ctl = RegData16Ctl::new(dev.data16_ctl.get());
+    let d32ctl = RegData32Ctl::new(dev.data32_ctl.get());
+    d16ctl.use_32bit.get() == 1 && d32ctl.use_32bit.get() == 1
 }
 
 fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
@@ -186,19 +187,17 @@ fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
             s1 & !dev.irq_mask1.get() & 0b10001011_01111111 != 0
         }
         Status::B32(s32) => {
-            let mut ctl = dev.data32_ctl.get();
-            let res = match s32 {
+            let ctl = RegData32Ctl::alias_mut(dev.data32_ctl.ref_mut());
+            match s32 {
                 Status32::RxReady => {
-                    bf!(ctl @ RegData32Ctl::rx32rdy = 1);
-                    bf!(ctl @ RegData32Ctl::rx32rdy_irq) == 1
+                    ctl.rx32rdy.set(1);
+                    ctl.rx32rdy_irq.get() == 1
                 }
                 Status32::_TxRq => {
-                    bf!(ctl @ RegData32Ctl::tx32rq = 1);
-                    bf!(ctl @ RegData32Ctl::tx32rq_irq) == 1
+                    ctl.tx32rq.set(1);
+                    ctl.tx32rq_irq.get() == 1
                 }
-            };
-            dev.data32_ctl.set_unchecked(ctl);
-            res
+            }
         }
     };
     if irq_add {
@@ -224,11 +223,12 @@ fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
 }
 
 fn reg_cmd_onupdate(dev: &mut EmmcDevice) {
-    let index = bf!((dev.cmd.get()) @ RegCmd::command_index);
+    let cmd = RegCmd::new(dev.cmd.get());
+    let index = cmd.command_index.get();
 
     let csr = get_active_card(dev).csr;
-    if bf!((dev.cmd.get()) @ RegCmd::command_type) == 1 || bf!(csr.app_cmd) == 1 {
-        bf!((get_active_card(dev).csr).app_cmd = 0);
+    if cmd.command_type.get() == 1 || csr.app_cmd.get() == 1 {
+        get_active_card(dev).csr.app_cmd.set(0);
         trace!("Running SDMMC ACMD{}", index);
         mode_sd::handle_acmd(dev, index);
     } else {
@@ -318,7 +318,8 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
     if should_stop {
         trigger_status(dev, Status0::DataEnd);
         
-        let auto_stop = bf!((dev.stop.get()) @ RegStopInternal::should_auto_stop) == 1;
+        let stop = RegStopInternal::new(dev.stop.get());
+        let auto_stop = stop.should_auto_stop.get() == 1;
         if auto_stop {
             mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
         }

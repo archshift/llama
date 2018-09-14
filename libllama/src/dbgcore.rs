@@ -84,12 +84,12 @@ impl<'a> DbgHwContext<'a> {
     }
 
     pub fn read_cpsr(&self) -> u32 {
-        self.hw.arm9.cpsr.raw()
+        self.hw.arm9.cpsr.val
     }
 
     pub fn write_cpsr(&mut self, value: u32) {
-        self.hw.arm9.cpsr.set_raw(value);
-        let mode_num = bf!((self.hw.arm9.cpsr).mode);
+        self.hw.arm9.cpsr.val = value;
+        let mode_num = self.hw.arm9.cpsr.mode.get();
         self.hw.arm9.regs.swap(cpu::Mode::from_num(mode_num));
     }
 
@@ -102,7 +102,7 @@ impl<'a> DbgHwContext<'a> {
     }
 
     pub fn is_thumb(&self) -> bool {
-        bf!((self.hw.arm9.cpsr).thumb_bit) == 1
+        self.hw.arm9.cpsr.thumb_bit.get() == 1
     }
 
     pub fn step(&mut self) {

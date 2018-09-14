@@ -2,8 +2,8 @@ use cpu;
 use cpu::Cpu;
 use cpu::interpreter_arm as arm;
 
-pub fn swi(cpu: &mut Cpu, data: arm::Swi) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn swi(cpu: &mut Cpu, data: arm::Swi::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
@@ -12,7 +12,7 @@ pub fn swi(cpu: &mut Cpu, data: arm::Swi) -> cpu::InstrStatus {
     cpu::InstrStatus::Branched
 }
 
-pub fn bkpt(_cpu: &mut Cpu, data: arm::Bkpt) -> cpu::InstrStatus {
-    let brk_num = bf!(data.immed_lo) | (bf!(data.immed_hi) << 4);
+pub fn bkpt(_cpu: &mut Cpu, data: arm::Bkpt::Bf) -> cpu::InstrStatus {
+    let brk_num = data.immed_lo.get() | (data.immed_hi.get() << 4);
     panic!("Hit breakpoint instruction! (#{})", brk_num);
 }

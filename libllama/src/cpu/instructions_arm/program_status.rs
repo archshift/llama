@@ -2,37 +2,37 @@ use cpu;
 use cpu::Cpu;
 use cpu::interpreter_arm as arm;
 
-pub fn mrs(cpu: &mut Cpu, data: arm::Mrs) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn mrs(cpu: &mut Cpu, data: arm::Mrs::Bf) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let rd = bf!(data.rd);
-    let r_bit = bf!(data.r_bit);
+    let rd = data.rd.get();
+    let r_bit = data.r_bit.get();
 
     if r_bit == 1 {
-        cpu.regs[rd as usize] = cpu.get_current_spsr().raw();
+        cpu.regs[rd as usize] = cpu.get_current_spsr().val;
     } else {
-        cpu.regs[rd as usize] = cpu.cpsr.raw();
+        cpu.regs[rd as usize] = cpu.cpsr.val;
     }
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn instr_msr(cpu: &mut Cpu, data: arm::Msr1, immediate: bool) -> cpu::InstrStatus {
-    if !cpu::cond_passed(bf!(data.cond), &cpu.cpsr) {
+pub fn instr_msr(cpu: &mut Cpu, data: arm::Msr1::Bf, immediate: bool) -> cpu::InstrStatus {
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
-    let field_mask = bf!(data.field_mask);
-    let shifter_operand = bf!(data.shifter_operand);
+    let field_mask = data.field_mask.get();
+    let shifter_operand = data.shifter_operand.get();
 
     let val = if immediate {
-        let immed_8 = bits!(shifter_operand, 0 => 7);
-        let rotate_imm = bits!(shifter_operand, 8 => 11);
+        let immed_8 = bits!(shifter_operand, 0:7);
+        let rotate_imm = bits!(shifter_operand, 8:11);
         immed_8.rotate_right(rotate_imm * 2)
     } else {
-        cpu.regs[bits!(shifter_operand, 0 => 3) as usize]
+        cpu.regs[bits!(shifter_operand, 0:3) as usize]
     };
 
     let unalloc_mask = 0x07FFFF00u32;
@@ -50,32 +50,32 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::Msr1, immediate: bool) -> cpu::InstrS
     byte_mask |= if bit!(field_mask, 2) == 1 { 0x00FF0000 } else { 0 };
     byte_mask |= if bit!(field_mask, 3) == 1 { 0xFF000000 } else { 0 };
 
-    if bf!(data.r_bit) == 0 {
+    if data.r_bit.get() == 0 {
         // CPSR
         // TODO: Check privileges
-        let cleared_cpsr = cpu.cpsr.raw() & !byte_mask;
-        cpu.cpsr.set_raw(cleared_cpsr | (val & byte_mask));
+        let cleared_cpsr = cpu.cpsr.val & !byte_mask;
+        cpu.cpsr.val = cleared_cpsr | (val & byte_mask);
 
         if bit!(field_mask, 0) == 1 {
             // CPU mode may have been changed
-            cpu.regs.swap(cpu::Mode::from_num(bf!((cpu.cpsr).mode)));
+            cpu.regs.swap(cpu::Mode::from_num(cpu.cpsr.mode.get()));
         }
     } else {
         // SPSR
         let spsr = cpu.get_current_spsr();
         byte_mask &= user_mask | priv_mask | state_mask;
 
-        let cleared_spsr = spsr.raw() & !byte_mask;
-        spsr.set_raw(cleared_spsr | (val & byte_mask));
+        let cleared_spsr = spsr.val & !byte_mask;
+        spsr.val = cleared_spsr | (val & byte_mask);
     }
 
     cpu::InstrStatus::InBlock
 }
 
-pub fn msr_1(cpu: &mut Cpu, data: arm::Msr1) -> cpu::InstrStatus {
+pub fn msr_1(cpu: &mut Cpu, data: arm::Msr1::Bf) -> cpu::InstrStatus {
     instr_msr(cpu, data, true)
 }
 
-pub fn msr_2(cpu: &mut Cpu, data: arm::Msr2) -> cpu::InstrStatus {
-    instr_msr(cpu, arm::Msr1::new(data.raw()), false)
+pub fn msr_2(cpu: &mut Cpu, data: arm::Msr2::Bf) -> cpu::InstrStatus {
+    instr_msr(cpu, arm::Msr1::new(data.val), false)
 }
