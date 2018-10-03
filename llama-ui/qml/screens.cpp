@@ -27,6 +27,10 @@ void Screen::paint(QPainter *painter) {
     painter->drawPixmap(dst, pix_buffer, src);
 }
 
+static const QMatrix SCREEN_ROTATE( 0, 1,
+                                   -1, 0,
+                                    0, 0);
+
 QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const FrontendCallbacks *callbacks) {
     QObject *top_screen = qvariant_cast<QObject*>(QQmlProperty::read(scrn_view, "topScreen"));
     QObject *bot_screen = qvariant_cast<QObject*>(QQmlProperty::read(scrn_view, "botScreen"));
@@ -37,16 +41,14 @@ QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const Fronte
 
         const uint8_t *top_buf = callbacks->top_screen(backend, &buf_size);
         QImage top(top_buf, 240, 400, 240*3, QImage::Format_RGB888);
-        assert(buf_size = 240*3*400);
+        assert(buf_size == 240*3*400);
 
         const uint8_t *bot_buf = callbacks->bot_screen(backend, &buf_size);
         QImage bot(bot_buf, 240, 320, 240*3, QImage::Format_RGB888);
-        assert(buf_size = 240*3*320);
+        assert(buf_size == 240*3*320);
 
-        QTransform transform;
-        transform.rotate(-90);
-        QImage new_top = top.transformed(transform);
-        QImage new_bot = bot.transformed(transform);
+        QImage new_top = top.transformed(SCREEN_ROTATE);
+        QImage new_bot = bot.transformed(SCREEN_ROTATE);
 
         QMetaObject::invokeMethod(top_screen, "setImage", Q_ARG(QImage&, new_top));
         QMetaObject::invokeMethod(bot_screen, "setImage", Q_ARG(QImage&, new_bot));

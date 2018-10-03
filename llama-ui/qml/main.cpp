@@ -49,7 +49,7 @@ public:
             text_buf(callbacks->buffer_size())
     {
         QObject::connect(text_poll_timer, &QTimer::timeout, this, &ConsoleManager::fillLog);
-        text_poll_timer->start(10);
+        text_poll_timer->start(100);
     }
 };
 
