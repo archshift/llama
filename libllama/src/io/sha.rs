@@ -36,7 +36,7 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
     if cnt.final_round.get() == 1 && cnt.busy.get() == 0 {
         info!("Reached end of final round!");
         if let Some(ref mut h) = dev._internal_state.hasher {
-            let hash_slice = &*h.finish2().unwrap();
+            let hash_slice = &*h.finish().unwrap();
             dev._internal_state.hash = [0u8; 32];
             dev._internal_state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }

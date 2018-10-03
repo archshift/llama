@@ -10,7 +10,7 @@ indextree = "1.0"
 json = "0.11"
 log = "0.3"
 mio = "0.6"
-openssl = "0.9"
+openssl = "0.10"
 parking_lot = "0.4"
 
 [features]
