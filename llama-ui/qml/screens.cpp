@@ -27,9 +27,9 @@ void Screen::paint(QPainter *painter) {
     painter->drawPixmap(dst, pix_buffer, src);
 }
 
-static const QMatrix SCREEN_ROTATE( 0, 1,
-                                   -1, 0,
-                                    0, 0);
+static const QMatrix SCREEN_ROTATE(0, -1,
+                                   1,  0,
+                                   0,  0);
 
 QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const FrontendCallbacks *callbacks) {
     QObject *top_screen = qvariant_cast<QObject*>(QQmlProperty::read(scrn_view, "topScreen"));

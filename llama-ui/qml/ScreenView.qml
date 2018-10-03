@@ -69,20 +69,21 @@ Item {
             anchors.margins: parent.width * 0.02
             spacing: parent.width * 0.02
 
-            Button {
-                text: "P/P"
+            SideButton {
+                imgSrc: "icons/play.svg"
                 onClicked: pauseToggled()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
-            Button {
-                text: "Stop"
+            SideButton {
+                imgSrc: "icons/close.svg"
                 onClicked: stopped()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                enabled: false
             }
-            Button {
-                text: "Rload"
+            SideButton {
+                imgSrc: "icons/reload.svg"
                 onClicked: reloaded()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -98,23 +99,25 @@ Item {
             anchors.margins: parent.width * 0.02
             spacing: parent.width * 0.02
 
-            Button {
-                text: "Dbg"
+            SideButton {
+                imgSrc: "icons/debug.svg"
                 onClicked: dbgViewToggled()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
-            Button {
-                text: "Fscr"
+            SideButton {
+                imgSrc: "icons/fullscreen.svg"
                 onClicked: fullscreenActivated()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                enabled: false
             }
-            Button {
-                text: "Cfg"
+            SideButton {
+                imgSrc: "icons/cfg.svg"
                 onClicked: configOpened()
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                enabled: false
             }
         }
     }

@@ -93,3 +93,9 @@ Once all dependencies are installed, building should be as easy as running:
 ```
 cargo build --release
 ```
+
+### License
+
+Llama is licensed under the BSD 3-clause license.
+
+Included icons were created by [material.io](material.io) and are licensed under Apache v2.0.

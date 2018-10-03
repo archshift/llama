@@ -5,6 +5,13 @@
     <file>DbgConsole.qml</file>
     <file>main.qml</file>
     <file>ScreenView.qml</file>
+    <file>SideButton.qml</file>
+    <file>icons/close.svg</file>
+    <file>icons/reload.svg</file>
+    <file>icons/debug.svg</file>
+    <file>icons/cfg.svg</file>
+    <file>icons/fullscreen.svg</file>
+    <file>icons/play.svg</file>
 </qresource>
 
 </RCC>

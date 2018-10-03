@@ -1,6 +1,7 @@
 extern crate bindgen;
 
 use std::env;
+use std::io;
 use std::fs;
 use std::path;
 use std::process;
@@ -30,9 +31,13 @@ fn to_lib_name(base_name: &str) -> String {
     format!("{}{}{}", prefix, base_name, suffix)
 }
 
-fn main() {
+fn os_into(s: &path::Path) -> &str {
+    s.as_os_str().to_str().unwrap()
+}
+
+fn main() -> io::Result<()> {
     let base_dir = env::current_dir().unwrap();
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = path::PathBuf::from(env::var("OUT_DIR").unwrap());
     let exe_dir = exe_dir();
 
     let qml_dir = base_dir.join("llama-ui/qml");
@@ -42,8 +47,7 @@ fn main() {
         .arg(&qml_dir)
         .spawn()
         .expect("failed to start qmake")
-        .wait()
-        .unwrap();
+        .wait()?;
 
     assert!(status.success(), "failed to execute qmake");
 
@@ -51,22 +55,26 @@ fn main() {
         .current_dir(&out_dir)
         .spawn()
         .expect("failed to start make")
-        .wait()
-        .unwrap();
+        .wait()?;
 
     assert!(status.success(), "failed to execute make");
 
     let lib_name = to_lib_name("llamagui");
-    fs::copy(format!("{}/{}", out_dir, lib_name), exe_dir.join(lib_name)).unwrap();
+    fs::copy(out_dir.join(&lib_name), exe_dir.join(lib_name))?;
 
-    println!("cargo:rustc-link-search=native={}", exe_dir.as_os_str().to_str().unwrap());
+    println!("cargo:rustc-link-search=native={}", os_into(&exe_dir));
     println!("cargo:rustc-link-lib=dylib={}", "llamagui");
-    println!("cargo:rerun-if-changed={}", qml_dir.as_os_str().to_str().unwrap());
+
+    for entry in fs::read_dir(qml_dir)? {
+        println!("cargo:rerun-if-changed={}", os_into(&entry?.path()));
+    }
 
     bindgen::Builder::default()
         .header("llama-ui/qml/interop.h")
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file(path::PathBuf::from(out_dir).join("qml_interop.rs"))
+        .write_to_file(out_dir.join("qml_interop.rs"))
         .expect("Couldn't write bindings!");
+
+    Ok(())
 }
