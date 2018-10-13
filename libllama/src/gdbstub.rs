@@ -138,23 +138,36 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
                 out += &format!("{:08X}", hw.read_reg(reg).swap_bytes());
             }
             out += &format!("{:08X}", hw.pause_addr().swap_bytes());
+            for _ in 0..8 {
+                out += "xxxxxxxxxxxxxxxxxxxxxxxx"; // fX registers (12 bytes each)
+            }
+            out += "xxxxxxxx"; // fps register            
             out += &format!("{:08X}", hw.read_cpsr().swap_bytes());
         }
         'G' => {
             let mut hw = ctx.dbg.hw();
-            let nth_val = |index: usize| -> Result<u32> {
-                let param_reg_range = 8*index..8*(index+1);
-                let val = utils::from_hex(&params[param_reg_range])?;
+            let mut regs = params;
+            let next_reg = |regstr: &str| -> Result<u32> {
+                let val = utils::from_hex(&regstr[..8])?;
                 Ok(val.swap_bytes())
             };
 
             for reg in 0..15 {
-                hw.write_reg(reg, nth_val(reg)?);
+                hw.write_reg(reg, next_reg(regs)?);
+                regs = &regs[8..];
             }
             // register at 15: PC
-            hw.branch_to(nth_val(15)?);
-            // register at 16: CPSR
-            hw.write_cpsr(nth_val(16)?);
+            hw.branch_to(next_reg(regs)?);
+            regs = &regs[8..];
+
+            // Skip 8 fX registers
+            regs = &regs[8 * 24..];
+
+            // Skip fps register
+            regs = &regs[8..];
+
+            // register at 25: CPSR
+            hw.write_cpsr(next_reg(regs)?);
             out += "OK";
         }
         'H' => {
