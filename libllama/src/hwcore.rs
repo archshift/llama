@@ -37,43 +37,60 @@ impl msgs::Ident for Message {
 
 
 
-fn map_memory_regions(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared)
-        -> (mem::MemController, mem::MemController, mem::MemController) {
-    let arm9_itcm = mem::SharedMemoryBlock::new(0x20);
-    let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
-    let arm9_io = mem::IoMemoryBlock::new(io::IoRegion::Arm9(arm9_io), 0x400);
-    let arm9_dtcm = mem::UniqueMemoryBlock::new(0x10);
-    let arm9_bootrom = mem::UniqueMemoryBlock::new(0x40);
+struct MemoryRegions {
+    mem9: mem::MemController,
+    mem11: mem::MemController,
+    mem_pica: mem::MemController,
 
-    let shared_io = mem::IoMemoryBlock::new(io::IoRegion::Shared(shared_io), 0x400);
-    let vram = mem::SharedMemoryBlock::new(0x1800);
-    let dsp_ram = mem::SharedMemoryBlock::new(0x200);
-    let axi_wram = mem::SharedMemoryBlock::new(0x200);
-    let fcram = mem::SharedMemoryBlock::new(0x20000);
+    io9_hnd: mem::AddressBlockHandle,
+    io9_shared_hnd: mem::AddressBlockHandle,
+    io11_shared_hnd: mem::AddressBlockHandle,
+}
 
-    let mut controller9 = mem::MemController::new();
-    for i in 0..0x1000 {
-        controller9.map_region(i * 0x8000, mem::AddressBlock::SharedRam(arm9_itcm.clone()));
+impl MemoryRegions {
+    fn map(arm9_io: io::IoRegsArm9, shared_io: io::IoRegsShared) -> Self {
+        let arm9_itcm = mem::SharedMemoryBlock::new(0x20);
+        let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
+        let arm9_dtcm = mem::UniqueMemoryBlock::new(0x10);
+        let arm9_bootrom = mem::UniqueMemoryBlock::new(0x40);
+
+        let vram = mem::SharedMemoryBlock::new(0x1800);
+        let dsp_ram = mem::SharedMemoryBlock::new(0x200);
+        let axi_wram = mem::SharedMemoryBlock::new(0x200);
+        let fcram = mem::SharedMemoryBlock::new(0x20000);
+
+        let mut controller9 = mem::MemController::new();
+        for i in 0..0x1000 {
+            controller9.map_region(i * 0x8000, mem::AddressBlock::SharedRam(arm9_itcm.clone()));
+        }
+        controller9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram));
+        controller9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
+        controller9.map_region(0x1FF00000, mem::AddressBlock::SharedRam(dsp_ram.clone()));
+        controller9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
+        controller9.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+        controller9.map_region(0xFFF00000, mem::AddressBlock::UniqueRam(arm9_dtcm));
+        controller9.map_region(0xFFFF0000, mem::AddressBlock::UniqueRam(arm9_bootrom));
+        let io9_hnd         = controller9.map_region(0x10000000, mem::AddressBlock::Io9(arm9_io));
+        let io9_shared_hnd  = controller9.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
+
+        let mut controller11 = mem::MemController::new();
+        controller11.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
+        controller11.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+        let io11_shared_hnd = controller11.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
+
+        let mut controller_pica = mem::MemController::new();
+        controller_pica.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+
+        Self {
+            mem9: controller9,
+            mem11: controller11,
+            mem_pica: controller_pica,
+
+            io9_hnd: io9_hnd,
+            io9_shared_hnd: io9_shared_hnd,
+            io11_shared_hnd: io11_shared_hnd
+        }
     }
-    controller9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram));
-    controller9.map_region(0x10000000, mem::AddressBlock::Io(arm9_io));
-    controller9.map_region(0x10100000, mem::AddressBlock::Io(shared_io.clone()));
-    controller9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
-    controller9.map_region(0x1FF00000, mem::AddressBlock::SharedRam(dsp_ram.clone()));
-    controller9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
-    controller9.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
-    controller9.map_region(0xFFF00000, mem::AddressBlock::UniqueRam(arm9_dtcm));
-    controller9.map_region(0xFFFF0000, mem::AddressBlock::UniqueRam(arm9_bootrom));
-
-    let mut controller11 = mem::MemController::new();
-    controller11.map_region(0x10100000, mem::AddressBlock::Io(shared_io.clone()));
-    controller11.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
-    controller11.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
-
-    let mut controller_pica = mem::MemController::new();
-    controller_pica.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
-
-    return (controller9, controller11, controller_pica);
 }
 
 fn write_fb_pointers(cpu: &mut cpu::Cpu) {
@@ -87,23 +104,55 @@ fn write_fb_pointers(cpu: &mut cpu::Cpu) {
 }
 
 pub struct Hardware9 {
-    pub arm9: cpu::Cpu
+    pub arm9: cpu::Cpu,
+    io_handle: mem::AddressBlockHandle,
+    io_shared_handle: mem::AddressBlockHandle,
+}
+
+impl Hardware9 {
+    pub fn io9(&self) -> &io::IoRegsArm9 {
+        let region = self.arm9.mpu.memory.region(&self.io_handle);
+        if let mem::AddressBlock::Io9(ref io) = region {
+            io
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn io_shared(&self) -> &io::IoRegsShared {
+        let region = self.arm9.mpu.memory.region(&self.io_shared_handle);
+        if let mem::AddressBlock::IoShared(ref io) = region {
+            io
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 pub struct Hardware11 {
-    pub dummy11: cpu::dummy11::Dummy11
+    pub dummy11: cpu::dummy11::Dummy11,
+    io_shared_handle: mem::AddressBlockHandle,
+}
+
+impl Hardware11 {
+    pub fn io_shared(&self) -> &io::IoRegsShared {
+        let region = self.dummy11.hw.memory.region(&self.io_shared_handle);
+        if let mem::AddressBlock::IoShared(ref io) = region {
+            io
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 pub struct HwCore {
     pub hardware9: Arc<Mutex<Hardware9>>,
     pub hardware11: Arc<Mutex<Hardware11>>,
-    pub hardware_io: (io::IoRegsArm9, io::IoRegsShared),
 
     _pump_thread: msgs::PumpThread,
     client_this: msgs::Client<Message>,
     _arm9_thread: thread::JoinHandle<()>,
     _arm11_thread: thread::JoinHandle<()>,
-    _io_thread: thread::JoinHandle<()>,
 
     mem_pica: mem::MemController,
     pub irq_tx: cpu::irq::IrqRequests,
@@ -122,13 +171,11 @@ impl HwCore {
         let clk_tx = clock::make_channel(irq_tx.clone());
         let clk_rx = clk_tx.clone();
 
-        let hardware_io = io::new_devices(irq_tx.clone(), clk_rx);
+        let (io9, io_shared) = io::new_devices(irq_tx.clone(), clk_rx);
+        let mut mem_regions = MemoryRegions::map(io9, io_shared.clone());
+        loader.load(&mut mem_regions.mem9);
 
-        let (io9, io11) = hardware_io.clone();
-        let (mut mem9, mem11, mem_pica) = map_memory_regions(io9, io11);
-        loader.load(&mut mem9);
-
-        let mut cpu = cpu::Cpu::new(mem9, irq_rx, clk_tx);
+        let mut cpu = cpu::Cpu::new(mem_regions.mem9, irq_rx, clk_tx);
         cpu.reset(loader.entrypoint());
         write_fb_pointers(&mut cpu);
 
@@ -141,18 +188,20 @@ impl HwCore {
         };
 
         let hardware9 = Hardware9 {
-            arm9: cpu
+            arm9: cpu,
+            io_handle: mem_regions.io9_hnd,
+            io_shared_handle: mem_regions.io9_shared_hnd,
         };
         let hardware11 = Hardware11 {
-            dummy11: cpu::dummy11::Dummy11::new(mem11, dummy11_mode)
+            dummy11: cpu::dummy11::Dummy11::new(mem_regions.mem11, dummy11_mode),
+            io_shared_handle: mem_regions.io11_shared_hnd,
         };
 
         let hardware9 = Arc::new(Mutex::new(hardware9));
         let hardware11 = Arc::new(Mutex::new(hardware11));
 
         let client_arm9 = msg_pump.add_client(&["quit", "startemu", "suspendemu"]);
-        let client_arm11 = msg_pump.add_client(&["quit", "startemu", "suspendemu"]);
-        let client_io = msg_pump.add_client(&["quit", "hidupdate"]);
+        let client_arm11 = msg_pump.add_client(&["quit", "startemu", "suspendemu", "hidupdate"]);
         let client_this = msg_pump.add_client(&[]);
         let pump_thread = msg_pump.start();
 
@@ -180,23 +229,15 @@ impl HwCore {
             }
         }).unwrap();
 
-        let hardware = hardware_io.clone();
-        let io_thread = thread::Builder::new().name("IO".to_owned()).spawn(move || {
-            let client = client_io;
-            io_run(&client, hardware);
-        }).unwrap();
-
         HwCore {
             hardware9: hardware9,
             hardware11: hardware11,
-            hardware_io: hardware_io,
             _pump_thread: pump_thread,
             client_this: client_this,
             _arm9_thread: arm9_thread,
             _arm11_thread: arm11_thread,
-            _io_thread: io_thread,
 
-            mem_pica: mem_pica,
+            mem_pica: mem_regions.mem_pica,
             irq_tx: irq_tx,
         }
     }
@@ -229,19 +270,6 @@ impl HwCore {
         // self.mem_pica.read_buf(0x20046500u32, ..);
         self.mem_pica.read_buf(0x2008CA00u32, fbs.bot_screen.as_mut_slice());
         // self.mem_pica.read_buf(0x200C4E00u32, ..);
-    }
-}
-
-fn io_run(client: &msgs::Client<Message>, hardware: (io::IoRegsArm9, io::IoRegsShared)) {
-    let (_io9, shared) = hardware;
-    for msg in client.iter() {
-        match msg {
-            Message::HidUpdate(btn) => {
-                io::hid::update_pad(&mut shared.hid.lock(), btn);
-            }
-            Message::Quit => return,
-            _ => {}
-        }
     }
 }
 
@@ -282,6 +310,10 @@ fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool 
                 Message::Quit => return false,
                 Message::SuspendEmulation => {
                     break 't
+                }
+                Message::HidUpdate(btn) => {
+                    let io_shared = &hardware.io_shared().hid;
+                    io::hid::update_pad(&mut io_shared.lock(), btn);
                 }
                 _ => {}
             }

@@ -3,6 +3,7 @@ use std::sync;
 use cpu;
 pub use cpu::irq::IrqType;
 use hwcore;
+use io;
 
 #[derive(Clone)]
 pub struct DbgCore {
@@ -49,9 +50,19 @@ impl<'a> DbgContext<'a> {
     }
 
     pub fn hw<'b>(&'b mut self) -> DbgHwContext<'b> {
+        use std::sync::PoisonError;
+        use hwcore::Hardware9;
+
+        let print_regs = |p: PoisonError<sync::MutexGuard<'_, Hardware9>>| {
+            let hw9 = p.into_inner();
+            let s = format!("Internal error!\nCPU register state:\n\
+                             gpregs: {:#X?}\n\
+                             cpsr: {:#X?}\n", hw9.arm9.regs, hw9.arm9.cpsr.val);
+            panic!("{}", s);
+        };
         DbgHwContext {
             // Will panic if still running
-            hw: self.hwcore.hardware9.lock().unwrap()
+            hw: self.hwcore.hardware9.lock().unwrap_or_else(print_regs)
         }
     }
 
@@ -119,5 +130,9 @@ impl<'a> DbgHwContext<'a> {
 
     pub fn del_breakpoint(&mut self, addr: u32) {
         self.hw.arm9.breakpoints.remove(&addr);
+    }
+
+    pub fn io9_devices(&self) -> &io::IoRegsArm9 {
+        self.hw.io9()
     }
 }

@@ -16,6 +16,7 @@ mod xdma;
 pub mod hid;
 
 use std::ptr;
+use std::cell::RefCell;
 use std::sync::Arc;
 use std::default::Default;
 
@@ -24,51 +25,50 @@ use parking_lot::Mutex;
 use clock;
 use cpu::irq::IrqRequests;
 use io::regs::IoRegAccess;
-
-#[derive(Clone)]
-pub enum IoRegion {
-    Arm9(IoRegsArm9),
-    Shared(IoRegsShared),
-    Arm11,
-}
+use mem::MemoryBlock;
 
 pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
-    macro_rules! make_dev {
+    macro_rules! make_dev9 {
+        ($type:ty) => { RefCell::new( <$type>::new() ) };
+        ($type:ty: $($arg:expr),+) => {{ RefCell::new( <$type>::new($($arg),*) ) }};
+    }
+
+    macro_rules! make_dev11 {
         ($type:ty) => { Arc::new(Mutex::new(<$type>::new())) };
         ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
     }
 
     let pxi_shared = pxi::PxiShared::make_channel();
 
-    let cfg    = make_dev! { config::ConfigDevice };
-    let irq    = make_dev! { irq::IrqDevice:     irq_requests.clone() };
-    let emmc   = make_dev! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
-    let ndma   = make_dev! { ndma::NdmaDevice:   Default::default() };
-    let otp    = make_dev! { otp::OtpDevice:     Default::default() };
-    let pxi9   = make_dev! { pxi::PxiDevice:     pxi_shared.0 };
-    let pxi11  = make_dev! { pxi::PxiDevice:     pxi_shared.1 };
-    let timer  = make_dev! { timer::TimerDevice: clk.timer_states };
-    let aes    = make_dev! { aes::AesDevice:     Default::default() };
-    let sha    = make_dev! { sha::ShaDevice:     Default::default() };
-    let rsa    = make_dev! { rsa::RsaDevice:     Default::default() };
-    let xdma   = make_dev! { xdma::XdmaDevice };
-    let cfgext = make_dev! { config::ConfigExtDevice };
+    let cfg    = make_dev9! { config::ConfigDevice };
+    let irq    = make_dev9! { irq::IrqDevice:     irq_requests.clone() };
+    let emmc   = make_dev9! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
+    let ndma   = make_dev9! { ndma::NdmaDevice:   Default::default() };
+    let otp    = make_dev9! { otp::OtpDevice:     Default::default() };
+    let pxi9   = make_dev9! { pxi::PxiDevice:     pxi_shared.0 };
+    let timer  = make_dev9! { timer::TimerDevice: clk.timer_states };
+    let aes    = make_dev9! { aes::AesDevice:     Default::default() };
+    let sha    = make_dev9! { sha::ShaDevice:     Default::default() };
+    let rsa    = make_dev9! { rsa::RsaDevice:     Default::default() };
+    let xdma   = make_dev9! { xdma::XdmaDevice };
+    let cfgext = make_dev9! { config::ConfigExtDevice };
 
-    let hid    = make_dev! { hid::HidDevice };
+    let pxi11  = make_dev11! { pxi::PxiDevice:     pxi_shared.1 };
+    let hid    = make_dev11! { hid::HidDevice };
 
     (IoRegsArm9 {
-        cfg:    cfg.clone(),
-        irq:    irq.clone(),
-        emmc:   emmc.clone(),
-        ndma:   ndma.clone(),
-        otp:    otp.clone(),
-        pxi9:   pxi9.clone(),
-        timer:  timer.clone(),
-        aes:    aes.clone(),
-        sha:    sha.clone(),
-        rsa:    rsa.clone(),
-        xdma:   xdma.clone(),
-        cfgext: cfgext.clone(),
+        cfg:    cfg,
+        irq:    irq,
+        emmc:   emmc,
+        ndma:   ndma,
+        otp:    otp,
+        pxi9:   pxi9,
+        timer:  timer,
+        aes:    aes,
+        sha:    sha,
+        rsa:    rsa,
+        xdma:   xdma,
+        cfgext: cfgext,
     },
     IoRegsShared {
         hid:    hid.clone(),
@@ -80,7 +80,7 @@ macro_rules! impl_rw {
     ($($num:expr => $name:tt),*) => {
         pub unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
             match bits!(offset, 12:23) {
-                $($num => self.$name.lock().read_reg(offset & 0xFFF, buf, buf_size),)*
+                $($num => self.$name.borrow_mut().read_reg(offset & 0xFFF, buf, buf_size),)*
                 _ => {
                     error!("Unimplemented IO register read at offset 0x{:X}", offset);
                     // If we can't find a register for it, just read zero bytes
@@ -90,6 +90,27 @@ macro_rules! impl_rw {
         }
         pub unsafe fn write_reg(&self, offset: usize, buf: *const u8, buf_size: usize) {
             match bits!(offset, 12:23) {
+                $($num => self.$name.borrow_mut().write_reg(offset & 0xFFF, buf, buf_size),)*
+                _ => error!("Unimplemented IO register write at offset 0x{:X}", offset),
+            };
+        }
+    };
+}
+
+macro_rules! impl_rw_locked {
+    ($($num:expr => $name:tt),*) => {
+        pub unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+            match bits!(offset, 12:23) {
+                $($num => self.$name.lock().read_reg(offset & 0xFFF, buf, buf_size),)*
+                _ => {
+                    error!("Unimplemented IO register read at offset 0x{:X}", offset);
+                    // If we can't find a register for it, just read zero bytes
+                    ptr::write_bytes(buf, 0, buf_size);
+                }
+            }
+        }
+        pub unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+            match bits!(offset, 12:23) {
                 $($num => self.$name.lock().write_reg(offset & 0xFFF, buf, buf_size),)*
                 _ => error!("Unimplemented IO register write at offset 0x{:X}", offset),
             };
@@ -97,23 +118,22 @@ macro_rules! impl_rw {
     };
 }
 
-#[derive(Clone)]
 pub struct IoRegsArm9 {
-    pub cfg:    Arc<Mutex< config::ConfigDevice >>,
-    pub irq:    Arc<Mutex< irq::IrqDevice >>,
-    pub ndma:   Arc<Mutex< ndma::NdmaDevice >>,
-    pub timer:  Arc<Mutex< timer::TimerDevice >>,
+    pub cfg:    RefCell< config::ConfigDevice >,
+    pub irq:    RefCell< irq::IrqDevice >,
+    pub ndma:   RefCell< ndma::NdmaDevice >,
+    pub timer:  RefCell< timer::TimerDevice >,
     // ctrcard,
-    pub emmc:   Arc<Mutex< emmc::EmmcDevice >>,
-    pub pxi9:   Arc<Mutex< pxi::PxiDevice >>,
-    pub aes:    Arc<Mutex< aes::AesDevice >>,
-    pub sha:    Arc<Mutex< sha::ShaDevice >>,
-    pub rsa:    Arc<Mutex< rsa::RsaDevice >>,
-    pub xdma:   Arc<Mutex< xdma::XdmaDevice >>,
+    pub emmc:   RefCell< emmc::EmmcDevice >,
+    pub pxi9:   RefCell< pxi::PxiDevice >,
+    pub aes:    RefCell< aes::AesDevice >,
+    pub sha:    RefCell< sha::ShaDevice >,
+    pub rsa:    RefCell< rsa::RsaDevice >,
+    pub xdma:   RefCell< xdma::XdmaDevice >,
     // spicard,
-    pub cfgext: Arc<Mutex< config::ConfigExtDevice >>,
+    pub cfgext: RefCell< config::ConfigExtDevice >,
     // prng,
-    pub otp:    Arc<Mutex< otp::OtpDevice >>,
+    pub otp:    RefCell< otp::OtpDevice >,
     // arm7,
 }
 
@@ -131,6 +151,20 @@ impl IoRegsArm9 {
         0x0C => xdma,
         0x10 => cfgext,
         0x12 => otp
+    }
+}
+
+impl MemoryBlock for IoRegsArm9 {
+    fn get_bytes(&self) -> u32 {
+        (0x400 * 0x400) as u32
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        self.read_reg(offset, buf, buf_size)
+    }
+
+    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+        self.write_reg(offset, buf, buf_size)
     }
 }
 
@@ -159,8 +193,22 @@ pub struct IoRegsShared {
 }
 
 impl IoRegsShared {
-    impl_rw! {
+    impl_rw_locked! {
         0x46 => hid,
         0x63 => pxi11
+    }
+}
+
+impl MemoryBlock for IoRegsShared {
+    fn get_bytes(&self) -> u32 {
+        (0x400 * 0x400) as u32
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        self.read_reg(offset, buf, buf_size)
+    }
+
+    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+        self.write_reg(offset, buf, buf_size)
     }
 }

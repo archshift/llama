@@ -5,7 +5,7 @@ use indextree::{Arena, NodeId};
 use cpu::BreakReason;
 use mem;
 
-pub struct BoxedSteppable(Box<Steppable + Send + Sync>);
+pub struct BoxedSteppable(Box<Steppable + Send>);
 
 macro_rules! dmnode_inner {
     ($arena:expr, $base_node:expr, $op:expr, $dbg:expr) => ({
@@ -125,12 +125,12 @@ pub mod modes {
     }
 }
 
-struct Dummy11HW {
-    memory: mem::MemController
+pub(crate) struct Dummy11HW {
+    pub(crate) memory: mem::MemController
 }
 
 pub struct Dummy11 {
-    hw: Dummy11HW,
+    pub(crate) hw: Dummy11HW,
     program: BoxedSteppable
 }
 
@@ -170,7 +170,7 @@ struct Program<State> {
 }
 
 impl<State> Program<State>
-    where State: Sync + Send + 'static {
+    where State: Send + 'static {
 
     fn new(state: State) -> Program<State> {
         let mut arena = Arena::new();
@@ -220,8 +220,6 @@ struct ProgramNodeInner<State> {
     sticky: bool,
     _dbg_string: String,
 }
-
-unsafe impl<State> Sync for ProgramNodeInner<State> {} // TODO: not good!
 
 impl<State> ProgramNodeInner<State> {
     fn new(op: ProgramOp<State>, _dbg_string: &str) -> ProgramNodeInner<State> {
