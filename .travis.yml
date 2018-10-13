@@ -11,7 +11,8 @@ matrix:
 cache:
   - cargo
   - directories:
-    - capstone-3.0.4
+    - capstone
+    - python
 
 env:
   - QT_SELECT=5
@@ -20,16 +21,26 @@ dist: trusty
 sudo: required
 
 install:
-  - if [ ! -e capstone-3.0.4 ]; then
-      wget https://github.com/aquynh/capstone/archive/3.0.4.tar.gz -O /tmp/capstone.tar.gz;
-      tar -xvf /tmp/capstone.tar.gz;
+  - if git clone -b '3.0.5' --single-branch --depth 1 https://github.com/aquynh/capstone capstone; then
+      pushd capstone;
+        mkdir usr;
+        PREFIX=./usr make install;
+      popd;
     fi
-  - pushd capstone-3.0.4
-  - sudo ./make.sh install
-  - popd
+  - if git clone -b 'v3.6.7' --single-branch --depth 1 https://github.com/python/cpython python; then
+      pushd python;
+        mkdir usr;
+        ./configure --prefix="$PWD/usr";
+        make;
+        make install;
+      popd;
+    fi
   - sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qt5-qmake
 
 script:
+  - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:~/capstone/usr/lib/"
+  - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:~/python/usr/lib/"
+  - export PATH="$PATH:~/python/usr/bin/"
   - cargo build --verbose
   - pushd libllama
   - cargo test --verbose
