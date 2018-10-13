@@ -2,6 +2,7 @@ mod cpu;
 
 mod caches;
 mod coproc;
+#[macro_use] mod interpreter_dummy11;
 pub mod interpreter_arm;
 pub mod interpreter_thumb;
 
