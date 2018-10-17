@@ -18,7 +18,7 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     let _ = args;
 
     let mut ctx = debugger.ctx();
-    let hw = ctx.hw();
+    let mut hw = ctx.hw();
 
     let pause_addr = match args.next().map(from_hex) {
         Some(Ok(x)) => x,
@@ -168,7 +168,7 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     trace!("Printing {} bytes of RAM starting at 0x{:08X}", num, start);
 
     let mut ctx = debugger.ctx();
-    let hw = ctx.hw();
+    let mut hw = ctx.hw();
 
     let mut mem_bytes = vec![0u8; num as usize];
     if let Err(e) = hw.read_mem(start, &mut mem_bytes) {

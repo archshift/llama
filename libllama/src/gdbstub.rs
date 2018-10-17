@@ -174,7 +174,7 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             out += "OK";
         }
         'm' => {
-            let hw = ctx.dbg.hw();
+            let mut hw = ctx.dbg.hw();
             let mut params = params.split(',');
             let addr = parse_next_hex(&mut params)?;
             let size = parse_next_hex(&mut params)?;

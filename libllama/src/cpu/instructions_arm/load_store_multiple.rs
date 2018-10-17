@@ -63,7 +63,7 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
 
     let current_mode = cpu::Mode::from_num(cpu.cpsr.mode.get());
     cpu.regs.swap(cpu::Mode::Usr);
-    for i in 0..14 {
+    for i in 0..15 {
         if bit!(register_list, i) == 1 {
             cpu.regs[data.rn.get() as usize] = writeback;            
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
