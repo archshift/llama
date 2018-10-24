@@ -82,8 +82,12 @@ fn handle_gdb_cmd_q(cmd: &str, _ctx: &mut GdbCtx) -> Result<String> {
     let ty = parse_next(&mut s)?;
     let mut out = String::new();
     match ty {
+        "fThreadInfo" => out += "m0000000000000001",
+        "sThreadInfo" => out += "l",
+        "C" => out += "QC0000000000000001",
+        "Attached" => out += "1",
         "Supported" => {
-            out += "PacketSize=400;BreakpointCommands+;swbreak+";
+            out += "PacketSize=400;BreakpointCommands+;swbreak+;vContSupported+";
         }
         _ => warn!("GDB client tried to run unsupported `q` command {}", ty)
     }
@@ -103,7 +107,13 @@ fn handle_gdb_cmd_v(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
                 let action = parse_next(&mut thread_data)?;
                 let thread_name = thread_data.next();
                 if let Some(name) = thread_name {
-                    assert!(name == "-1");
+                    match (name, utils::from_hex(name)) {
+                        | ("-1", _)
+                        | (_, Ok(0))
+                        | (_, Ok(1)) => {}
+                        
+                        | (s, _) => panic!("Attempted to issue command on invalid thread id {}", s)
+                    }
                 }
                 match action {
                     "c" => return cmd_continue(ctx),
@@ -207,7 +217,10 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
                 0 ... 14 => hw.read_reg(reg),
                 15 => hw.pause_addr(),
                 25 => hw.read_cpsr(),
-                n => panic!("GDB requested bad register value {}", n)
+                n => {
+                    warn!("GDB requested bad register value {}", n);
+                    0
+                }
             };
             out += &format!("{:08X}", regval.swap_bytes());
         }
