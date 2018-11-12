@@ -1,5 +1,4 @@
-use cpu;
-use cpu::Cpu;
+use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
 fn shifter_lsl(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
@@ -87,7 +86,7 @@ fn shifter_ror_reg(pre_shift: u32, amount: usize, c_bit: bool) -> (u32, bool) {
     }
 }
 
-pub fn getreg(cpu: &Cpu, pc_advanced: bool, num: usize) -> u32 {
+pub fn getreg<V: Version>(cpu: &Cpu<V>, pc_advanced: bool, num: usize) -> u32 {
     if num != 15 { cpu.regs[num] }
     else if pc_advanced { cpu.regs[15] + 4 }
     else { cpu.regs[15] }
@@ -99,7 +98,7 @@ struct BarrelShifterOut {
     pc_advanced: bool, // To work around the fact that PC @ +12 when shifting by a register value
 }
 
-fn get_shifter_val(instr_data: u32, cpu: &Cpu) -> BarrelShifterOut {
+fn get_shifter_val<V: Version>(instr_data: u32, cpu: &Cpu<V>) -> BarrelShifterOut {
     // Just to make it a little bit easier to use this
     let instr_data = arm::Add::new(instr_data);
 
@@ -148,7 +147,7 @@ enum ProcessInstrBitOp {
     Xor,
 }
 
-fn instr_bitwise(cpu: &mut Cpu, data: arm::And::Bf, op: ProcessInstrBitOp) -> cpu::InstrStatus {
+fn instr_bitwise<V: Version>(cpu: &mut Cpu<V>, data: arm::And::Bf, op: ProcessInstrBitOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -185,7 +184,7 @@ fn instr_bitwise(cpu: &mut Cpu, data: arm::And::Bf, op: ProcessInstrBitOp) -> cp
     }
 }
 
-fn instr_compare(cpu: &mut Cpu, data: arm::Cmp::Bf, negative: bool) -> cpu::InstrStatus {
+fn instr_compare<V: Version>(cpu: &mut Cpu<V>, data: arm::Cmp::Bf, negative: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -222,7 +221,7 @@ enum ProcessInstrLogicalOp {
     SubCarry,
 }
 
-fn instr_logical(cpu: &mut Cpu, data: arm::Add::Bf, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
+fn instr_logical<V: Version>(cpu: &mut Cpu<V>, data: arm::Add::Bf, op: ProcessInstrLogicalOp) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -296,7 +295,7 @@ fn instr_logical(cpu: &mut Cpu, data: arm::Add::Bf, op: ProcessInstrLogicalOp) -
     }
 }
 
-fn instr_move(cpu: &mut Cpu, data: arm::Mov::Bf, negate: bool) -> cpu::InstrStatus {
+fn instr_move<V: Version>(cpu: &mut Cpu<V>, data: arm::Mov::Bf, negate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -328,7 +327,7 @@ fn instr_move(cpu: &mut Cpu, data: arm::Mov::Bf, negate: bool) -> cpu::InstrStat
     }
 }
 
-pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::Umlal::Bf, signed: bool) -> cpu::InstrStatus {
+pub fn instr_mul64_accumulate<V: Version>(cpu: &mut Cpu<V>, data: arm::Umlal::Bf, signed: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -361,7 +360,7 @@ pub fn instr_mul64_accumulate(cpu: &mut Cpu, data: arm::Umlal::Bf, signed: bool)
     cpu::InstrStatus::InBlock
 }
 
-fn instr_test(cpu: &mut Cpu, data: arm::Tst::Bf, equiv: bool) -> cpu::InstrStatus {
+fn instr_test<V: Version>(cpu: &mut Cpu<V>, data: arm::Tst::Bf, equiv: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -382,23 +381,23 @@ fn instr_test(cpu: &mut Cpu, data: arm::Tst::Bf, equiv: bool) -> cpu::InstrStatu
     cpu::InstrStatus::InBlock
 }
 
-pub fn adc(cpu: &mut Cpu, data: arm::Adc::Bf) -> cpu::InstrStatus {
+pub fn adc<V: Version>(cpu: &mut Cpu<V>, data: arm::Adc::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::AddCarry)
 }
 
-pub fn add(cpu: &mut Cpu, data: arm::Add::Bf) -> cpu::InstrStatus {
+pub fn add<V: Version>(cpu: &mut Cpu<V>, data: arm::Add::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, data, ProcessInstrLogicalOp::Add)
 }
 
-pub fn and(cpu: &mut Cpu, data: arm::And::Bf) -> cpu::InstrStatus {
+pub fn and<V: Version>(cpu: &mut Cpu<V>, data: arm::And::Bf) -> cpu::InstrStatus {
     instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
-pub fn bic(cpu: &mut Cpu, data: arm::Bic::Bf) -> cpu::InstrStatus {
+pub fn bic<V: Version>(cpu: &mut Cpu<V>, data: arm::Bic::Bf) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::AndNot)
 }
 
-pub fn clz(cpu: &mut Cpu, data: arm::Clz::Bf) -> cpu::InstrStatus {
+pub fn clz<V: Version>(cpu: &mut Cpu<V>, data: arm::Clz::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -409,23 +408,23 @@ pub fn clz(cpu: &mut Cpu, data: arm::Clz::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn cmn(cpu: &mut Cpu, data: arm::Cmn::Bf) -> cpu::InstrStatus {
+pub fn cmn<V: Version>(cpu: &mut Cpu<V>, data: arm::Cmn::Bf) -> cpu::InstrStatus {
     instr_compare(cpu, arm::Cmp::new(data.val), true)
 }
 
-pub fn cmp(cpu: &mut Cpu, data: arm::Cmp::Bf) -> cpu::InstrStatus {
+pub fn cmp<V: Version>(cpu: &mut Cpu<V>, data: arm::Cmp::Bf) -> cpu::InstrStatus {
     instr_compare(cpu, data, false)
 }
 
-pub fn eor(cpu: &mut Cpu, data: arm::Eor::Bf) -> cpu::InstrStatus {
+pub fn eor<V: Version>(cpu: &mut Cpu<V>, data: arm::Eor::Bf) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Xor)
 }
 
-pub fn orr(cpu: &mut Cpu, data: arm::Orr::Bf) -> cpu::InstrStatus {
+pub fn orr<V: Version>(cpu: &mut Cpu<V>, data: arm::Orr::Bf) -> cpu::InstrStatus {
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Or)
 }
 
-pub fn mla(cpu: &mut Cpu, data: arm::Mla::Bf) -> cpu::InstrStatus {
+pub fn mla<V: Version>(cpu: &mut Cpu<V>, data: arm::Mla::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -445,11 +444,11 @@ pub fn mla(cpu: &mut Cpu, data: arm::Mla::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn mov(cpu: &mut Cpu, data: arm::Mov::Bf) -> cpu::InstrStatus {
+pub fn mov<V: Version>(cpu: &mut Cpu<V>, data: arm::Mov::Bf) -> cpu::InstrStatus {
     instr_move(cpu, data, false)
 }
 
-pub fn mul(cpu: &mut Cpu, data: arm::Mul::Bf) -> cpu::InstrStatus {
+pub fn mul<V: Version>(cpu: &mut Cpu<V>, data: arm::Mul::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -468,27 +467,27 @@ pub fn mul(cpu: &mut Cpu, data: arm::Mul::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn mvn(cpu: &mut Cpu, data: arm::Mvn::Bf) -> cpu::InstrStatus {
+pub fn mvn<V: Version>(cpu: &mut Cpu<V>, data: arm::Mvn::Bf) -> cpu::InstrStatus {
     instr_move(cpu, arm::Mov::new(data.val), true)
 }
 
-pub fn rsb(cpu: &mut Cpu, data: arm::Rsb::Bf) -> cpu::InstrStatus {
+pub fn rsb<V: Version>(cpu: &mut Cpu<V>, data: arm::Rsb::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSub)
 }
 
-pub fn rsc(cpu: &mut Cpu, data: arm::Rsc::Bf) -> cpu::InstrStatus {
+pub fn rsc<V: Version>(cpu: &mut Cpu<V>, data: arm::Rsc::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSubCarry)
 }
 
-pub fn sbc(cpu: &mut Cpu, data: arm::Sbc::Bf) -> cpu::InstrStatus {
+pub fn sbc<V: Version>(cpu: &mut Cpu<V>, data: arm::Sbc::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::SubCarry)
 }
 
-pub fn smlal(cpu: &mut Cpu, data: arm::Smlal::Bf) -> cpu::InstrStatus {
+pub fn smlal<V: Version>(cpu: &mut Cpu<V>, data: arm::Smlal::Bf) -> cpu::InstrStatus {
     instr_mul64_accumulate(cpu, arm::Umlal::new(data.val), true)
 }
 
-pub fn smull(cpu: &mut Cpu, data: arm::Smull::Bf) -> cpu::InstrStatus {
+pub fn smull<V: Version>(cpu: &mut Cpu<V>, data: arm::Smull::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -508,23 +507,23 @@ pub fn smull(cpu: &mut Cpu, data: arm::Smull::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn sub(cpu: &mut Cpu, data: arm::Sub::Bf) -> cpu::InstrStatus {
+pub fn sub<V: Version>(cpu: &mut Cpu<V>, data: arm::Sub::Bf) -> cpu::InstrStatus {
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::Sub)
 }
 
-pub fn teq(cpu: &mut Cpu, data: arm::Teq::Bf) -> cpu::InstrStatus {
+pub fn teq<V: Version>(cpu: &mut Cpu<V>, data: arm::Teq::Bf) -> cpu::InstrStatus {
     instr_test(cpu, arm::Tst::new(data.val), true)
 }
 
-pub fn tst(cpu: &mut Cpu, data: arm::Tst::Bf) -> cpu::InstrStatus {
+pub fn tst<V: Version>(cpu: &mut Cpu<V>, data: arm::Tst::Bf) -> cpu::InstrStatus {
     instr_test(cpu, data, false)
 }
 
-pub fn umlal(cpu: &mut Cpu, data: arm::Umlal::Bf) -> cpu::InstrStatus {
+pub fn umlal<V: Version>(cpu: &mut Cpu<V>, data: arm::Umlal::Bf) -> cpu::InstrStatus {
     instr_mul64_accumulate(cpu, data, false)
 }
 
-pub fn umull(cpu: &mut Cpu, data: arm::Umull::Bf) -> cpu::InstrStatus {
+pub fn umull<V: Version>(cpu: &mut Cpu<V>, data: arm::Umull::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

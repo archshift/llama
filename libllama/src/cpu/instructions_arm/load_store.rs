@@ -1,11 +1,10 @@
-use cpu;
-use cpu::Cpu;
+use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
 use bitutils::sign_extend32;
 
 mod addressing {
-    use cpu::Cpu;
+    use cpu::{Cpu, Version};
     use cpu::interpreter_arm as arm;
 
     pub struct LsAddr(pub u32);
@@ -15,7 +14,7 @@ mod addressing {
         bits!(mode_data, 0:11)
     }
 
-    fn normal_shifted_offset(cpu: &Cpu, mode_data: u32, carry_bit: u32) -> u32 {
+    fn normal_shifted_offset<V: Version>(cpu: &Cpu<V>, mode_data: u32, carry_bit: u32) -> u32 {
         let rm = bits!(mode_data, 0:3);
         let shift = bits!(mode_data, 5:6);
         let shift_imm = bits!(mode_data, 7:11);
@@ -52,7 +51,7 @@ mod addressing {
         immed_lo | (immed_hi << 4)
     }
 
-    fn misc_reg_offset(cpu: &Cpu, mode_data: u32) -> u32 {
+    fn misc_reg_offset<V: Version>(cpu: &Cpu<V>, mode_data: u32) -> u32 {
         let rm = bits!(mode_data, 0:3);
         cpu.regs[rm as usize]
     }
@@ -72,7 +71,7 @@ mod addressing {
         }
     }
 
-    pub fn decode_normal(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
+    pub fn decode_normal<V: Version>(instr_data: u32, cpu: &Cpu<V>) -> (LsAddr, WbAddr) {
         let instr_data = arm::Ldr::new(instr_data);
         let carry_bit = cpu.cpsr.c_bit.get() as u32;
 
@@ -88,7 +87,7 @@ mod addressing {
                        instr_data.w_bit.get() == 1)
     }
 
-    pub fn decode_misc(instr_data: u32, cpu: &Cpu) -> (LsAddr, WbAddr) {
+    pub fn decode_misc<V: Version>(instr_data: u32, cpu: &Cpu<V>) -> (LsAddr, WbAddr) {
         let instr_data = arm::Ldrh::new(instr_data);
 
         let offset = if instr_data.i_bit.get() == 1 {
@@ -111,7 +110,7 @@ enum MiscLsType {
     SignedHalfword
 }
 
-fn instr_load(cpu: &mut Cpu, data: arm::Ldr::Bf, byte: bool) -> cpu::InstrStatus {
+fn instr_load<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -141,7 +140,7 @@ fn instr_load(cpu: &mut Cpu, data: arm::Ldr::Bf, byte: bool) -> cpu::InstrStatus
     cpu::InstrStatus::InBlock
 }
 
-fn instr_load_misc(cpu: &mut Cpu, data: arm::Ldrh::Bf, ty: MiscLsType) -> cpu::InstrStatus {
+fn instr_load_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -170,7 +169,7 @@ fn instr_load_misc(cpu: &mut Cpu, data: arm::Ldrh::Bf, ty: MiscLsType) -> cpu::I
     cpu::InstrStatus::InBlock
 }
 
-fn instr_store(cpu: &mut Cpu, data: arm::Str::Bf, byte: bool) -> cpu::InstrStatus {
+fn instr_store<V: Version>(cpu: &mut Cpu<V>, data: arm::Str::Bf, byte: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -190,7 +189,7 @@ fn instr_store(cpu: &mut Cpu, data: arm::Str::Bf, byte: bool) -> cpu::InstrStatu
     cpu::InstrStatus::InBlock
 }
 
-fn instr_store_misc(cpu: &mut Cpu, data: arm::Strh::Bf, ty: MiscLsType) -> cpu::InstrStatus {
+fn instr_store_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf, ty: MiscLsType) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -214,47 +213,47 @@ fn instr_store_misc(cpu: &mut Cpu, data: arm::Strh::Bf, ty: MiscLsType) -> cpu::
     cpu::InstrStatus::InBlock
 }
 
-pub fn ldr(cpu: &mut Cpu, data: arm::Ldr::Bf) -> cpu::InstrStatus {
+pub fn ldr<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
 
-pub fn ldrb(cpu: &mut Cpu, data: arm::Ldrb::Bf) -> cpu::InstrStatus {
+pub fn ldrb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrb::Bf) -> cpu::InstrStatus {
     instr_load(cpu, arm::Ldr::new(data.val), true)
 }
 
-pub fn ldrd(cpu: &mut Cpu, data: arm::Ldrd::Bf) -> cpu::InstrStatus {
+pub fn ldrd<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrd::Bf) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::Doubleword)
 }
 
-pub fn ldrh(cpu: &mut Cpu, data: arm::Ldrh::Bf) -> cpu::InstrStatus {
+pub fn ldrh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf) -> cpu::InstrStatus {
     instr_load_misc(cpu, data, MiscLsType::Halfword)
 }
 
-pub fn ldrsb(cpu: &mut Cpu, data: arm::Ldrsb::Bf) -> cpu::InstrStatus {
+pub fn ldrsb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsb::Bf) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedByte)
 }
 
-pub fn ldrsh(cpu: &mut Cpu, data: arm::Ldrsh::Bf) -> cpu::InstrStatus {
+pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsh::Bf) -> cpu::InstrStatus {
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedHalfword)
 }
 
-pub fn str(cpu: &mut Cpu, data: arm::Str::Bf) -> cpu::InstrStatus {
+pub fn str<V: Version>(cpu: &mut Cpu<V>, data: arm::Str::Bf) -> cpu::InstrStatus {
     instr_store(cpu, data, false)
 }
 
-pub fn strb(cpu: &mut Cpu, data: arm::Strb::Bf) -> cpu::InstrStatus {
+pub fn strb<V: Version>(cpu: &mut Cpu<V>, data: arm::Strb::Bf) -> cpu::InstrStatus {
     instr_store(cpu, arm::Str::new(data.val), true)
 }
 
-pub fn strd(cpu: &mut Cpu, data: arm::Strd::Bf) -> cpu::InstrStatus {
+pub fn strd<V: Version>(cpu: &mut Cpu<V>, data: arm::Strd::Bf) -> cpu::InstrStatus {
     instr_store_misc(cpu, arm::Strh::new(data.val), MiscLsType::Doubleword)
 }
 
-pub fn strh(cpu: &mut Cpu, data: arm::Strh::Bf) -> cpu::InstrStatus {
+pub fn strh<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf) -> cpu::InstrStatus {
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
 
-pub fn swp(cpu: &mut Cpu, data: arm::Swp::Bf) -> cpu::InstrStatus {
+pub fn swp<V: Version>(cpu: &mut Cpu<V>, data: arm::Swp::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -270,7 +269,7 @@ pub fn swp(cpu: &mut Cpu, data: arm::Swp::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn swpb(cpu: &mut Cpu, data: arm::Swpb::Bf) -> cpu::InstrStatus {
+pub fn swpb<V: Version>(cpu: &mut Cpu<V>, data: arm::Swpb::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

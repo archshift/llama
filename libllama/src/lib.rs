@@ -11,6 +11,7 @@ extern crate log;
 extern crate mio;
 extern crate openssl;
 extern crate parking_lot;
+extern crate arraydeque;
 
 #[macro_use]
 pub mod utils;

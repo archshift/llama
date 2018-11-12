@@ -1,8 +1,8 @@
 use cpu;
-use cpu::Cpu;
+use cpu::{Cpu, Version};
 use cpu::interpreter_arm as arm;
 
-fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
+fn decode_addressing_mode<V: Version>(instr_data: u32, cpu: &mut Cpu<V>) -> (u32, u32) {
     let instr_data = arm::Ldm1::new(instr_data);
 
     let register_list = instr_data.register_list.get();
@@ -26,7 +26,7 @@ fn decode_addressing_mode(instr_data: u32, cpu: &mut Cpu) -> (u32, u32) {
     }
 }
 
-pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
+pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -53,7 +53,7 @@ pub fn ldm_1(cpu: &mut Cpu, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
     }
 }
 
-pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
+pub fn ldm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -74,7 +74,7 @@ pub fn ldm_2(cpu: &mut Cpu, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
     return cpu::InstrStatus::InBlock;
 }
 
-pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
+pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -96,7 +96,7 @@ pub fn ldm_3(cpu: &mut Cpu, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::Branched
 }
 
-pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1::Bf) -> cpu::InstrStatus {
+pub fn stm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm1::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -118,7 +118,7 @@ pub fn stm_1(cpu: &mut Cpu, data: arm::Stm1::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn stm_2(cpu: &mut Cpu, data: arm::Stm2::Bf) -> cpu::InstrStatus {
+pub fn stm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm2::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

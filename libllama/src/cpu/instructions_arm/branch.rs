@@ -1,9 +1,8 @@
-use cpu;
-use cpu::Cpu;
+use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 use bitutils::sign_extend32;
 
-fn instr_branch_exchange(cpu: &mut Cpu, data: arm::Bx::Bf, link: bool) -> cpu::InstrStatus {
+fn instr_branch_exchange<V: Version>(cpu: &mut Cpu<V>, data: arm::Bx::Bf, link: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -20,7 +19,7 @@ fn instr_branch_exchange(cpu: &mut Cpu, data: arm::Bx::Bf, link: bool) -> cpu::I
     cpu::InstrStatus::Branched
 }
 
-pub fn bbl(cpu: &mut Cpu, data: arm::Bbl::Bf) -> cpu::InstrStatus {
+pub fn bbl<V: Version>(cpu: &mut Cpu<V>, data: arm::Bbl::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -37,15 +36,15 @@ pub fn bbl(cpu: &mut Cpu, data: arm::Bbl::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::Branched
 }
 
-pub fn blx(cpu: &mut Cpu, data: arm::Blx2::Bf) -> cpu::InstrStatus {
+pub fn blx<V: Version>(cpu: &mut Cpu<V>, data: arm::Blx2::Bf) -> cpu::InstrStatus {
     instr_branch_exchange(cpu, arm::Bx::new(data.val), true)
 }
 
-pub fn bx(cpu: &mut Cpu, data: arm::Bx::Bf) -> cpu::InstrStatus {
+pub fn bx<V: Version>(cpu: &mut Cpu<V>, data: arm::Bx::Bf) -> cpu::InstrStatus {
     instr_branch_exchange(cpu, data, false)
 }
 
-pub fn mod_blx(cpu: &mut Cpu, data: arm::ModBlx::Bf) -> cpu::InstrStatus {
+pub fn mod_blx<V: Version>(cpu: &mut Cpu<V>, data: arm::ModBlx::Bf) -> cpu::InstrStatus {
     let signed_imm_24 = data.signed_imm_24.get();
     let h_bit = data.h_bit.get();
 

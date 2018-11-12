@@ -1,4 +1,5 @@
 use cpu::coproc::{CpEffect, Coprocessor};
+use cpu::Version;
 
 bf!(RegControl[u32] {
     use_mpu: 0:0,
@@ -60,9 +61,9 @@ impl SysControl {
     }
 }
 
-impl Coprocessor for SysControl {
-    fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) -> CpEffect {
-        let mut effect: CpEffect = Box::new(move |_cpu| {});
+impl<V: Version> Coprocessor<V> for SysControl {
+    fn move_in(&mut self, cpreg1: usize, cpreg2: usize, op1: usize, op2: usize, val: u32) -> CpEffect<V> {
+        let mut effect: CpEffect<V> = Box::new(move |_cpu| {});
 
         if cpreg1 != 15 {
             assert_eq!(op1, 0);

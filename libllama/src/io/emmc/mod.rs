@@ -118,7 +118,7 @@ impl EmmcDeviceState {
             irq_statuses: [0 | (Status0::SigState as u16), 0],
             cards: [
                 Card::new(card::CardType::Sd, sd_storage, card::sd_cid()),
-                Card::new(card::CardType::Sd, nand_storage, card::nand_cid())
+                Card::new(card::CardType::Mmc, nand_storage, card::nand_cid())
             ]
         }
     }

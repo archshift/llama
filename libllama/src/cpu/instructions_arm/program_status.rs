@@ -1,8 +1,8 @@
 use cpu;
-use cpu::Cpu;
+use cpu::{Cpu, Version};
 use cpu::interpreter_arm as arm;
 
-pub fn mrs(cpu: &mut Cpu, data: arm::Mrs::Bf) -> cpu::InstrStatus {
+pub fn mrs<V: Version>(cpu: &mut Cpu<V>, data: arm::Mrs::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -19,7 +19,7 @@ pub fn mrs(cpu: &mut Cpu, data: arm::Mrs::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn instr_msr(cpu: &mut Cpu, data: arm::Msr1::Bf, immediate: bool) -> cpu::InstrStatus {
+pub fn instr_msr<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf, immediate: bool) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -72,10 +72,10 @@ pub fn instr_msr(cpu: &mut Cpu, data: arm::Msr1::Bf, immediate: bool) -> cpu::In
     cpu::InstrStatus::InBlock
 }
 
-pub fn msr_1(cpu: &mut Cpu, data: arm::Msr1::Bf) -> cpu::InstrStatus {
+pub fn msr_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf) -> cpu::InstrStatus {
     instr_msr(cpu, data, true)
 }
 
-pub fn msr_2(cpu: &mut Cpu, data: arm::Msr2::Bf) -> cpu::InstrStatus {
+pub fn msr_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr2::Bf) -> cpu::InstrStatus {
     instr_msr(cpu, arm::Msr1::new(data.val), false)
 }

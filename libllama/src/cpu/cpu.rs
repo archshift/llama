@@ -11,6 +11,8 @@ use utils::cache::TinyCache;
 
 use std::collections::HashSet;
 
+use arraydeque::{ArrayDeque, Wrapping};
+
 #[derive(Copy, Clone, Debug)]
 pub enum Mode {
     Usr = 0b10000,
@@ -37,7 +39,13 @@ impl Mode {
     }
 }
 
-pub struct Cpu {
+#[allow(non_camel_case_types)] pub struct v5;
+#[allow(non_camel_case_types)] pub struct v6;
+pub trait Version {}
+impl Version for v5 {}
+impl Version for v6 {}
+
+pub struct Cpu<V: Version> {
     pub regs: GpRegs,
     pub cpsr: Psr::Bf,
     pub spsr_fiq: Psr::Bf,
@@ -53,10 +61,14 @@ pub struct Cpu {
     cycles: usize,
     sys_clk: clock::SysClock,
 
-    pub(crate) thumb_decode_cache: TinyCache<cpu::thumb::InstFn, ()>,
-    pub(crate) arm_decode_cache: TinyCache<cpu::arm::InstFn, ()>,
+    pub(crate) thumb_decode_cache: TinyCache<cpu::thumb::InstFn<V>, ()>,
+    pub(crate) arm_decode_cache: TinyCache<cpu::arm::InstFn<V>, ()>,
 
-    pub breakpoints: HashSet<u32> // addr, is_triggered
+    pub last_instructions: ArrayDeque<[u32; 1024], Wrapping>,
+
+    pub breakpoints: HashSet<u32>, // addr, is_triggered
+
+    _version: V
 }
 
 #[derive(Clone)]
@@ -69,8 +81,8 @@ pub enum BreakReason {
 
 const PAUSE_CYCLES: usize = 128;
 
-impl Cpu {
-    pub fn new(memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu {
+impl<V: Version> Cpu<V> {
+    pub fn new(version: V, memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu<V> {
         Cpu {
             regs: GpRegs::new(Mode::Svc),
             cpsr: Psr::new(0),
@@ -94,7 +106,10 @@ impl Cpu {
                 |_, k| cpu::arm::decode(k), |_, _, _| {}
             ),
 
-            breakpoints: HashSet::new()
+            last_instructions: ArrayDeque::new(),
+
+            breakpoints: HashSet::new(),
+            _version: version
         }
     }
 
@@ -128,7 +143,7 @@ impl Cpu {
         assert_eq!(self.regs[15] & (Self::instr_size(thumb_bit) - 1), 0);
     }
 
-    pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor {
+    pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor<V> {
         match cp_index {
             15 => &mut self.coproc_syscnt,
             _ => panic!("Tried to access unknown CP{}", cp_index),
@@ -191,6 +206,8 @@ impl Cpu {
             if self.find_toggle_breakpoint(addr) {
                 return BreakReason::Breakpoint;
             }
+
+            self.last_instructions.push_back(addr);
 
             let status = if thumb_bit == 0 {
                 cpu::arm::interpret_next(self, addr)

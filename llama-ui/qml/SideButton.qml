@@ -23,8 +23,8 @@ Button {
 
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            sourceSize.width: Math.floor(parent.width / 25) * 12
-            sourceSize.height: Math.floor(parent.height / 25) * 12
+            sourceSize.width: Math.floor(Math.min(parent.width, parent.height) / 25) * 12
+            sourceSize.height: sourceSize.height
         }
 
         ColorOverlay {

@@ -57,7 +57,9 @@ impl<'a> DbgContext<'a> {
             let hw9 = p.into_inner();
             let s = format!("Internal error!\nCPU register state:\n\
                              gpregs: {:#X?}\n\
-                             cpsr: {:#X?}\n", hw9.arm9.regs, hw9.arm9.cpsr.val);
+                             cpsr: {:#X?}\n\
+                             last 1024 instruction addresses:\n\
+                             {:#X?}", hw9.arm9.regs, hw9.arm9.cpsr.val, hw9.arm9.last_instructions);
             panic!("{}", s);
         };
         DbgHwContext {

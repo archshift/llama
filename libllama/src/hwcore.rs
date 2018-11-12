@@ -8,7 +8,7 @@ use mem;
 use io;
 use msgs;
 
-
+use cpu::v5;
 
 #[derive(Clone)]
 pub enum Message {
@@ -79,6 +79,7 @@ impl MemoryRegions {
         let io11_shared_hnd = controller11.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
 
         let mut controller_pica = mem::MemController::new();
+        controller_pica.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
         controller_pica.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
 
         Self {
@@ -93,18 +94,18 @@ impl MemoryRegions {
     }
 }
 
-fn write_fb_pointers(cpu: &mut cpu::Cpu) {
-    // Initialize framebuffer data in a way that's compatible with BRAHMA and b9s
-    cpu.mpu.dmem_write(0xFFF00000, 0x23FFFE00u32);
-    cpu.mpu.dmem_write(0xFFF00004, 0x23FFFE00u32);
-    cpu.mpu.dmem_write(0x23FFFE00, 0x20000000u32);
-    cpu.mpu.dmem_write(0x23FFFE08, 0x2008CA00u32);
+fn write_fb_pointers(cpu: &mut cpu::Cpu<v5>) {
+    // Initialize framebuffer data to be b9s compatible
+    cpu.mpu.dmem_write(0xFFF00000, 0x18000000u32);
+    cpu.mpu.dmem_write(0xFFF00004, 0x18000000u32);
+    cpu.mpu.dmem_write(0x18000000, 0x18000010u32);
+    cpu.mpu.dmem_write(0x18000008, 0x1808CA10u32);
     cpu.regs[0] = 2;
     cpu.regs[1] = 0xFFF00000;
 }
 
 pub struct Hardware9 {
-    pub arm9: cpu::Cpu,
+    pub arm9: cpu::Cpu<v5>,
     io_handle: mem::AddressBlockHandle,
     io_shared_handle: mem::AddressBlockHandle,
 }
@@ -175,7 +176,7 @@ impl HwCore {
         let mut mem_regions = MemoryRegions::map(io9, io_shared.clone());
         loader.load(&mut mem_regions.mem9);
 
-        let mut cpu = cpu::Cpu::new(mem_regions.mem9, irq_rx, clk_tx);
+        let mut cpu = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
         cpu.reset(loader.entrypoint());
         write_fb_pointers(&mut cpu);
 
@@ -266,9 +267,9 @@ impl HwCore {
         fbs.top_screen.resize({ let (w, h, d) = fbs.top_screen_size; w*h*d }, 0);
         fbs.bot_screen.resize({ let (w, h, d) = fbs.bot_screen_size; w*h*d }, 0);
 
-        self.mem_pica.read_buf(0x20000000u32, fbs.top_screen.as_mut_slice());
+        self.mem_pica.read_buf(0x18000010u32, fbs.top_screen.as_mut_slice());
         // self.mem_pica.read_buf(0x20046500u32, ..);
-        self.mem_pica.read_buf(0x2008CA00u32, fbs.bot_screen.as_mut_slice());
+        self.mem_pica.read_buf(0x1808CA10u32, fbs.bot_screen.as_mut_slice());
         // self.mem_pica.read_buf(0x200C4E00u32, ..);
     }
 }

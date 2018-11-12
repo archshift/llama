@@ -1,8 +1,7 @@
-use cpu;
-use cpu::Cpu;
+use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
-pub fn mcr(cpu: &mut Cpu, data: arm::Mcr::Bf) -> cpu::InstrStatus {
+pub fn mcr<V: Version>(cpu: &mut Cpu<V>, data: arm::Mcr::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -22,7 +21,7 @@ pub fn mcr(cpu: &mut Cpu, data: arm::Mcr::Bf) -> cpu::InstrStatus {
     cpu::InstrStatus::InBlock
 }
 
-pub fn mrc(cpu: &mut Cpu, data: arm::Mrc::Bf) -> cpu::InstrStatus {
+pub fn mrc<V: Version>(cpu: &mut Cpu<V>, data: arm::Mrc::Bf) -> cpu::InstrStatus {
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

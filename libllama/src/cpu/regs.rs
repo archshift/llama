@@ -87,12 +87,12 @@ impl GpBanks {
     fn build_iter<'a>(&'a mut self, mode: cpu::Mode) -> impl Iterator<Item=&mut u32> + 'a {
         match mode {
             cpu::Mode::Sys | cpu::Mode::Usr
-                           => Box::new(self.basic_bank.iter_mut().take(13).chain(self.usr_bank.iter_mut())),
-            cpu::Mode::Svc => Box::new(self.basic_bank.iter_mut().take(13).chain(self.svc_bank.iter_mut())),
-            cpu::Mode::Abt => Box::new(self.basic_bank.iter_mut().take(13).chain(self.abt_bank.iter_mut())),
-            cpu::Mode::Und => Box::new(self.basic_bank.iter_mut().take(13).chain(self.und_bank.iter_mut())),
-            cpu::Mode::Irq => Box::new(self.basic_bank.iter_mut().take(13).chain(self.irq_bank.iter_mut())),
-            cpu::Mode::Fiq => Box::new(self.basic_bank.iter_mut().take(7).chain(self.fiq_bank.iter_mut()))
+                           => self.basic_bank.iter_mut().take(13).chain(self.usr_bank.iter_mut()),
+            cpu::Mode::Svc => self.basic_bank.iter_mut().take(13).chain(self.svc_bank.iter_mut()),
+            cpu::Mode::Abt => self.basic_bank.iter_mut().take(13).chain(self.abt_bank.iter_mut()),
+            cpu::Mode::Und => self.basic_bank.iter_mut().take(13).chain(self.und_bank.iter_mut()),
+            cpu::Mode::Irq => self.basic_bank.iter_mut().take(13).chain(self.irq_bank.iter_mut()),
+            cpu::Mode::Fiq => self.basic_bank.iter_mut().take(7).chain(self.fiq_bank.iter_mut())
         }
     }
 }
