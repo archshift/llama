@@ -167,6 +167,18 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
     backend
 }
 
+fn c_args() -> Vec<Box<[u8]>> {
+    let into_c_str = |arg: String| {
+        let mut vec = arg.into_bytes();
+        vec.push(b'\0');
+        vec.into_boxed_slice()
+    };
+
+    let args = env::args();
+    args.map(into_c_str)
+        .collect()
+}
+
 fn main() {
     let _logger = uilog::init().unwrap();
 
@@ -190,5 +202,16 @@ fn main() {
     };
 
     let mut backend = load_game(&loader);
-    unsafe { c::llama_open_gui(backend.to_c(), &callbacks) };
+    let mut args = c_args();
+    let mut c_args: Vec<*mut u8> = args.iter_mut()
+        .map(|arg| &mut arg[0] as *mut u8)
+        .collect();
+
+    unsafe {
+        c::llama_open_gui(
+            c_args.len() as i32,
+            c_args.as_mut_ptr() as *mut *mut i8,
+            backend.to_c(),
+            &callbacks)
+    };
 }

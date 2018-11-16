@@ -112,9 +112,8 @@ public:
 };
 
 
-extern "C" int llama_open_gui(Backend *backend, const FrontendCallbacks *callbacks) {
-    int argc = 0;
-    QGuiApplication app(argc, nullptr);
+extern "C" int llama_open_gui(int argc, char **argv, Backend *backend, const FrontendCallbacks *callbacks) {
+    QGuiApplication app(argc, argv);
 
     qmlRegisterType<TopScreen>("Screens", 1, 0, "TopScreen");
     qmlRegisterType<BotScreen>("Screens", 1, 0, "BotScreen");

@@ -50,7 +50,7 @@ typedef struct FrontendCallbacks {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    int llama_open_gui(Backend *backend, const FrontendCallbacks *callbacks);
+    int llama_open_gui(int argc, char **argv, Backend *backend, const FrontendCallbacks *callbacks);
 #ifdef __cplusplus
 }
 #endif
