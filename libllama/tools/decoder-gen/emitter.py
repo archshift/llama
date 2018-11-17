@@ -47,7 +47,7 @@ def generate(file):
         indentation -= 2
 
     pcode("#[allow(unused_parens)]")
-    pcode(f"pub fn disasm<V: Version>(enc: {decoder.ty}) -> String {{")
+    pcode(f"pub fn disasm(enc: {decoder.ty}) -> String {{")
     indent()
     for category in decoder.categories:
         string = ") || (".join([ str(definition_to_constraint(defn))

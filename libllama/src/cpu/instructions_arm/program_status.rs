@@ -1,9 +1,8 @@
 use cpu;
-use cpu::{Cpu, Version};
+use cpu::{Cpu, Version, v5};
 use cpu::interpreter_arm as arm;
 
 pub fn mrs<V: Version>(cpu: &mut Cpu<V>, data: arm::Mrs::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -36,10 +35,10 @@ pub fn instr_msr<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf, immediate: b
         cpu.regs[bits!(shifter_operand, 0:3) as usize]
     };
 
-    let unalloc_mask = 0x07FFFF00u32;
-    let user_mask    = 0xF8000000u32;
-    let priv_mask    = 0x0000000Fu32;
-    let state_mask   = 0x00000020u32;
+    let unalloc_mask = if V::is::<v5>() { 0x07FFFF00u32 } else { 0x06F0FC00 };
+    let user_mask    = if V::is::<v5>() { 0xF8000000u32 } else { 0xF80F0200 };
+    let priv_mask    = if V::is::<v5>() { 0x0000000Fu32 } else { 0x000001DF };
+    let state_mask   = if V::is::<v5>() { 0x00000020u32 } else { 0x01000020 };
 
     if val & unalloc_mask != 0 {
         error!("Attempted to set reserved PSR bits through MSR instruction!");
@@ -74,11 +73,9 @@ pub fn instr_msr<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf, immediate: b
 }
 
 pub fn msr_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_msr(cpu, data, true)
 }
 
 pub fn msr_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr2::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_msr(cpu, arm::Msr1::new(data.val), false)
 }

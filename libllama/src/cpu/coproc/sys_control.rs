@@ -194,6 +194,13 @@ impl SysControl {
         }
     }
 
+    fn read_c0_arm11(&self, op2: usize) -> u32 {
+        match op2 {
+            5 => 0x000000000, // On the 3DS: 2xMPCore
+            _ => unimplemented!(),
+        }
+    }
+
     fn read_c1_arm9(&self, op2: usize) -> u32 {
         match op2 {
             0b000 => {
@@ -343,6 +350,7 @@ impl<V: Version> Coprocessor<V> for SysControl {
             }
         } else if V::is::<v6>() {
             match cpreg1 {
+                0 => self.read_c0_arm11(op2),
                 15 => self.read_c15_arm11(op2, cpreg2),
                 _ => unimplemented!()
             }

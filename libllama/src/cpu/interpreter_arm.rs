@@ -61,8 +61,8 @@ pub fn interpret_next<V: Version>(cpu: &mut Cpu<V>, addr: u32) -> InstrStatus {
     let inst_fn = *cpu.arm_decode_cache.get_or(instr, &mut ());
     
     if V::is::<::cpu::v6>() {
-        info!("{:08X}: {}", instr, ::cpu::arm::disasm::<V>(instr));
-        println!("{:08X}: {}", instr, ::cpu::arm::disasm::<V>(instr));
+        info!("{:08X}: {}", instr, ::cpu::arm::disasm(instr));
+        println!("{:08X}: {}", instr, ::cpu::arm::disasm(instr));
     }
     
     inst_fn(cpu, instr)
