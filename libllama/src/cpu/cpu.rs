@@ -41,7 +41,13 @@ impl Mode {
 
 #[allow(non_camel_case_types)] pub struct v5;
 #[allow(non_camel_case_types)] pub struct v6;
-pub trait Version {}
+pub trait Version: 'static {
+    #[inline(always)]
+    fn is<T: Version>() -> bool {
+        use std::any::TypeId;
+        TypeId::of::<T>() == TypeId::of::<Self>()
+    }
+}
 impl Version for v5 {}
 impl Version for v6 {}
 
@@ -174,15 +180,12 @@ impl<V: Version> Cpu<V> {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
+        assert!(V::is::<v5>());
+
         let mut cycles = self.cycles;
         let mut irq_known_pending = false;
         let mut thumb_bit = self.cpsr.thumb_bit.get();
         self.check_alignment(thumb_bit);
-
-        static mut SECS: f64 = 0.;
-        static mut CYC: u64 = 0;
-
-        let currtime = ::std::time::Instant::now();
 
         for _ in 0..num_instrs {
             let addr = self.regs[15] - Self::pc_offset(thumb_bit);
@@ -192,7 +195,6 @@ impl<V: Version> Cpu<V> {
             if cycles == 0 {
                 self.sys_clk.increment(PAUSE_CYCLES * 8); // Probably speeds up time but w/e
                 irq_known_pending = self.irq_line.is_high();
-                unsafe { CYC += PAUSE_CYCLES as u64 };
                 cycles = PAUSE_CYCLES;
             }
             if irq_known_pending && self.cpsr.disable_irq_bit.get() == 0 && self.irq_line.is_high() {
@@ -218,14 +220,6 @@ impl<V: Version> Cpu<V> {
                 InstrStatus::InBlock => self.regs[15] += Self::instr_size(thumb_bit),
                 InstrStatus::Branched => thumb_bit = self.cpsr.thumb_bit.get(),
             }
-        }
-
-        let endtime = ::std::time::Instant::now();
-        let diff = endtime - currtime;
-        unsafe {
-            SECS += (diff.as_secs() as f64) + (diff.subsec_nanos() as f64) / 1.0E9;
-            CYC += (PAUSE_CYCLES - cycles) as u64;
-            println!("Avg. MHz: {:.4}", (CYC as f64) / SECS / 1E6);
         }
 
         self.cycles = cycles;

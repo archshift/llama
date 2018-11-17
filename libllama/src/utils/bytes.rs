@@ -38,3 +38,8 @@ pub unsafe fn to_val<T: Copy>(data: &[u8]) -> T {
 pub fn Tpos<T: Copy>(start: usize) -> ::std::ops::Range<usize> {
     start .. start + mem::size_of::<T>()
 }
+
+pub unsafe fn val_at_offs<T: Copy>(data: &[u8], offs: usize) -> T {
+    let bytes = &data[Tpos::<T>(offs)];
+    to_val::<T>(bytes)
+}

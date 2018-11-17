@@ -8,7 +8,7 @@ use mem;
 use io;
 use msgs;
 
-use cpu::v5;
+use cpu::{v5, v6};
 
 #[derive(Clone)]
 pub enum Message {
@@ -131,13 +131,13 @@ impl Hardware9 {
 }
 
 pub struct Hardware11 {
-    pub dummy11: cpu::dummy11::Dummy11,
+    pub arm11: cpu::Cpu<v6>,    
     io_shared_handle: mem::AddressBlockHandle,
 }
 
 impl Hardware11 {
     pub fn io_shared(&self) -> &io::IoRegsShared {
-        let region = self.dummy11.hw.memory.region(&self.io_shared_handle);
+        let region = self.arm11.mpu.memory.region(&self.io_shared_handle);
         if let mem::AddressBlock::IoShared(ref io) = region {
             io
         } else {
@@ -174,27 +174,26 @@ impl HwCore {
 
         let (io9, io_shared) = io::new_devices(irq_tx.clone(), clk_rx);
         let mut mem_regions = MemoryRegions::map(io9, io_shared.clone());
-        loader.load(&mut mem_regions.mem9);
+        loader.load9(&mut mem_regions.mem9);
 
-        let mut cpu = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
-        cpu.reset(loader.entrypoint());
-        write_fb_pointers(&mut cpu);
-
-        let arm11_state = loader.arm11_state();
-        info!("Creating system with ARM11 mode {:?}...", arm11_state);
-        let dummy11_mode = match arm11_state {
-            Arm11State::BootSync => cpu::dummy11::modes::boot(),
-            Arm11State::KernelSync => cpu::dummy11::modes::kernel(),
-            Arm11State::None => cpu::dummy11::modes::idle()
-        };
+        let mut cpu9 = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
+        cpu9.reset(loader.entrypoint9());
+        write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {
-            arm9: cpu,
+            arm9: cpu9,
             io_handle: mem_regions.io9_hnd,
             io_shared_handle: mem_regions.io9_shared_hnd,
         };
+
+        let (irq11_tx, irq11_rx) = cpu::irq::make_channel();
+        let clk11_tx = clock::make_channel(irq11_tx.clone());
+        // let clk11_rx = clk11_tx.clone();
+        let mut cpu11 = cpu::Cpu::new(v6, mem_regions.mem11, irq11_rx, clk11_tx);
+        cpu11.reset(loader.entrypoint11());
+
         let hardware11 = Hardware11 {
-            dummy11: cpu::dummy11::Dummy11::new(mem_regions.mem11, dummy11_mode),
+            arm11: cpu11,
             io_shared_handle: mem_regions.io11_shared_hnd,
         };
 
@@ -297,20 +296,12 @@ fn arm9_run(client: &msgs::Client<Message>, hardware: &mut Hardware9) -> bool {
 }
 
 fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool {
-    't: loop {
-        let break_reason = hardware.dummy11.step();
-
-        let mut msg_opt = match break_reason {
-            cpu::BreakReason::WFI => client.recv().ok(),
-            cpu::BreakReason::LimitReached => client.try_recv().ok(),
-            cpu::BreakReason::Breakpoint | cpu::BreakReason::Trapped => unimplemented!(),
-        };
-
-        while let Some(msg) = msg_opt {
+    let reason = 't: loop {
+        for msg in client.try_iter() {
             match msg {
                 Message::Quit => return false,
                 Message::SuspendEmulation => {
-                    break 't
+                    break 't cpu::BreakReason::Trapped
                 }
                 Message::HidUpdate(btn) => {
                     let io_shared = &hardware.io_shared().hid;
@@ -318,11 +309,15 @@ fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool 
                 }
                 _ => {}
             }
-            msg_opt = client.try_recv().ok();
         }
-    }
 
-    client.send(Message::Arm11Halted(cpu::BreakReason::Trapped)).unwrap();
+        if let reason @ cpu::BreakReason::Breakpoint = hardware.arm11.run(1000) {
+            info!("Breakpoint hit @ 0x{:X}!", hardware.arm11.regs[15] - hardware.arm11.get_pc_offset());
+            break 't reason
+        }
+    };
+
+    client.send(Message::Arm11Halted(reason)).unwrap();
     true
 }
 

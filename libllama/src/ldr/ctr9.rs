@@ -5,7 +5,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use ldr;
-use hwcore;
 use mem;
 use utils;
 
@@ -31,8 +30,7 @@ pub struct Ctr9Loader {
 }
 
 impl Ctr9Loader {
-    pub fn from_folder(path_str: &str) -> Result<Ctr9Loader> {
-        let path = Path::new(path_str);
+    pub fn from_folder(path: &Path) -> Result<Ctr9Loader> {
         let json = Ctr9Loader::load_desc_json(&path)?;
 
         Ok(Ctr9Loader {
@@ -50,11 +48,15 @@ impl Ctr9Loader {
 }
 
 impl ldr::Loader for Ctr9Loader {
-    fn entrypoint(&self) -> u32 {
+    fn entrypoint9(&self) -> u32 {
         self.desc.entrypoint
     }
 
-    fn load(&self, controller: &mut mem::MemController) {
+    fn entrypoint11(&self) -> u32 {
+        self.desc.entry11
+    }
+
+    fn load9(&self, controller: &mut mem::MemController) {
         for binfile in self.desc.binfiles.iter() {
             let mut file = File::open(self.path.join(&binfile.bin)).unwrap();
             let mut vaddr = binfile.vaddr;
@@ -69,16 +71,15 @@ impl ldr::Loader for Ctr9Loader {
         }
     }
 
-    fn arm11_state(&self) -> hwcore::Arm11State {
-        self.desc.arm11_state
+    fn load11(&self, _controller: &mut mem::MemController) {
     }
 }
 
 
 struct Desc {
     entrypoint: u32,
+    entry11: u32,
     binfiles: Vec<DescBinfile>,
-    arm11_state: hwcore::Arm11State,
 }
 
 impl Desc {
@@ -87,6 +88,11 @@ impl Desc {
             .ok_or(ErrorKind::JsonItemError("entryPoint".to_owned(), DESC_FILENAME.to_owned()));
         let entrypoint = utils::from_hex(entrypoint_str?)
             .chain_err(|| ErrorKind::JsonItemError("entryPoint".to_owned(), DESC_FILENAME.to_owned()));
+
+        let entrypoint11_str = json["entryPoint11"].as_str()
+            .ok_or(ErrorKind::JsonItemError("entryPoint11".to_owned(), DESC_FILENAME.to_owned()));
+        let entrypoint11 = utils::from_hex(entrypoint11_str?)
+            .chain_err(|| ErrorKind::JsonItemError("entryPoint11".to_owned(), DESC_FILENAME.to_owned()));
 
         // Load binfiles array into vec, make sure >1 binfile exists
         let mut binfiles = Vec::new();
@@ -97,18 +103,10 @@ impl Desc {
             bail!(ErrorKind::JsonItemError("binfiles[]".to_owned(), DESC_FILENAME.to_owned()))
         }
 
-        let arm11_state_str = json["arm11State"].as_str();
-        let arm11_state = match arm11_state_str {
-            Some("bootSync") => Ok(hwcore::Arm11State::BootSync),
-            Some("kernelSync") => Ok(hwcore::Arm11State::KernelSync),
-            Some("none") | None => Ok(hwcore::Arm11State::None),
-            Some(_) => Err(ErrorKind::JsonItemError("arm11State".to_owned(), DESC_FILENAME.to_owned()))
-        };
-
         Ok(Desc {
             entrypoint: entrypoint?,
+            entry11: entrypoint11?,
             binfiles: binfiles,
-            arm11_state: arm11_state?
         })
     }
 }

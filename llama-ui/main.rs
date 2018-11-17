@@ -10,6 +10,7 @@ mod commands;
 mod uilog;
 
 use std::env;
+use std::path::Path;
 
 use libllama::{dbgcore, gdbstub, hwcore, ldr, msgs};
 
@@ -183,7 +184,7 @@ fn main() {
     let _logger = uilog::init().unwrap();
 
     let path = env::args().nth(1).unwrap();
-    let loader = ldr::Ctr9Loader::from_folder(&path).unwrap();
+    let loader = ldr::make_loader(Path::new(&path));
 
     let callbacks = c::FrontendCallbacks {
         set_running: Some(cbs::set_running),
@@ -201,7 +202,7 @@ fn main() {
         buffer_size: Some(cbs::buffer_size),
     };
 
-    let mut backend = load_game(&loader);
+    let mut backend = load_game(loader.as_ref());
     let mut args = c_args();
     let mut c_args: Vec<*mut u8> = args.iter_mut()
         .map(|arg| &mut arg[0] as *mut u8)
