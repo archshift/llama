@@ -5,6 +5,7 @@ use cpu::interpreter_thumb as thumb;
 use cpu::Version;
 
 pub fn ldmia<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldmia::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     // W = (rn not in register list) ? 1 : 0
     let w_bit = data.register_list.get() & (1 << data.rn.get()) == 0;
     let arminst: u32 = 0b1110100010_0_1_0000_00000000_00000000
@@ -15,6 +16,7 @@ pub fn ldmia<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldmia::Bf) -> cpu::Instr
 }
 
 pub fn ldr_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let base_val = cpu.regs[data.rn.get() as usize];
     let immed_5 = data.immed_5.get() as u32;
 
@@ -26,6 +28,7 @@ pub fn ldr_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr1::Bf) -> cpu::InstrS
 }
 
 pub fn ldr_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001111001_0000_0000_00000000_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -34,6 +37,7 @@ pub fn ldr_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr2::Bf) -> cpu::InstrS
 }
 
 pub fn ldr_3<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr3::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let immed_8 = data.immed_8.get() as u32;
     let addr = (cpu.regs[15] & 0xFFFFFFFC) + immed_8 * 4;
     cpu.regs[data.rd.get() as usize] = cpu.mpu.dmem_read::<u32>(addr);
@@ -42,6 +46,7 @@ pub fn ldr_3<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr3::Bf) -> cpu::InstrS
 }
 
 pub fn ldr_4<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr4::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
                                           | ((data.rd.get() as u32) << 12)
                                                   | ((data.immed_8.get() as u32) << 2);
@@ -49,6 +54,7 @@ pub fn ldr_4<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldr4::Bf) -> cpu::InstrS
 }
 
 pub fn ldrb_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrb1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001011101_0000_0000_0000000_00000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -57,6 +63,7 @@ pub fn ldrb_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrb1::Bf) -> cpu::Inst
 }
 
 pub fn ldrb_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrb2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001111101_0000_0000_00000000_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -65,6 +72,7 @@ pub fn ldrb_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrb2::Bf) -> cpu::Inst
 }
 
 pub fn ldrh_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrh1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011101_0000_0000_00_00_1011_000_0
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -74,6 +82,7 @@ pub fn ldrh_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrh1::Bf) -> cpu::Inst
 }
 
 pub fn ldrh_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrh2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011001_0000_0000_00001011_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -82,6 +91,7 @@ pub fn ldrh_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrh2::Bf) -> cpu::Inst
 }
 
 pub fn ldrsb<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrsb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011001_0000_0000_00001101_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -90,6 +100,7 @@ pub fn ldrsb<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrsb::Bf) -> cpu::Instr
 }
 
 pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrsh::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011001_0000_0000_00001111_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -98,6 +109,7 @@ pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: thumb::Ldrsh::Bf) -> cpu::Instr
 }
 
 pub fn pop<V: Version>(cpu: &mut Cpu<V>, data: thumb::Pop::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b1110100010111101_0_0000000_00000000
                                           | ((data.r_bit.get() as u32) << 15)
                                                     | ((data.register_list.get() as u32) << 0);
@@ -105,6 +117,7 @@ pub fn pop<V: Version>(cpu: &mut Cpu<V>, data: thumb::Pop::Bf) -> cpu::InstrStat
 }
 
 pub fn push<V: Version>(cpu: &mut Cpu<V>, data: thumb::Push::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b11101001001011010_0_000000_00000000
                                            | ((data.r_bit.get() as u32) << 14)
                                                     | ((data.register_list.get() as u32) << 0);
@@ -112,6 +125,7 @@ pub fn push<V: Version>(cpu: &mut Cpu<V>, data: thumb::Push::Bf) -> cpu::InstrSt
 }
 
 pub fn stmia<V: Version>(cpu: &mut Cpu<V>, data: thumb::Stmia::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111010001010_0000_00000000_00000000
                                       | ((data.rn.get() as u32) << 16)
                                                     | ((data.register_list.get() as u32) << 0);
@@ -119,6 +133,7 @@ pub fn stmia<V: Version>(cpu: &mut Cpu<V>, data: thumb::Stmia::Bf) -> cpu::Instr
 }
 
 pub fn str_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let base_val = cpu.regs[data.rn.get() as usize];
     let immed_5 = data.immed_5.get() as u32;
 
@@ -130,6 +145,7 @@ pub fn str_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str1::Bf) -> cpu::InstrS
 }
 
 pub fn str_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001111000_0000_0000_00000000_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -138,6 +154,7 @@ pub fn str_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str2::Bf) -> cpu::InstrS
 }
 
 pub fn str_3<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str3::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b1110010110001101_0000_00_00000000_00
                                           | ((data.rd.get() as u32) << 12)
                                                   | ((data.immed_8.get() as u32) << 2);
@@ -145,6 +162,7 @@ pub fn str_3<V: Version>(cpu: &mut Cpu<V>, data: thumb::Str3::Bf) -> cpu::InstrS
 }
 
 pub fn strb_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strb1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001011100_0000_0000_0000000_00000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -153,6 +171,7 @@ pub fn strb_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strb1::Bf) -> cpu::Inst
 }
 
 pub fn strb_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strb2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111001111100_0000_0000_00000000_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -161,6 +180,7 @@ pub fn strb_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strb2::Bf) -> cpu::Inst
 }
 
 pub fn strh_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strh1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011100_0000_0000_00_00_1011_000_0
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)
@@ -170,6 +190,7 @@ pub fn strh_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strh1::Bf) -> cpu::Inst
 }
 
 pub fn strh_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Strh2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     let arminst: u32 = 0b111000011000_0000_0000_00001011_0000
                                       | ((data.rn.get() as u32) << 16)
                                            | ((data.rd.get() as u32) << 12)

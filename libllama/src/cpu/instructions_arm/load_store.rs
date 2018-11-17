@@ -214,46 +214,57 @@ fn instr_store_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf, ty: MiscL
 }
 
 pub fn ldr<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load(cpu, data, false)
 }
 
 pub fn ldrb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load(cpu, arm::Ldr::new(data.val), true)
 }
 
 pub fn ldrd<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrd::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::Doubleword)
 }
 
 pub fn ldrh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, data, MiscLsType::Halfword)
 }
 
 pub fn ldrsb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedByte)
 }
 
 pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsh::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedHalfword)
 }
 
 pub fn str<V: Version>(cpu: &mut Cpu<V>, data: arm::Str::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_store(cpu, data, false)
 }
 
 pub fn strb<V: Version>(cpu: &mut Cpu<V>, data: arm::Strb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_store(cpu, arm::Str::new(data.val), true)
 }
 
 pub fn strd<V: Version>(cpu: &mut Cpu<V>, data: arm::Strd::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_store_misc(cpu, arm::Strh::new(data.val), MiscLsType::Doubleword)
 }
 
 pub fn strh<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
 
 pub fn swp<V: Version>(cpu: &mut Cpu<V>, data: arm::Swp::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -270,6 +281,7 @@ pub fn swp<V: Version>(cpu: &mut Cpu<V>, data: arm::Swp::Bf) -> cpu::InstrStatus
 }
 
 pub fn swpb<V: Version>(cpu: &mut Cpu<V>, data: arm::Swpb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

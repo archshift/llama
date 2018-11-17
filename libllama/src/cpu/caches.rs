@@ -110,6 +110,8 @@ impl Mpu {
     }
 
     pub fn imem_read<T: Copy>(&mut self, addr: u32) -> T {
+        assert!( (addr as usize) % std::mem::size_of::<T>() == 0 );
+
         if self.icache_enabled() && (self.region_use_icache & self.region_mask(addr)) != 0 {
             self.icache.read(addr, &mut self.memory)
         } else {
@@ -122,6 +124,8 @@ impl Mpu {
     }
 
     pub fn dmem_read<T: Copy>(&mut self, addr: u32) -> T {
+        assert!( (addr as usize) % std::mem::size_of::<T>() == 0 );
+
         if self.dcache_enabled() && (self.region_use_dcache & self.region_mask(addr)) != 0 {
             self.dcache.read(addr, &mut self.memory)
         } else {
@@ -130,6 +134,8 @@ impl Mpu {
     }
 
     pub fn dmem_write<T: Copy>(&mut self, addr: u32, val: T) {
+        assert!( (addr as usize) % std::mem::size_of::<T>() == 0 );
+
         if self.dcache_enabled() && (self.region_use_dcache & self.region_mask(addr)) != 0 {
             self.dcache.write(addr, val, &mut self.memory);
         } else {

@@ -180,8 +180,6 @@ impl<V: Version> Cpu<V> {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
-        assert!(V::is::<v5>());
-
         let mut cycles = self.cycles;
         let mut irq_known_pending = false;
         let mut thumb_bit = self.cpsr.thumb_bit.get();

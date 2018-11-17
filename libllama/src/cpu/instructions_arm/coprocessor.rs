@@ -2,6 +2,7 @@ use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
 pub fn mcr<V: Version>(cpu: &mut Cpu<V>, data: arm::Mcr::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -22,6 +23,7 @@ pub fn mcr<V: Version>(cpu: &mut Cpu<V>, data: arm::Mcr::Bf) -> cpu::InstrStatus
 }
 
 pub fn mrc<V: Version>(cpu: &mut Cpu<V>, data: arm::Mrc::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

@@ -2,6 +2,7 @@ use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
 pub fn swi<V: Version>(cpu: &mut Cpu<V>, data: arm::Swi::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

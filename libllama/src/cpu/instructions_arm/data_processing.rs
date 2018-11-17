@@ -382,22 +382,27 @@ fn instr_test<V: Version>(cpu: &mut Cpu<V>, data: arm::Tst::Bf, equiv: bool) -> 
 }
 
 pub fn adc<V: Version>(cpu: &mut Cpu<V>, data: arm::Adc::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::AddCarry)
 }
 
 pub fn add<V: Version>(cpu: &mut Cpu<V>, data: arm::Add::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, data, ProcessInstrLogicalOp::Add)
 }
 
 pub fn and<V: Version>(cpu: &mut Cpu<V>, data: arm::And::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_bitwise(cpu, data, ProcessInstrBitOp::And)
 }
 
 pub fn bic<V: Version>(cpu: &mut Cpu<V>, data: arm::Bic::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::AndNot)
 }
 
 pub fn clz<V: Version>(cpu: &mut Cpu<V>, data: arm::Clz::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -409,22 +414,27 @@ pub fn clz<V: Version>(cpu: &mut Cpu<V>, data: arm::Clz::Bf) -> cpu::InstrStatus
 }
 
 pub fn cmn<V: Version>(cpu: &mut Cpu<V>, data: arm::Cmn::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_compare(cpu, arm::Cmp::new(data.val), true)
 }
 
 pub fn cmp<V: Version>(cpu: &mut Cpu<V>, data: arm::Cmp::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_compare(cpu, data, false)
 }
 
 pub fn eor<V: Version>(cpu: &mut Cpu<V>, data: arm::Eor::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Xor)
 }
 
 pub fn orr<V: Version>(cpu: &mut Cpu<V>, data: arm::Orr::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_bitwise(cpu, arm::And::new(data.val), ProcessInstrBitOp::Or)
 }
 
 pub fn mla<V: Version>(cpu: &mut Cpu<V>, data: arm::Mla::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -445,10 +455,12 @@ pub fn mla<V: Version>(cpu: &mut Cpu<V>, data: arm::Mla::Bf) -> cpu::InstrStatus
 }
 
 pub fn mov<V: Version>(cpu: &mut Cpu<V>, data: arm::Mov::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_move(cpu, data, false)
 }
 
 pub fn mul<V: Version>(cpu: &mut Cpu<V>, data: arm::Mul::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -468,26 +480,32 @@ pub fn mul<V: Version>(cpu: &mut Cpu<V>, data: arm::Mul::Bf) -> cpu::InstrStatus
 }
 
 pub fn mvn<V: Version>(cpu: &mut Cpu<V>, data: arm::Mvn::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_move(cpu, arm::Mov::new(data.val), true)
 }
 
 pub fn rsb<V: Version>(cpu: &mut Cpu<V>, data: arm::Rsb::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSub)
 }
 
 pub fn rsc<V: Version>(cpu: &mut Cpu<V>, data: arm::Rsc::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::ReverseSubCarry)
 }
 
 pub fn sbc<V: Version>(cpu: &mut Cpu<V>, data: arm::Sbc::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::SubCarry)
 }
 
 pub fn smlal<V: Version>(cpu: &mut Cpu<V>, data: arm::Smlal::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_mul64_accumulate(cpu, arm::Umlal::new(data.val), true)
 }
 
 pub fn smull<V: Version>(cpu: &mut Cpu<V>, data: arm::Smull::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -508,22 +526,27 @@ pub fn smull<V: Version>(cpu: &mut Cpu<V>, data: arm::Smull::Bf) -> cpu::InstrSt
 }
 
 pub fn sub<V: Version>(cpu: &mut Cpu<V>, data: arm::Sub::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_logical(cpu, arm::Add::new(data.val), ProcessInstrLogicalOp::Sub)
 }
 
 pub fn teq<V: Version>(cpu: &mut Cpu<V>, data: arm::Teq::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_test(cpu, arm::Tst::new(data.val), true)
 }
 
 pub fn tst<V: Version>(cpu: &mut Cpu<V>, data: arm::Tst::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_test(cpu, data, false)
 }
 
 pub fn umlal<V: Version>(cpu: &mut Cpu<V>, data: arm::Umlal::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     instr_mul64_accumulate(cpu, data, false)
 }
 
 pub fn umull<V: Version>(cpu: &mut Cpu<V>, data: arm::Umull::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }

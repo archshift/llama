@@ -27,6 +27,7 @@ fn decode_addressing_mode<V: Version>(instr_data: u32, cpu: &mut Cpu<V>) -> (u32
 }
 
 pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -54,6 +55,7 @@ pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrSta
 }
 
 pub fn ldm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -75,6 +77,7 @@ pub fn ldm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm2::Bf) -> cpu::InstrSta
 }
 
 pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -97,6 +100,7 @@ pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrSta
 }
 
 pub fn stm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm1::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -119,6 +123,7 @@ pub fn stm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm1::Bf) -> cpu::InstrSta
 }
 
 pub fn stm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm2::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
