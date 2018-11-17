@@ -47,6 +47,19 @@ impl Ctr9Loader {
     }
 }
 
+fn load_binfile(binfile: &DescBinfile, path: &Path, controller: &mut mem::MemController) {
+    let mut file = File::open(path.join(&binfile.bin)).unwrap();
+    let mut vaddr = binfile.vaddr;
+
+    let mut read_buf = [0u8; 1024];
+    loop {
+        let size = file.read(&mut read_buf).unwrap();
+        if size == 0 { break; }
+        controller.write_buf(vaddr, &read_buf[0..size]);
+        vaddr += size as u32;
+    }
+}
+
 impl ldr::Loader for Ctr9Loader {
     fn entrypoint9(&self) -> u32 {
         self.desc.entrypoint
@@ -58,20 +71,14 @@ impl ldr::Loader for Ctr9Loader {
 
     fn load9(&self, controller: &mut mem::MemController) {
         for binfile in self.desc.binfiles.iter() {
-            let mut file = File::open(self.path.join(&binfile.bin)).unwrap();
-            let mut vaddr = binfile.vaddr;
-
-            let mut read_buf = [0u8; 1024];
-            loop {
-                let size = file.read(&mut read_buf).unwrap();
-                if size == 0 { break; }
-                controller.write_buf(vaddr, &read_buf[0..size]);
-                vaddr += size as u32;
-            }
+            load_binfile(binfile, &self.path, controller);
         }
     }
 
-    fn load11(&self, _controller: &mut mem::MemController) {
+    fn load11(&self, controller: &mut mem::MemController) {
+        for binfile in self.desc.binfiles11.iter() {
+            load_binfile(binfile, &self.path, controller);
+        }
     }
 }
 
@@ -80,6 +87,7 @@ struct Desc {
     entrypoint: u32,
     entry11: u32,
     binfiles: Vec<DescBinfile>,
+    binfiles11: Vec<DescBinfile>,
 }
 
 impl Desc {
@@ -94,7 +102,7 @@ impl Desc {
         let entrypoint11 = utils::from_hex(entrypoint11_str?)
             .chain_err(|| ErrorKind::JsonItemError("entryPoint11".to_owned(), DESC_FILENAME.to_owned()));
 
-        // Load binfiles array into vec, make sure >1 binfile exists
+        // Load binfiles arrays into vec, make sure >1 binfile exists
         let mut binfiles = Vec::new();
         for binfile in json["binFiles"].members() {
             binfiles.push(DescBinfile::from_json(binfile)?);
@@ -103,10 +111,16 @@ impl Desc {
             bail!(ErrorKind::JsonItemError("binfiles[]".to_owned(), DESC_FILENAME.to_owned()))
         }
 
+        let mut binfiles11 = Vec::new();
+        for binfile in json["binFiles11"].members() {
+            binfiles11.push(DescBinfile::from_json(binfile)?);
+        }
+
         Ok(Desc {
             entrypoint: entrypoint?,
             entry11: entrypoint11?,
             binfiles: binfiles,
+            binfiles11: binfiles11,
         })
     }
 }

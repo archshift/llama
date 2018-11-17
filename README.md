@@ -52,7 +52,7 @@ The `desc.json` file describes how llama will load your ARM9 binaries. `desc.jso
 
 - `entryPoint`: Address at which llama will begin executing the ARM9 processor.
 - `entryPoint11`: Address at which llama will begin executing the ARM11 processor.
-- `binFiles`: Array of binaries found within the ctr9 package.
+- `binFiles`, `binFiles11`: Array of binaries found within the ctr9 package.
   - `bin`: The binary filename.
   - `vAddr`: Address where llama will copy the binary.
 
