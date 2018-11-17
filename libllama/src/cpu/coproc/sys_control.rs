@@ -31,6 +31,7 @@ bf!(MpuRegion[u32] {
 
 pub struct SysControl {
     r1_control: RegControl::Bf,
+    r1_auxctrl: u32,
     r2_dcacheability: u32,
     r2_icacheability: u32,
     r3_bufferability: u32,
@@ -52,6 +53,7 @@ impl SysControl {
     pub fn new() -> SysControl {
         SysControl {
             r1_control: RegControl::new(0),
+            r1_auxctrl: 0,
             r2_dcacheability: 0,
             r2_icacheability: 0,
             r3_bufferability: 0,
@@ -66,7 +68,7 @@ impl SysControl {
         }
     }
 
-    fn write_c1_arm9<V: Version>(&mut self, op2: usize, val: u32) -> CpEffect<V> {
+    fn write_c1<V: Version>(&mut self, op2: usize, val: u32) -> CpEffect<V> {
         match op2 {
             0b000 => {
                 warn!("STUBBED: System control register write");
@@ -79,7 +81,12 @@ impl SysControl {
                     cpu.mpu.dcache_enabled = control.use_dcache.get() == 1;
                 })
             }
-            0b001 | 0b010 => unimplemented!(),
+            0b001 => {
+                warn!("STUBBED: Auxiliary control register write");
+                self.r1_auxctrl = val;
+                mknop()
+            }
+            0b010 => unimplemented!(),
             _ => unreachable!()
         }
     }
@@ -139,7 +146,7 @@ impl SysControl {
         })
     }
 
-    fn write_c7_arm9<V: Version>(&mut self, op2: usize, cpreg2: usize) -> CpEffect<V> {
+    fn write_c7<V: Version>(&mut self, op2: usize, cpreg2: usize) -> CpEffect<V> {
         match (cpreg2, op2) {
             (5, 0...2) => Box::new(move |cpu| cpu.mpu.icache_invalidate()),
             (6, 0...2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
@@ -201,13 +208,17 @@ impl SysControl {
         }
     }
 
-    fn read_c1_arm9(&self, op2: usize) -> u32 {
+    fn read_c1(&self, op2: usize) -> u32 {
         match op2 {
             0b000 => {
                 warn!("STUBBED: System control register read");
                 self.r1_control.val
             }
-            0b001 | 0b010 => unimplemented!(),
+            0b001 => {
+                warn!("STUBBED: Auxiliary control register read");
+                self.r1_auxctrl
+            }
+            0b010 => unimplemented!(),
             _ => unreachable!()
         }
     }
@@ -252,6 +263,10 @@ impl SysControl {
 
     fn read_c7_arm9(&self) -> u32 {
         panic!("Cannot read from cache control register!")
+    }
+
+    fn write_c8_arm11(&mut self, op2: usize, cpreg2: usize, val: u32) {
+        warn!("STUBBED: ARM11 TLB Control write! reg2={}, op2={}, val={:08X}", cpreg2, op2, val);
     }
 
     fn read_c9_arm9(&self, op2: usize, cpreg2: usize) -> u32 {
@@ -310,18 +325,21 @@ impl<V: Version> Coprocessor<V> for SysControl {
 
         if V::is::<v5>() {
             match cpreg1 {
-                1 => effect = self.write_c1_arm9(op2, val),
+                1 => effect = self.write_c1(op2, val),
                 2 => effect = self.write_c2_arm9(op2, val),
                 3 => self.write_c3_arm9(val),
                 5 => self.write_c5_arm9(op2, val),
                 6 => effect = self.write_c6_arm9(cpreg2, val),
-                7 => effect = self.write_c7_arm9(op2, cpreg2),
+                7 => effect = self.write_c7(op2, cpreg2),
                 9 => self.write_c9_arm9(op2, cpreg2, val),
                 15 => self.write_c15_arm9(op1, op2, cpreg2, val),
                 _ => panic!("Unimplemented CP15 write to coproc reg {}", cpreg1)
             };
         } else if V::is::<v6>() {
             match cpreg1 {
+                1 => effect = self.write_c1(op2, val),
+                7 => effect = self.write_c7(op2, cpreg2),
+                8 => self.write_c8_arm11(op2, cpreg2, val),
                 15 => self.write_c15_arm11(op2, cpreg2, val),
                 _ => unimplemented!()
             }
@@ -339,7 +357,7 @@ impl<V: Version> Coprocessor<V> for SysControl {
         let res = if V::is::<v5>() {
             match cpreg1 {
                 0 => self.read_c0_arm9(op2),
-                1 => self.read_c1_arm9(op2),
+                1 => self.read_c1(op2),
                 2 => self.read_c2_arm9(op2),
                 3 => self.read_c3_arm9(),
                 5 => self.read_c5_arm9(op2),
@@ -351,6 +369,7 @@ impl<V: Version> Coprocessor<V> for SysControl {
         } else if V::is::<v6>() {
             match cpreg1 {
                 0 => self.read_c0_arm11(op2),
+                1 => self.read_c1(op2),
                 15 => self.read_c15_arm11(op2, cpreg2),
                 _ => unimplemented!()
             }

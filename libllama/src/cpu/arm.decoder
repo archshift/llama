@@ -2,6 +2,8 @@ decoder u32 ArmInstruction {
     category [ 0b1111:4; _:28 ] // Unconditional instructions
     {
         mod_blx = [ 0b1111101:7; h_bit:1; signed_imm_24:24 ]
+        cps = [0b111100010000:12; imod:2; mmod:1; 0b00000000:8; a_bit:1; i_bit:1; f_bit:1; 0:1; mode:5]
+        undef = [ _:32 ]
     }
 
     category [ _:4; 0b000:3; _:20; 0b0:1; _:4 ] // Data processing immediate shift

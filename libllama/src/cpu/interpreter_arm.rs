@@ -44,7 +44,7 @@ mod interpreter {
     pub use cpu::instructions_arm::*;
 
     pub fn undef<V: cpu::Version>(cpu: &mut cpu::Cpu<V>, instr: u32) -> cpu::InstrStatus {
-        panic!("Unimplemented instruction! {:#X}: {:?}", cpu.regs[15] - cpu.get_pc_offset(), instr)
+        panic!("Unimplemented instruction! {:#X}: {:#08X}", cpu.regs[15] - cpu.get_pc_offset(), instr)
     }
 
     #[inline(always)]

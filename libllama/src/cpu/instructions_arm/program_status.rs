@@ -1,5 +1,5 @@
 use cpu;
-use cpu::{Cpu, Version, v5};
+use cpu::{Cpu, Version, v5, v6};
 use cpu::interpreter_arm as arm;
 
 pub fn mrs<V: Version>(cpu: &mut Cpu<V>, data: arm::Mrs::Bf) -> cpu::InstrStatus {
@@ -67,6 +67,26 @@ pub fn instr_msr<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf, immediate: b
 
         let cleared_spsr = spsr.val & !byte_mask;
         spsr.val = cleared_spsr | (val & byte_mask);
+    }
+
+    cpu::InstrStatus::InBlock
+}
+
+pub fn cps<V: Version>(cpu: &mut Cpu<V>, data: arm::Cps::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<v6>());
+    
+    if let cpu::Mode::Usr = cpu::Mode::from_num(cpu.cpsr.mode.get()) {
+        return cpu::InstrStatus::InBlock
+    }
+
+    if data.imod.get() & 2 != 0 {
+        let new = data.imod.get() & 1;
+        if data.a_bit.get() != 0 { cpu.cpsr.disable_imp_abt.set(new) }
+        if data.i_bit.get() != 0 { cpu.cpsr.disable_irq_bit.set(new) }
+        if data.f_bit.get() != 0 { cpu.cpsr.disable_fiq_bit.set(new) }
+    }
+    if data.mmod.get() != 0 {
+        cpu.cpsr.mode.set(data.mode.get());
     }
 
     cpu::InstrStatus::InBlock

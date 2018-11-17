@@ -185,6 +185,9 @@ fn instr_store<V: Version>(cpu: &mut Cpu<V>, data: arm::Str::Bf, byte: bool) -> 
     if byte {
         cpu.mpu.dmem_write::<u8>(addr.0, val as u8);
     } else {
+        // TODO: determine behavior based on CP15 r1 bit_U (22)
+        assert!( V::is::<cpu::v5>() || addr.0 % 4 == 0 );
+
         cpu.mpu.dmem_write::<u32>(addr.0 & !0b11, val);
     };
 
@@ -244,12 +247,10 @@ pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsh::Bf) -> cpu::InstrSt
 }
 
 pub fn str<V: Version>(cpu: &mut Cpu<V>, data: arm::Str::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_store(cpu, data, false)
 }
 
 pub fn strb<V: Version>(cpu: &mut Cpu<V>, data: arm::Strb::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_store(cpu, arm::Str::new(data.val), true)
 }
 

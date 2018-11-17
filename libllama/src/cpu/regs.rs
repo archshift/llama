@@ -9,6 +9,7 @@ bf!(Psr[u32] {
     thumb_bit: 5:5,
     disable_fiq_bit: 6:6,
     disable_irq_bit: 7:7,
+    disable_imp_abt: 8:8,
     q_bit: 27:27,
     v_bit: 28:28,
     c_bit: 29:29,
