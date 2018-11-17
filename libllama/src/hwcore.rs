@@ -59,6 +59,8 @@ impl MemoryRegions {
         let axi_wram = mem::SharedMemoryBlock::new(0x200);
         let fcram = mem::SharedMemoryBlock::new(0x20000);
 
+        let arm11_bootrom = mem::SharedMemoryBlock::new(0x40);
+
         let mut controller9 = mem::MemController::new();
         for i in 0..0x1000 {
             controller9.map_region(i * 0x8000, mem::AddressBlock::SharedRam(arm9_itcm.clone()));
@@ -74,8 +76,11 @@ impl MemoryRegions {
         let io9_shared_hnd  = controller9.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
 
         let mut controller11 = mem::MemController::new();
+        controller11.map_region(0x00000000, mem::AddressBlock::SharedRam(arm11_bootrom.clone()));
+        controller11.map_region(0x00010000, mem::AddressBlock::SharedRam(arm11_bootrom.clone()));
         controller11.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
         controller11.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+        controller11.map_region(0xFFFF0000, mem::AddressBlock::SharedRam(arm11_bootrom));
         let io11_shared_hnd = controller11.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
 
         let mut controller_pica = mem::MemController::new();
@@ -175,6 +180,7 @@ impl HwCore {
         let (io9, io_shared) = io::new_devices(irq_tx.clone(), clk_rx);
         let mut mem_regions = MemoryRegions::map(io9, io_shared.clone());
         loader.load9(&mut mem_regions.mem9);
+        loader.load11(&mut mem_regions.mem11);
 
         let mut cpu9 = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
         cpu9.reset(loader.entrypoint9());

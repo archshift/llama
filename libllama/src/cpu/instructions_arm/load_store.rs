@@ -118,10 +118,12 @@ fn instr_load<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf, byte: bool) -> c
     let rd = data.rd.get();
     let (addr, wb) = addressing::decode_normal(data.val, cpu);
 
-    // TODO: determine behavior based on CP15 r1 bit_U (22)
     let val = if byte {
         cpu.mpu.dmem_read::<u8>(addr.0) as u32
     } else {
+        // TODO: determine behavior based on CP15 r1 bit_U (22)
+        assert!( V::is::<cpu::v5>() || addr.0 % 4 == 0 );
+
         cpu.mpu.dmem_read::<u32>(addr.0 & !0b11)
             .rotate_right(8 * bits!(addr.0, 0:1))
     };
@@ -214,12 +216,10 @@ fn instr_store_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf, ty: MiscL
 }
 
 pub fn ldr<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_load(cpu, data, false)
 }
 
 pub fn ldrb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrb::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_load(cpu, arm::Ldr::new(data.val), true)
 }
 

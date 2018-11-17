@@ -47,6 +47,31 @@ def generate(file):
         indentation -= 2
 
     pcode("#[allow(unused_parens)]")
+    pcode(f"pub fn disasm<V: Version>(enc: {decoder.ty}) -> String {{")
+    indent()
+    for category in decoder.categories:
+        string = ") || (".join([ str(definition_to_constraint(defn))
+                                    for defn in category.definitions ])
+        pcode(f"if ({string}) {{")
+        indent()
+
+        for instr in category.instructions:
+            constraint = definition_to_constraint(instr.defn)
+            pcode(f"if {str(constraint)} {{")
+            indent()
+
+            pcode(f"return format!(\"{{:x?}}\", {to_CamelCase(instr.name)}::new(enc))")
+
+            unindent()
+            pcode("}")
+
+        unindent()
+        pcode("}")
+    pcode("\"undef\".into()")
+    unindent()
+    pcode("}")
+
+    pcode("#[allow(unused_parens)]")
     pcode(f"pub fn decode<V: Version>(enc: {decoder.ty}) -> InstFn<V> {{")
     indent()
     for category in decoder.categories:

@@ -20,7 +20,6 @@ fn instr_branch_exchange<V: Version>(cpu: &mut Cpu<V>, data: arm::Bx::Bf, link: 
 }
 
 pub fn bbl<V: Version>(cpu: &mut Cpu<V>, data: arm::Bbl::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
@@ -38,17 +37,14 @@ pub fn bbl<V: Version>(cpu: &mut Cpu<V>, data: arm::Bbl::Bf) -> cpu::InstrStatus
 }
 
 pub fn blx<V: Version>(cpu: &mut Cpu<V>, data: arm::Blx2::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_branch_exchange(cpu, arm::Bx::new(data.val), true)
 }
 
 pub fn bx<V: Version>(cpu: &mut Cpu<V>, data: arm::Bx::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_branch_exchange(cpu, data, false)
 }
 
 pub fn mod_blx<V: Version>(cpu: &mut Cpu<V>, data: arm::ModBlx::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     let signed_imm_24 = data.signed_imm_24.get();
     let h_bit = data.h_bit.get();
 
