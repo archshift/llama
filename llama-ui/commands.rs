@@ -2,14 +2,14 @@ use std::process::exit;
 use std::fs::File;
 use std::io::Write;
 
-use libllama::dbgcore;
+use libllama::dbgcore::{self, ActiveCpu};
 use libllama::utils::from_hex;
 
 /// Prints disassembly for the next instruction
 /// Command format: "asm [address hex]"
 ///
 /// `args`: Iterator over &str items
-fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_asm<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
     use capstone::Capstone;
@@ -17,7 +17,7 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
     use capstone::arch::arm::ArchMode;
     let _ = args;
 
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let mut hw = ctx.hw();
 
     let pause_addr = match args.next().map(from_hex) {
@@ -62,7 +62,7 @@ fn cmd_asm<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "brk <address hex>"
 ///
 /// `args`: Iterator over &str items
-fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_brk<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
     let addr_str = match args.next() {
@@ -78,7 +78,7 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     info!("Toggling breakpoint at 0x{:X}", addr);
 
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let mut hw = ctx.hw();
 
     if !hw.has_breakpoint(addr) {
@@ -92,12 +92,12 @@ fn cmd_brk<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "keydmp"
 ///
 /// `args`: Unused
-fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
+fn cmd_keydmp<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, _: It)
     where It: Iterator<Item=&'a str> {
 
     use libllama::io::aes;
 
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let hw = ctx.hw9();
     let key_slots = {
         let aes = &hw.io9_devices().aes;
@@ -121,7 +121,7 @@ fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
 /// Command format: "irq <type>"
 ///
 /// `args`: Iterator over &str items
-fn cmd_irq<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_irq<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
 
     let irq_ty = match args.next() {
@@ -139,7 +139,7 @@ fn cmd_irq<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     info!("Triggering IRQ {}", irq_ty);
 
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     ctx.trigger_irq(irq);
 }
 
@@ -147,7 +147,7 @@ fn cmd_irq<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "mem <start address hex> [# bytes hex]"
 ///
 /// `args`: Iterator over &str items
-fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_mem<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
     use libllama::utils::from_hex;
 
@@ -167,7 +167,7 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 
     trace!("Printing {} bytes of RAM starting at 0x{:08X}", num, start);
 
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let mut hw = ctx.hw();
 
     let mut mem_bytes = vec![0u8; num as usize];
@@ -205,9 +205,9 @@ fn cmd_mem<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "reg [register name]"
 ///
 /// `args`: Iterator over &str items
-fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
+fn cmd_reg<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let hw = ctx.hw();
 
     let print_reg = |reg_num| info!("R{} = 0x{:08X}", reg_num, hw.read_reg(reg_num));
@@ -247,10 +247,10 @@ fn cmd_reg<'a, It>(debugger: &mut dbgcore::DbgCore, mut args: It)
 /// Command format: "step"
 ///
 /// `args`: Unused
-fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, args: It)
+fn cmd_step<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, args: It)
     where It: Iterator<Item=&'a str> {
     let _ = args;
-    let mut ctx = debugger.ctx();
+    let mut ctx = debugger.ctx(active_cpu);
     let mut hw = ctx.hw();
 
     hw.step();
@@ -259,20 +259,27 @@ fn cmd_step<'a, It>(debugger: &mut dbgcore::DbgCore, args: It)
 /// Controls debugger behavior based on user-provided commands
 ///
 /// `command`: Iterator over &str items
-pub fn handle<'a, It>(debugger: &mut dbgcore::DbgCore, mut command: It)
+pub fn handle<'a, It>(active_cpu: &mut ActiveCpu, debugger: &mut dbgcore::DbgCore, mut command: It)
     where It: Iterator<Item=&'a str> {
 
     match command.next() {
-        Some("run") => { debugger.ctx().resume() },
-        Some("brk") => cmd_brk(debugger, command),
-        Some("keydmp") => cmd_keydmp(debugger, command),
-        Some("irq") => cmd_irq(debugger, command),
-        Some("asm") => cmd_asm(debugger, command),
-        Some("mem") => cmd_mem(debugger, command),
-        Some("reg") => cmd_reg(debugger, command),
-        Some("step") => cmd_step(debugger, command),
+        Some("run") => { debugger.ctx(*active_cpu).resume() },
+        Some("brk") => cmd_brk(*active_cpu, debugger, command),
+        Some("keydmp") => cmd_keydmp(*active_cpu, debugger, command),
+        Some("irq") => cmd_irq(*active_cpu, debugger, command),
+        Some("asm") => cmd_asm(*active_cpu, debugger, command),
+        Some("mem") => cmd_mem(*active_cpu, debugger, command),
+        Some("reg") => cmd_reg(*active_cpu, debugger, command),
+        Some("step") => cmd_step(*active_cpu, debugger, command),
+        Some("cpu") => {
+            match command.next() {
+                Some("arm9") => *active_cpu = ActiveCpu::Arm9,
+                Some("arm11") => *active_cpu = ActiveCpu::Arm11,
+                _ => error!("Expected `cpu <arm9|arm11>")
+            }
+        }
         Some("quit") | Some("exit") => {
-            debugger.ctx().hwcore_mut().stop();
+            debugger.ctx(*active_cpu).hwcore_mut().stop();
             // TODO: Cleaner exit?
             exit(0);
         }

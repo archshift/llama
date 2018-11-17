@@ -17,16 +17,9 @@ impl DbgCore {
         }
     }
 
-    pub fn ctx<'a>(&'a mut self) -> DbgContext<'a> {
+    pub fn ctx<'a>(&'a mut self, which: ActiveCpu) -> DbgContext<'a> {
         DbgContext {
-            active_cpu: ActiveCpu::v5,
-            hwcore: self.hw.lock().unwrap()
-        }
-    }
-
-    pub fn ctx11<'a>(&'a mut self) -> DbgContext<'a> {
-        DbgContext {
-            active_cpu: ActiveCpu::v6,
+            active_cpu: which,
             hwcore: self.hw.lock().unwrap()
         }
     }
@@ -98,8 +91,8 @@ impl<'a> DbgContext<'a> {
 
     pub fn hw<'b>(&'b mut self) -> Box<HwCtx + 'b> {
         match self.active_cpu {
-            ActiveCpu::v5 => Box::new(self.hw9()),
-            ActiveCpu::v6 => Box::new(self.hw11())
+            ActiveCpu::Arm9 => Box::new(self.hw9()),
+            ActiveCpu::Arm11 => Box::new(self.hw11())
         }
     }
 
@@ -108,9 +101,9 @@ impl<'a> DbgContext<'a> {
     }
 }
 
-#[allow(non_camel_case_types)]
-enum ActiveCpu {
-    v5, v6
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum ActiveCpu {
+    Arm9, Arm11
 }
 
 #[allow(non_camel_case_types)]

@@ -22,6 +22,7 @@ mod c {
 struct Backend<'a> {
     loader: &'a ldr::Loader,
     debugger: dbgcore::DbgCore,
+    cmd_active_cpu: dbgcore::ActiveCpu,
     gdb: gdbstub::GdbStub,
     fbs: hwcore::Framebuffers,
     msg_client: msgs::Client<hwcore::Message>,
@@ -48,31 +49,40 @@ mod cbs {
     use lgl;
     use libllama::hwcore::Message;
     use libllama::io::hid;
+    use libllama::dbgcore::ActiveCpu::Arm9;
 
     pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
         let backend = Backend::from_c(backend);
         if state {
-            backend.debugger.ctx().resume();
+            backend.debugger.ctx(Arm9)
+                .resume();
         } else {
-            backend.debugger.ctx().pause();
+            backend.debugger.ctx(Arm9)
+                .pause();
         }
     }
 
     pub unsafe extern fn is_running(backend: *mut c::Backend) -> bool {
         let backend = Backend::from_c(backend);
-        backend.debugger.ctx().hwcore_mut().running()
+        backend.debugger.ctx(Arm9)
+            .hwcore_mut()
+            .running()
     }
 
     pub unsafe extern fn top_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
         let backend = Backend::from_c(backend);
-        backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
+        backend.debugger.ctx(Arm9)
+            .hwcore_mut()
+            .copy_framebuffers(&mut backend.fbs);
         *buf_size_out = backend.fbs.top_screen.len();
         backend.fbs.top_screen.as_ptr()
     }
 
     pub unsafe extern fn bot_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
         let backend = Backend::from_c(backend);
-        backend.debugger.ctx().hwcore_mut().copy_framebuffers(&mut backend.fbs);
+        backend.debugger.ctx(Arm9)
+            .hwcore_mut()
+            .copy_framebuffers(&mut backend.fbs);
         *buf_size_out = backend.fbs.bot_screen.len();
         backend.fbs.bot_screen.as_ptr()
     }
@@ -111,7 +121,7 @@ mod cbs {
             lgl::log("> ");
             lgl::log(cmd);
             lgl::log("\n");
-            commands::handle(&mut backend.debugger, cmd.split_whitespace());
+            commands::handle(&mut backend.cmd_active_cpu, &mut backend.debugger, cmd.split_whitespace());
         }
     }
 
@@ -157,9 +167,12 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
     let hwcore = hwcore::HwCore::new(pump, loader);
     let debugger = dbgcore::DbgCore::bind(hwcore);
 
+    info!("Using ARM9 as active debug CPU");
+
     let backend = Backend {
         loader: loader,
         debugger: debugger.clone(),
+        cmd_active_cpu: dbgcore::ActiveCpu::Arm9,
         gdb: gdbstub::GdbStub::new(client_gdb, debugger),
         fbs: fbs,
         msg_client: client_user,

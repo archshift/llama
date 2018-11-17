@@ -8,7 +8,7 @@ use mio;
 use mio::tcp::{TcpListener, TcpStream};
 
 use cpu::BreakReason;
-use dbgcore;
+use dbgcore::{self, ActiveCpu::Arm9};
 use hwcore::Message;
 use msgs;
 use utils;
@@ -402,13 +402,13 @@ impl GdbStub {
 
             info!("Starting GDB stub on port 4567...");
 
-            let mut last_halt = BreakData::new(BreakReason::Trapped, &mut debugger.ctx());
+            let mut last_halt = BreakData::new(BreakReason::Trapped, &mut debugger.ctx(Arm9));
             't: loop {
                 connection.poll.poll(&mut events, Some(Duration::from_millis(100)))
                     .expect("Could not poll for network events!");
 
                 let mut ctx = GdbCtx {
-                    dbg: &mut debugger.ctx(),
+                    dbg: &mut debugger.ctx(Arm9),
                     last_halt: &mut last_halt
                 };
 
