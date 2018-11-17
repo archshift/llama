@@ -15,6 +15,8 @@ mod xdma;
 
 pub mod hid;
 
+mod fbuf;
+
 use std::ptr;
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -27,34 +29,36 @@ use cpu::irq::IrqRequests;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
-pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared) {
-    macro_rules! make_dev9 {
+pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared, IoRegsArm11) {
+    macro_rules! make_dev_uniq {
         ($type:ty) => { RefCell::new( <$type>::new() ) };
         ($type:ty: $($arg:expr),+) => {{ RefCell::new( <$type>::new($($arg),*) ) }};
     }
 
-    macro_rules! make_dev11 {
+    macro_rules! make_dev_shared {
         ($type:ty) => { Arc::new(Mutex::new(<$type>::new())) };
         ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
     }
 
     let pxi_shared = pxi::PxiShared::make_channel();
 
-    let cfg    = make_dev9! { config::ConfigDevice };
-    let irq    = make_dev9! { irq::IrqDevice:     irq_requests.clone() };
-    let emmc   = make_dev9! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
-    let ndma   = make_dev9! { ndma::NdmaDevice:   Default::default() };
-    let otp    = make_dev9! { otp::OtpDevice:     Default::default() };
-    let pxi9   = make_dev9! { pxi::PxiDevice:     pxi_shared.0 };
-    let timer  = make_dev9! { timer::TimerDevice: clk.timer_states };
-    let aes    = make_dev9! { aes::AesDevice:     Default::default() };
-    let sha    = make_dev9! { sha::ShaDevice:     Default::default() };
-    let rsa    = make_dev9! { rsa::RsaDevice:     Default::default() };
-    let xdma   = make_dev9! { xdma::XdmaDevice };
-    let cfgext = make_dev9! { config::ConfigExtDevice };
+    let cfg    = make_dev_uniq! { config::ConfigDevice };
+    let irq    = make_dev_uniq! { irq::IrqDevice:     irq_requests.clone() };
+    let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_requests.clone()) };
+    let ndma   = make_dev_uniq! { ndma::NdmaDevice:   Default::default() };
+    let otp    = make_dev_uniq! { otp::OtpDevice:     Default::default() };
+    let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
+    let timer  = make_dev_uniq! { timer::TimerDevice: clk.timer_states };
+    let aes    = make_dev_uniq! { aes::AesDevice:     Default::default() };
+    let sha    = make_dev_uniq! { sha::ShaDevice:     Default::default() };
+    let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
+    let xdma   = make_dev_uniq! { xdma::XdmaDevice };
+    let cfgext = make_dev_uniq! { config::ConfigExtDevice };
 
-    let pxi11  = make_dev11! { pxi::PxiDevice:     pxi_shared.1 };
-    let hid    = make_dev11! { hid::HidDevice };
+    let pxi11  = make_dev_shared! { pxi::PxiDevice:     pxi_shared.1 };
+    let hid    = make_dev_shared! { hid::HidDevice };
+
+    let fbuf   = make_dev_uniq! { fbuf::FbufDevice };
 
     (IoRegsArm9 {
         cfg:    cfg,
@@ -73,6 +77,9 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
     IoRegsShared {
         hid:    hid.clone(),
         pxi11:  pxi11.clone(),
+    },
+    IoRegsArm11 {
+        fbuf:   fbuf
     })
 }
 
@@ -202,6 +209,30 @@ impl IoRegsShared {
 impl MemoryBlock for IoRegsShared {
     fn get_bytes(&self) -> u32 {
         (0x400 * 0x400) as u32
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        self.read_reg(offset, buf, buf_size)
+    }
+
+    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+        self.write_reg(offset, buf, buf_size)
+    }
+}
+
+pub struct IoRegsArm11 {
+    pub fbuf: RefCell< fbuf::FbufDevice >,
+}
+
+impl IoRegsArm11 {
+    impl_rw! {
+        0x002 => fbuf
+    }
+}
+
+impl MemoryBlock for IoRegsArm11 {
+    fn get_bytes(&self) -> u32 {
+        (0x800 * 0x400) as u32
     }
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
