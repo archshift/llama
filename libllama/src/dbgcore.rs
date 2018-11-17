@@ -1,6 +1,6 @@
 use std::sync;
 
-use cpu;
+use cpu::{self, v5, v6};
 pub use cpu::irq::IrqType;
 use hwcore;
 use io;
@@ -19,12 +19,21 @@ impl DbgCore {
 
     pub fn ctx<'a>(&'a mut self) -> DbgContext<'a> {
         DbgContext {
+            active_cpu: ActiveCpu::v5,
+            hwcore: self.hw.lock().unwrap()
+        }
+    }
+
+    pub fn ctx11<'a>(&'a mut self) -> DbgContext<'a> {
+        DbgContext {
+            active_cpu: ActiveCpu::v6,
             hwcore: self.hw.lock().unwrap()
         }
     }
 }
 
 pub struct DbgContext<'a> {
+    active_cpu: ActiveCpu,
     hwcore: sync::MutexGuard<'a, hwcore::HwCore>
 }
 
@@ -49,7 +58,7 @@ impl<'a> DbgContext<'a> {
         &mut *self.hwcore
     }
 
-    pub fn hw<'b>(&'b mut self) -> DbgHwContext<'b> {
+    pub fn hw9<'b>(&'b mut self) -> DbgHw9Context<'b> {
         use std::sync::PoisonError;
         use hwcore::Hardware9;
 
@@ -62,9 +71,35 @@ impl<'a> DbgContext<'a> {
                              {:#X?}", hw9.arm9.regs, hw9.arm9.cpsr.val, hw9.arm9.last_instructions);
             panic!("{}", s);
         };
-        DbgHwContext {
+        DbgHw9Context {
             // Will panic if still running
             hw: self.hwcore.hardware9.lock().unwrap_or_else(print_regs)
+        }
+    }
+
+    pub fn hw11<'b>(&'b mut self) -> DbgHw11Context<'b> {
+        use std::sync::PoisonError;
+        use hwcore::Hardware11;
+
+        let print_regs = |p: PoisonError<sync::MutexGuard<'_, Hardware11>>| {
+            let hw11 = p.into_inner();
+            let s = format!("Internal error!\nCPU register state:\n\
+                             gpregs: {:#X?}\n\
+                             cpsr: {:#X?}\n\
+                             last 1024 instruction addresses:\n\
+                             {:#X?}", hw11.arm11.regs, hw11.arm11.cpsr.val, hw11.arm11.last_instructions);
+            panic!("{}", s);
+        };
+        DbgHw11Context {
+            // Will panic if still running
+            hw: self.hwcore.hardware11.lock().unwrap_or_else(print_regs)
+        }
+    }
+
+    pub fn hw<'b>(&'b mut self) -> Box<HwCtx + 'b> {
+        match self.active_cpu {
+            ActiveCpu::v5 => Box::new(self.hw9()),
+            ActiveCpu::v6 => Box::new(self.hw11())
         }
     }
 
@@ -73,70 +108,155 @@ impl<'a> DbgContext<'a> {
     }
 }
 
-pub struct DbgHwContext<'a> {
+#[allow(non_camel_case_types)]
+enum ActiveCpu {
+    v5, v6
+}
+
+#[allow(non_camel_case_types)]
+pub enum CpuRef<'a> {
+    v5(&'a cpu::Cpu<v5>),
+    v6(&'a cpu::Cpu<v6>),
+}
+
+#[allow(non_camel_case_types)]
+pub enum CpuMut<'a> {
+    v5(&'a mut cpu::Cpu<v5>),
+    v6(&'a mut cpu::Cpu<v6>),
+}
+
+macro_rules! any_cpu {
+    ($self:expr, mut $ident:ident; $code:block) => {
+        match $self.cpu_mut() {
+            CpuMut::v5($ident) => $code,
+            CpuMut::v6($ident) => $code
+        }
+    };
+    ($self:expr, ref $ident:ident; $code:block) => {
+        match $self.cpu_ref() {
+            CpuRef::v5($ident) => $code,
+            CpuRef::v6($ident) => $code
+        }
+    };
+}
+
+pub trait HwCtx {
+    fn cpu_ref(&self) -> CpuRef;
+    fn cpu_mut(&mut self) -> CpuMut;
+
+    fn read_mem(&mut self, address: u32, bytes: &mut [u8]) -> Result<(), String> {
+        any_cpu!(self, mut cpu; {
+            cpu.mpu.icache_invalidate();
+            cpu.mpu.dcache_invalidate();
+            cpu.mpu.memory.debug_read_buf(address, bytes)
+        })
+    }
+
+    fn write_mem(&mut self, address: u32, bytes: &[u8]) {
+        any_cpu!(self, mut cpu; {
+            cpu.mpu.icache_invalidate();
+            cpu.mpu.dcache_invalidate();
+            cpu.mpu.memory.write_buf(address, bytes);
+        })
+    }
+
+    fn read_reg(&self, reg: usize) -> u32 {
+        any_cpu!(self, ref cpu; {
+            cpu.regs[reg]
+        })
+    }
+
+    fn write_reg(&mut self, reg: usize, value: u32) {
+        any_cpu!(self, mut cpu; {
+            cpu.regs[reg] = value;
+        })
+    }
+
+    fn read_cpsr(&self) -> u32 {
+        any_cpu!(self, ref cpu; {
+            cpu.cpsr.val
+        })
+    }
+
+    fn write_cpsr(&mut self, value: u32) {
+        any_cpu!(self, mut cpu; {
+            cpu.cpsr.val = value;
+            let mode_num = cpu.cpsr.mode.get();
+            cpu.regs.swap(cpu::Mode::from_num(mode_num));
+        })
+    }
+
+    fn pause_addr(&self) -> u32 {
+        any_cpu!(self, ref cpu; {
+            cpu.regs[15] - cpu.get_pc_offset()
+        })
+    }
+
+    fn branch_to(&mut self, addr: u32) {
+        any_cpu!(self, mut cpu; {
+            cpu.branch(addr);
+        })
+    }
+
+    fn is_thumb(&self) -> bool {
+        any_cpu!(self, ref cpu; {
+            cpu.cpsr.thumb_bit.get() == 1
+        })
+    }
+
+    fn step(&mut self) {
+        any_cpu!(self, mut cpu; {
+            cpu.run(1);
+        })
+    }
+
+    fn set_breakpoint(&mut self, addr: u32) {
+        any_cpu!(self, mut cpu; {
+            cpu.breakpoints.insert(addr);
+        })
+    }
+
+    fn has_breakpoint(&mut self, addr: u32) -> bool {
+        any_cpu!(self, ref cpu; {
+            cpu.breakpoints.contains(&addr)
+        })
+    }
+
+    fn del_breakpoint(&mut self, addr: u32) {
+        any_cpu!(self, mut cpu; {
+            cpu.breakpoints.remove(&addr);
+        })
+    }
+}
+
+pub struct DbgHw9Context<'a> {
     hw: sync::MutexGuard<'a, hwcore::Hardware9>
 }
 
-impl<'a> DbgHwContext<'a> {
-    pub fn read_mem(&mut self, address: u32, bytes: &mut [u8]) -> Result<(), String> {
-        self.hw.arm9.mpu.icache_invalidate();
-        self.hw.arm9.mpu.dcache_invalidate();
-        self.hw.arm9.mpu.memory.debug_read_buf(address, bytes)
-    }
-
-    pub fn write_mem(&mut self, address: u32, bytes: &[u8]) {
-        self.hw.arm9.mpu.icache_invalidate();
-        self.hw.arm9.mpu.dcache_invalidate();
-        self.hw.arm9.mpu.memory.write_buf(address, bytes);
-    }
-
-    pub fn read_reg(&self, reg: usize) -> u32 {
-        self.hw.arm9.regs[reg]
-    }
-
-    pub fn write_reg(&mut self, reg: usize, value: u32) {
-        self.hw.arm9.regs[reg] = value;
-    }
-
-    pub fn read_cpsr(&self) -> u32 {
-        self.hw.arm9.cpsr.val
-    }
-
-    pub fn write_cpsr(&mut self, value: u32) {
-        self.hw.arm9.cpsr.val = value;
-        let mode_num = self.hw.arm9.cpsr.mode.get();
-        self.hw.arm9.regs.swap(cpu::Mode::from_num(mode_num));
-    }
-
-    pub fn pause_addr(&self) -> u32 {
-        self.hw.arm9.regs[15] - self.hw.arm9.get_pc_offset()
-    }
-
-    pub fn branch_to(&mut self, addr: u32) {
-        self.hw.arm9.branch(addr);
-    }
-
-    pub fn is_thumb(&self) -> bool {
-        self.hw.arm9.cpsr.thumb_bit.get() == 1
-    }
-
-    pub fn step(&mut self) {
-        self.hw.arm9.run(1);
-    }
-
-    pub fn set_breakpoint(&mut self, addr: u32) {
-        self.hw.arm9.breakpoints.insert(addr);
-    }
-
-    pub fn has_breakpoint(&mut self, addr: u32) -> bool {
-        self.hw.arm9.breakpoints.contains(&addr)
-    }
-
-    pub fn del_breakpoint(&mut self, addr: u32) {
-        self.hw.arm9.breakpoints.remove(&addr);
-    }
-
+impl<'a> DbgHw9Context<'a> {
     pub fn io9_devices(&self) -> &io::IoRegsArm9 {
         self.hw.io9()
+    }
+}
+
+impl<'a> HwCtx for DbgHw9Context<'a> {
+    fn cpu_ref(&self) -> CpuRef {
+        CpuRef::v5(&self.hw.arm9)
+    }
+    fn cpu_mut(&mut self) -> CpuMut {
+        CpuMut::v5(&mut self.hw.arm9)
+    }
+}
+
+pub struct DbgHw11Context<'a> {
+    hw: sync::MutexGuard<'a, hwcore::Hardware11>
+}
+
+impl<'a> HwCtx for DbgHw11Context<'a> {
+    fn cpu_ref(&self) -> CpuRef {
+        CpuRef::v6(&self.hw.arm11)
+    }
+    fn cpu_mut(&mut self) -> CpuMut {
+        CpuMut::v6(&mut self.hw.arm11)
     }
 }

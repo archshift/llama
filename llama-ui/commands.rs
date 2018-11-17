@@ -98,7 +98,7 @@ fn cmd_keydmp<'a, It>(debugger: &mut dbgcore::DbgCore, _: It)
     use libllama::io::aes;
 
     let mut ctx = debugger.ctx();
-    let hw = ctx.hw();
+    let hw = ctx.hw9();
     let key_slots = {
         let aes = &hw.io9_devices().aes;
         aes::dump_keys(&*aes.borrow())
