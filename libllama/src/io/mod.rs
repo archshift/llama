@@ -16,6 +16,7 @@ mod xdma;
 pub mod hid;
 
 mod fbuf;
+pub mod gpu;
 
 use std::ptr;
 use std::cell::RefCell;
@@ -29,7 +30,9 @@ use cpu::irq::IrqRequests;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
-pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsArm9, IoRegsShared, IoRegsArm11) {
+pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock, pica_hw: gpu::HardwarePica)
+    -> (IoRegsArm9, IoRegsShared, IoRegsArm11) {
+    
     macro_rules! make_dev_uniq {
         ($type:ty) => { RefCell::new( <$type>::new() ) };
         ($type:ty: $($arg:expr),+) => {{ RefCell::new( <$type>::new($($arg),*) ) }};
@@ -55,10 +58,11 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
     let xdma   = make_dev_uniq! { xdma::XdmaDevice };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
 
-    let pxi11  = make_dev_shared! { pxi::PxiDevice:     pxi_shared.1 };
+    let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
     let hid    = make_dev_shared! { hid::HidDevice };
 
     let fbuf   = make_dev_uniq! { fbuf::FbufDevice };
+    let gpu    = make_dev_uniq! { gpu::GpuDevice:     pica_hw };
 
     (IoRegsArm9 {
         cfg:    cfg,
@@ -79,7 +83,8 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock) -> (IoRegsAr
         pxi11:  pxi11.clone(),
     },
     IoRegsArm11 {
-        fbuf:   fbuf
+        fbuf:   fbuf,
+        gpu:    gpu,
     })
 }
 
@@ -222,17 +227,19 @@ impl MemoryBlock for IoRegsShared {
 
 pub struct IoRegsArm11 {
     pub fbuf: RefCell< fbuf::FbufDevice >,
+    pub gpu:  RefCell< gpu::GpuDevice >,
 }
 
 impl IoRegsArm11 {
     impl_rw! {
-        0x002 => fbuf
+        0x002 => fbuf,
+        0x200 => gpu
     }
 }
 
 impl MemoryBlock for IoRegsArm11 {
     fn get_bytes(&self) -> u32 {
-        (0x800 * 0x400) as u32
+        (0xC00 * 0x400) as u32
     }
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {

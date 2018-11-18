@@ -37,15 +37,18 @@ QTimer *createScreenRepainter(QObject *scrn_view, Backend *backend, const Fronte
     QTimer *scrn_update_timer = new QTimer(scrn_view);
 
     QObject::connect(scrn_update_timer, &QTimer::timeout, [=] {
-        size_t buf_size = 0;
+        size_t top_size = 0;
+        size_t bot_size = 0;
 
-        const uint8_t *top_buf = callbacks->top_screen(backend, &buf_size);
+        const uint8_t *top_buf = callbacks->top_screen(backend, &top_size);
+        const uint8_t *bot_buf = callbacks->bot_screen(backend, &bot_size);
+
+        if (!top_buf || !bot_buf) return;
+
         QImage top(top_buf, 240, 400, 240*3, QImage::Format_RGB888);
-        assert(buf_size == 240*3*400);
-
-        const uint8_t *bot_buf = callbacks->bot_screen(backend, &buf_size);
+        assert(top_size == 240*3*400);
         QImage bot(bot_buf, 240, 320, 240*3, QImage::Format_RGB888);
-        assert(buf_size == 240*3*320);
+        assert(bot_size == 240*3*320);
 
         QImage new_top = top.transformed(SCREEN_ROTATE);
         QImage new_bot = bot.transformed(SCREEN_ROTATE);

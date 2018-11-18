@@ -68,6 +68,7 @@ fn main() -> io::Result<()> {
     for entry in fs::read_dir(qml_dir)? {
         println!("cargo:rerun-if-changed={}", os_into(&entry?.path()));
     }
+    println!("cargo:rerun-if-changed=build.rs");
 
     bindgen::Builder::default()
         .header("llama-ui/qml/interop.h")

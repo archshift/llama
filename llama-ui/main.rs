@@ -12,7 +12,7 @@ mod uilog;
 use std::env;
 use std::path::Path;
 
-use libllama::{dbgcore, gdbstub, hwcore, ldr, msgs};
+use libllama::{dbgcore, gdbstub, hwcore, ldr, msgs, io::gpu};
 
 mod c {
     #![allow(warnings)]
@@ -25,6 +25,7 @@ struct Backend<'a> {
     cmd_active_cpu: dbgcore::ActiveCpu,
     gdb: gdbstub::GdbStub,
     fbs: hwcore::Framebuffers,
+    fb_state: Option<gpu::FramebufState>,
     msg_client: msgs::Client<hwcore::Message>,
 }
 
@@ -35,6 +36,16 @@ impl<'a> Backend<'a> {
 
     fn to_c(&mut self) -> *mut c::Backend {
         (self as *mut Backend) as *mut c::Backend
+    }
+
+    fn update_fb_state(&mut self) {
+        while let Ok(msg) = self.msg_client.try_recv() {
+            if let hwcore::Message::FramebufState(state) = msg {
+                self.fb_state = Some(state);
+            } else {
+                unreachable!();
+            }
+        }
     }
 }
 
@@ -71,18 +82,34 @@ mod cbs {
 
     pub unsafe extern fn top_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
         let backend = Backend::from_c(backend);
+
+        backend.update_fb_state();
+        if backend.fb_state.is_none() {
+            *buf_size_out = 0;
+            return std::ptr::null();
+        }
+        let fb_state = backend.fb_state.as_ref().unwrap();
+
         backend.debugger.ctx(Arm9)
             .hwcore_mut()
-            .copy_framebuffers(&mut backend.fbs);
+            .copy_framebuffers(&mut backend.fbs, fb_state);
         *buf_size_out = backend.fbs.top_screen.len();
         backend.fbs.top_screen.as_ptr()
     }
 
     pub unsafe extern fn bot_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
         let backend = Backend::from_c(backend);
+
+        backend.update_fb_state();
+        if backend.fb_state.is_none() {
+            *buf_size_out = 0;
+            return std::ptr::null();
+        }
+        let fb_state = backend.fb_state.as_ref().unwrap();
+
         backend.debugger.ctx(Arm9)
             .hwcore_mut()
-            .copy_framebuffers(&mut backend.fbs);
+            .copy_framebuffers(&mut backend.fbs, fb_state);
         *buf_size_out = backend.fbs.bot_screen.len();
         backend.fbs.bot_screen.as_ptr()
     }
@@ -162,7 +189,7 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
 
     let mut pump = msgs::Pump::new();
     let client_gdb = pump.add_client(&["quit", "arm9halted"]);
-    let client_user = pump.add_client(&[]);
+    let client_user = pump.add_client(&["framebufstate"]);
 
     let hwcore = hwcore::HwCore::new(pump, loader);
     let debugger = dbgcore::DbgCore::bind(hwcore);
@@ -175,6 +202,7 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
         cmd_active_cpu: dbgcore::ActiveCpu::Arm9,
         gdb: gdbstub::GdbStub::new(client_gdb, debugger),
         fbs: fbs,
+        fb_state: None,
         msg_client: client_user,
     };
 
