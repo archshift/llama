@@ -105,6 +105,7 @@ pub enum AddressBlock {
     SharedRam(SharedMemoryBlock),
     Io9(io::IoRegsArm9),
     Io11(io::IoRegsArm11),
+    IoPriv11(io::IoRegsArm11Priv),
     IoShared(io::IoRegsShared),
 }
 impl MemoryBlock for AddressBlock {
@@ -114,6 +115,7 @@ impl MemoryBlock for AddressBlock {
             AddressBlock::SharedRam(ref inner) => inner.get_bytes(),
             AddressBlock::Io9(ref inner) => inner.get_bytes(),
             AddressBlock::Io11(ref inner) => inner.get_bytes(),
+            AddressBlock::IoPriv11(ref inner) => inner.get_bytes(),
             AddressBlock::IoShared(ref inner) => inner.get_bytes(),
         }
     }
@@ -124,6 +126,7 @@ impl MemoryBlock for AddressBlock {
             AddressBlock::SharedRam(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
             AddressBlock::Io9(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
             AddressBlock::Io11(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
+            AddressBlock::IoPriv11(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
             AddressBlock::IoShared(ref inner) => inner.read_to_ptr(offset, buf, buf_size)
         }
     }
@@ -134,6 +137,7 @@ impl MemoryBlock for AddressBlock {
             AddressBlock::SharedRam(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
             AddressBlock::Io9(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
             AddressBlock::Io11(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
+            AddressBlock::IoPriv11(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
             AddressBlock::IoShared(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size)
         }
     }

@@ -1,10 +1,5 @@
 use std::sync::{Arc, atomic, mpsc};
 
-bf!(RegSync[u32] {
-    data_recv: 0:7,
-    data_sent: 8:15
-});
-
 bf!(RegCnt[u16] {
     send_empty: 0:0,
     send_full: 1:1,
@@ -15,14 +10,12 @@ bf!(RegCnt[u16] {
 });
 
 fn reg_sync_read(dev: &mut PxiDevice) {
-    let byte = dev._internal_state.sync_rx.load(atomic::Ordering::SeqCst) as u32;
-    let sync_ref = RegSync::alias_mut(dev.sync.ref_mut());
-    sync_ref.data_recv.set(byte);
+    let byte = dev._internal_state.sync_rx.load(atomic::Ordering::SeqCst) as u8;
+    dev.sync_recv.set_unchecked(byte);
 }
 
 fn reg_sync_write(dev: &mut PxiDevice) {
-    let sync = RegSync::new(dev.sync.get());
-    let byte = sync.data_sent.get();
+    let byte = dev.sync_send.get();
     dev._internal_state.sync_tx.store(byte as usize, atomic::Ordering::SeqCst);
 }
 
@@ -91,10 +84,15 @@ impl PxiShared {
 iodevice!(PxiDevice, {
     internal_state: PxiShared;
     regs: {
-        0x000 => sync: u32 {
+        0x000 => sync_recv: u8 {
             // write_bits = 0xFFFFFF00;
             read_effect = reg_sync_read;
+        }
+        0x001 => sync_send: u8 {
             write_effect = reg_sync_write;
+        }
+        0x002 => sync_ctrl: u16 {
+            write_effect = |_| warn!("STUBBED: Write to PXI sync ctrl register!");
         }
         0x004 => cnt: u16 {
             write_bits = 0b11000100_00001100;

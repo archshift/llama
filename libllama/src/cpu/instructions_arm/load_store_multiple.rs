@@ -27,13 +27,15 @@ fn decode_addressing_mode<V: Version>(instr_data: u32, cpu: &mut Cpu<V>) -> (u32
 }
 
 pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
     let register_list = data.register_list.get();
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    assert!( V::is::<cpu::v5>() || addr % 4 == 0 );
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
@@ -55,13 +57,15 @@ pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrSta
 }
 
 pub fn ldm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm2::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let (mut addr, _) = decode_addressing_mode(data.val, cpu);
     let register_list = data.register_list.get();
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    assert!( V::is::<cpu::v5>() || addr % 4 == 0 );
 
     let current_mode = cpu::Mode::from_num(cpu.cpsr.mode.get());
     cpu.regs.swap(cpu::Mode::Usr);
@@ -77,13 +81,15 @@ pub fn ldm_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm2::Bf) -> cpu::InstrSta
 }
 
 pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
         return cpu::InstrStatus::InBlock;
     }
 
     let (mut addr, writeback) = decode_addressing_mode(data.val, cpu);
     let register_list = data.register_list.get();
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    assert!( V::is::<cpu::v5>() || addr % 4 == 0 );
 
     for i in 0..15 {
         if bit!(register_list, i) == 1 {

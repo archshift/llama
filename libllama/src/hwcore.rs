@@ -49,11 +49,12 @@ struct MemoryRegions {
     io9_shared_hnd: mem::AddressBlockHandle,
     io11_shared_hnd: mem::AddressBlockHandle,
     io11_hnd: mem::AddressBlockHandle,
+    io11_priv_hnd: mem::AddressBlockHandle,
 }
 
 impl MemoryRegions {
     fn map<F>(io_creator: F) -> Self
-        where F: FnOnce(mem::MemController) -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11)
+        where F: FnOnce(mem::MemController) -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11, io::IoRegsArm11Priv)
     {
         let arm9_itcm = mem::SharedMemoryBlock::new(0x20);
         let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
@@ -77,7 +78,7 @@ impl MemoryRegions {
         let controller_pica = make_pica();
         let controller_fbuf = make_pica();
 
-        let (arm9_io, shared_io, arm11_io) = io_creator(controller_pica);
+        let (arm9_io, shared_io, arm11_io, arm11_io_priv) = io_creator(controller_pica);
 
         let mut controller9 = mem::MemController::new();
         for i in 0..0x1000 {
@@ -102,6 +103,7 @@ impl MemoryRegions {
         controller11.map_region(0xFFFF0000, mem::AddressBlock::SharedRam(arm11_bootrom));
         let io11_shared_hnd = controller11.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
         let io11_hnd        = controller11.map_region(0x10200000, mem::AddressBlock::Io11(arm11_io));
+        let io11_priv_hnd   = controller11.map_region(0x17E00000, mem::AddressBlock::IoPriv11(arm11_io_priv));
 
         Self {
             mem9: controller9,
@@ -112,6 +114,7 @@ impl MemoryRegions {
             io9_shared_hnd: io9_shared_hnd,
             io11_shared_hnd: io11_shared_hnd,
             io11_hnd: io11_hnd,
+            io11_priv_hnd: io11_priv_hnd,
         }
     }
 }
@@ -172,6 +175,7 @@ pub struct Hardware11 {
     pub arm11: cpu::Cpu<v6>,    
     io_shared_handle: mem::AddressBlockHandle,
     io_handle: mem::AddressBlockHandle,
+    io_priv_handle: mem::AddressBlockHandle,
 }
 
 impl Hardware11 {
@@ -187,6 +191,15 @@ impl Hardware11 {
     pub fn io_shared(&self) -> &io::IoRegsShared {
         let region = self.arm11.mpu.memory.region(&self.io_shared_handle);
         if let mem::AddressBlock::IoShared(ref io) = region {
+            io
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn io_priv(&self) -> &io::IoRegsArm11Priv {
+        let region = self.arm11.mpu.memory.region(&self.io_priv_handle);
+        if let mem::AddressBlock::IoPriv11(ref io) = region {
             io
         } else {
             unreachable!()
@@ -259,6 +272,7 @@ impl HwCore {
             arm11: cpu11,
             io_shared_handle: mem_regions.io11_shared_hnd,
             io_handle: mem_regions.io11_hnd,
+            io_priv_handle: mem_regions.io11_priv_hnd,
         };
 
         let hardware9 = Arc::new(Mutex::new(hardware9));

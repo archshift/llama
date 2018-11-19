@@ -18,6 +18,8 @@ pub mod hid;
 mod fbuf;
 pub mod gpu;
 
+mod priv11;
+
 use std::ptr;
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -31,7 +33,7 @@ use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
 pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock, pica_hw: gpu::HardwarePica)
-    -> (IoRegsArm9, IoRegsShared, IoRegsArm11) {
+    -> (IoRegsArm9, IoRegsShared, IoRegsArm11, IoRegsArm11Priv) {
     
     macro_rules! make_dev_uniq {
         ($type:ty) => { RefCell::new( <$type>::new() ) };
@@ -64,6 +66,9 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock, pica_hw: gpu
     let fbuf   = make_dev_uniq! { fbuf::FbufDevice };
     let gpu    = make_dev_uniq! { gpu::GpuDevice:     pica_hw };
 
+    let priv11 = make_dev_uniq! { priv11::Priv11Device };
+    let gid    = make_dev_uniq! { priv11::GidDevice };
+
     (IoRegsArm9 {
         cfg:    cfg,
         irq:    irq,
@@ -85,6 +90,10 @@ pub fn new_devices(irq_requests: IrqRequests, clk: clock::SysClock, pica_hw: gpu
     IoRegsArm11 {
         fbuf:   fbuf,
         gpu:    gpu,
+    },
+    IoRegsArm11Priv {
+        priv11: priv11,
+        gid:    gid,
     })
 }
 
@@ -129,6 +138,7 @@ macro_rules! impl_rw_locked {
         }
     };
 }
+
 
 pub struct IoRegsArm9 {
     pub cfg:    RefCell< config::ConfigDevice >,
@@ -211,6 +221,7 @@ impl IoRegsShared {
     }
 }
 
+
 impl MemoryBlock for IoRegsShared {
     fn get_bytes(&self) -> u32 {
         (0x400 * 0x400) as u32
@@ -224,6 +235,7 @@ impl MemoryBlock for IoRegsShared {
         self.write_reg(offset, buf, buf_size)
     }
 }
+
 
 pub struct IoRegsArm11 {
     pub fbuf: RefCell< fbuf::FbufDevice >,
@@ -240,6 +252,33 @@ impl IoRegsArm11 {
 impl MemoryBlock for IoRegsArm11 {
     fn get_bytes(&self) -> u32 {
         (0xC00 * 0x400) as u32
+    }
+
+    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        self.read_reg(offset, buf, buf_size)
+    }
+
+    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+        self.write_reg(offset, buf, buf_size)
+    }
+}
+
+
+pub struct IoRegsArm11Priv {
+    pub priv11: RefCell< priv11::Priv11Device >,
+    pub gid:    RefCell< priv11::GidDevice >,
+}
+
+impl IoRegsArm11Priv {
+    impl_rw! {
+        0x0 => priv11,
+        0x1 => gid
+    }
+}
+
+impl MemoryBlock for IoRegsArm11Priv {
+    fn get_bytes(&self) -> u32 {
+        (8 * 0x400) as u32
     }
 
     unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
