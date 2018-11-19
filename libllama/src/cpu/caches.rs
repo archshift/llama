@@ -97,7 +97,7 @@ impl Mpu {
             }
         }
 
-        if mask == 0 { panic!("Attempted to read memory from {:#08X} in nonexistent MpuRegion!", addr) };
+        if mask == 0 { panic!("Attempted to read memory from 0x{:08X} in nonexistent MpuRegion!", addr) };
         mask
     }
 

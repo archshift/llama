@@ -1,13 +1,15 @@
 use std::env;
 use std::fs;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum LlamaFile {
     SdCardImg,
     NandImg,
     NandCid,
     AesKeyDb,
-    Otp
+    Otp,
+    Boot9,
+    Boot11,
 }
 
 fn make_filepath(filename: &str) -> String {
@@ -20,7 +22,9 @@ fn get_path(lf: LlamaFile) -> String {
         LlamaFile::NandImg => "nand.bin",
         LlamaFile::NandCid => "nand-cid.bin",
         LlamaFile::AesKeyDb => "aeskeydb.bin",
-        LlamaFile::Otp => "otp.bin"
+        LlamaFile::Otp => "otp.bin",
+        LlamaFile::Boot9 => "boot9.bin",
+        LlamaFile::Boot11 => "boot11.bin",
     };
     make_filepath(filename)
 }

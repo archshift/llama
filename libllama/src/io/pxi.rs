@@ -118,7 +118,10 @@ iodevice!(PxiDevice, {
                         dev._internal_state.rx_count.fetch_sub(1, atomic::Ordering::SeqCst);
                         dat
                     }
-                    Err(mpsc::TryRecvError::Empty) => panic!("Attempted to receive PXI word while FIFO empty"),
+                    Err(mpsc::TryRecvError::Empty) => {
+                        debug!("Attempted to receive PXI word while FIFO empty");
+                        return
+                    }
                     Err(e) => panic!("{:?}", e),
                 };
                 dev.recv.set_unchecked(dat);

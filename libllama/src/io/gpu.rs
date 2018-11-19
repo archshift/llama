@@ -148,6 +148,7 @@ iodevice!(GpuDevice, {
                 FramebufState::publish(dev);
             };
         }
+        0x478 => top_fb_sel: u32 { }
         0x494 => top_fb_right0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top right FB0 to 0x{:08X}!", dev.top_fb_right0_addr.get());
@@ -174,5 +175,6 @@ iodevice!(GpuDevice, {
                 FramebufState::publish(dev);
             };
         }
+        0x578 => bot_fb_sel: u32 { }
     }
 });

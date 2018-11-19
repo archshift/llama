@@ -86,7 +86,10 @@ impl SysControl {
                 self.r1_auxctrl = val;
                 mknop()
             }
-            0b010 => unimplemented!(),
+            0b010 => {
+                warn!("STUBBED: Coproc control register write");
+                mknop()
+            },
             _ => unreachable!()
         }
     }

@@ -7,6 +7,7 @@ use ldr;
 use mem;
 use io;
 use msgs;
+use fs;
 
 use cpu::{v5, v6};
 
@@ -125,6 +126,22 @@ impl MemoryRegions {
 //     cpu.regs[1] = 0xFFF00000;
 // }
 
+fn try_bootrom_load(mem: &mut mem::MemController, llama_file: fs::LlamaFile) {
+    use std::io::Read;
+
+    loop {
+        let mut file = match fs::open_file(llama_file) {
+            Ok(x) => x,
+            Err(_) => break
+        };
+        let mut buf = [0u8; 0x10000];
+        if !file.read_exact(&mut buf).is_ok() { break };
+        mem.write_buf(0xFFFF0000, &buf);
+        return
+    }
+    info!("Did not find {:?}; not loading bootrom.", llama_file);
+}
+
 pub struct Hardware9 {
     pub arm9: cpu::Cpu<v5>,
     io_handle: mem::AddressBlockHandle,
@@ -213,8 +230,17 @@ impl HwCore {
         loader.load9(&mut mem_regions.mem9);
         loader.load11(&mut mem_regions.mem11);
 
+        try_bootrom_load(&mut mem_regions.mem9, fs::LlamaFile::Boot9);
+        try_bootrom_load(&mut mem_regions.mem11, fs::LlamaFile::Boot11);
+
         let mut cpu9 = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
         cpu9.reset(loader.entrypoint9());
+        
+        // TODO: put this boot9strap compatibility code behind some configuration
+        cpu9.regs[0] = 0x01FF8000;
+        cpu9.regs[2] = 0x3BEEF;
+        let arg0 = b"sdmc:/boot.firm\0";
+        cpu9.mpu.memory.write_buf(0x01FF8000, arg0);
         // write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {

@@ -161,9 +161,17 @@ fn instr_load_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf, ty: MiscLs
             cpu.regs[rd+1] = (val >> 32) as u32;
             return cpu::InstrStatus::InBlock
         }
-        MiscLsType::Halfword => cpu.mpu.dmem_read::<u16>(addr.0) as u32,
+        MiscLsType::Halfword => {
+            assert!( V::is::<cpu::v5>() || addr.0 % 2 == 0 );
+            
+            cpu.mpu.dmem_read::<u16>(addr.0) as u32
+        }
         MiscLsType::SignedByte => sign_extend32(cpu.mpu.dmem_read::<u8>(addr.0) as u32, 8) as u32,
-        MiscLsType::SignedHalfword => sign_extend32(cpu.mpu.dmem_read::<u16>(addr.0) as u32, 16) as u32
+        MiscLsType::SignedHalfword => {
+            assert!( V::is::<cpu::v5>() || addr.0 % 2 == 0 );
+
+            sign_extend32(cpu.mpu.dmem_read::<u16>(addr.0) as u32, 16) as u32
+        }
     };
 
     cpu.regs[data.rd.get() as usize] = val;
@@ -211,7 +219,11 @@ fn instr_store_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf, ty: MiscL
             let val = (cpu.regs[rd] as u64) | ((cpu.regs[rd+1] as u64) << 32);
             cpu.mpu.dmem_write::<u64>(addr.0, val)
         }
-        MiscLsType::Halfword => cpu.mpu.dmem_write::<u16>(addr.0, cpu.regs[rd] as u16),
+        MiscLsType::Halfword => {
+            assert!( V::is::<cpu::v5>() || addr.0 % 2 == 0 );
+
+            cpu.mpu.dmem_write::<u16>(addr.0, cpu.regs[rd] as u16)
+        }
         _ => panic!("Invalid miscellaneous store type!")
     }
 
@@ -232,17 +244,14 @@ pub fn ldrd<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrd::Bf) -> cpu::InstrStat
 }
 
 pub fn ldrh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, data, MiscLsType::Halfword)
 }
 
 pub fn ldrsb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsb::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedByte)
 }
 
 pub fn ldrsh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrsh::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::SignedHalfword)
 }
 
@@ -260,7 +269,6 @@ pub fn strd<V: Version>(cpu: &mut Cpu<V>, data: arm::Strd::Bf) -> cpu::InstrStat
 }
 
 pub fn strh<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     instr_store_misc(cpu, data, MiscLsType::Halfword)
 }
 
