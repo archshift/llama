@@ -91,7 +91,10 @@ iodevice!(PxiDevice, {
         0x001 => sync_send: u8 {
             write_effect = reg_sync_write;
         }
-        0x002 => sync_ctrl: u16 {
+        0x002 => sync_unk: u8 {
+            write_effect = |_| trace!("STUBBED: Write to PXI unknown sync ctrl register!");
+        }
+        0x003 => sync_ctrl: u8 {
             write_effect = |_| warn!("STUBBED: Write to PXI sync ctrl register!");
         }
         0x004 => cnt: u16 {
