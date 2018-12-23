@@ -1,14 +1,14 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use cpu::irq::IrqRequests;
+use cpu::irq::IrqSyncClient;
 use io::timer;
 
 #[derive(Clone)]
 pub struct SysClock {
     counter: Arc<AtomicUsize>,
     pub timer_states: timer::TimerStates,
-    pub irq_tx: IrqRequests,
+    pub irq_tx: IrqSyncClient,
 }
 
 impl SysClock {
@@ -22,7 +22,7 @@ impl SysClock {
     }
 }
 
-pub fn make_channel(irq_tx: IrqRequests) -> SysClock {
+pub fn make_channel(irq_tx: IrqSyncClient) -> SysClock {
     let counter = Arc::new(AtomicUsize::new(0));
     let timer_states = timer::TimerStates::new();
     SysClock {

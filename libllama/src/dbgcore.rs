@@ -1,7 +1,7 @@
 use std::sync;
 
 use cpu::{self, v5, v6};
-pub use cpu::irq::IrqType;
+pub use cpu::irq::{IrqType9, IrqClient};
 use hwcore;
 use io;
 
@@ -96,8 +96,8 @@ impl<'a> DbgContext<'a> {
         }
     }
 
-    pub fn trigger_irq(&mut self, irq: IrqType) {
-        self.hwcore_mut().irq_tx.add(irq);
+    pub fn trigger_irq(&mut self, irq: IrqType9) {
+        self.hwcore_mut().irq_tx.assert(irq);
     }
 }
 

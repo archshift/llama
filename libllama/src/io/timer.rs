@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use parking_lot::{Mutex, MutexGuard};
 
-use cpu::irq;
+use cpu::irq::{self, IrqClient};
 use io::regs::IoReg;
 
 #[derive(Clone, Copy, Debug)]
@@ -266,12 +266,12 @@ fn unscale(clock_ticks: u64, prescaler: Prescaler) -> u64 {
     }
 }
 
-fn irq(t_index: usize) -> irq::IrqType {
+fn irq(t_index: usize) -> irq::IrqType9 {
     match t_index {
-        0 => irq::IrqType::Timer0,
-        1 => irq::IrqType::Timer1,
-        2 => irq::IrqType::Timer2,
-        3 => irq::IrqType::Timer3,
+        0 => irq::IrqType9::Timer0,
+        1 => irq::IrqType9::Timer1,
+        2 => irq::IrqType9::Timer2,
+        3 => irq::IrqType9::Timer3,
         _ => unreachable!()
     }
 }
@@ -315,7 +315,7 @@ impl TimerState {
     }
 }
 
-pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx: &mut irq::IrqRequests) {
+pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx: &mut irq::IrqSyncClient) {
     let iter_started = TimerIter::new(&timer_states).filter(|t| t.started());
 
     for mut timer in iter_started {
@@ -324,7 +324,7 @@ pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx
         for (index, status) in overflows.iter().enumerate() {
             if *status {
                 // Overflow happened
-                irq_tx.add(irq(index))
+                irq_tx.assert(irq(index))
             }
         }
     }

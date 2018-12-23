@@ -130,10 +130,10 @@ fn cmd_irq<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
     };
 
     let irq = match irq_ty.as_str() {
-        "timer0" => dbgcore::IrqType::Timer0,
-        "timer1" => dbgcore::IrqType::Timer1,
-        "timer2" => dbgcore::IrqType::Timer2,
-        "timer3" => dbgcore::IrqType::Timer3,
+        "timer0" => dbgcore::IrqType9::Timer0,
+        "timer1" => dbgcore::IrqType9::Timer1,
+        "timer2" => dbgcore::IrqType9::Timer2,
+        "timer3" => dbgcore::IrqType9::Timer3,
         _ => { error!("Unimplemented/unknown IRQ type `{}`", irq_ty); return }
     };
 

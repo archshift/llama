@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::mem;
 
 use io::emmc::card::Card;
-use cpu::irq;
+use cpu::irq::{self, IrqClient};
 use fs;
 
 bf!(RegCmd[u16] {
@@ -103,13 +103,13 @@ pub enum TransferType {
 }
 
 pub struct EmmcDeviceState {
-    irq_reqs: irq::IrqRequests,
+    irq_reqs: irq::IrqSyncClient,
     irq_statuses: [u16; 2],
     cards: [Card; 2],
 }
 
 impl EmmcDeviceState {
-    pub fn new(irq_reqs: irq::IrqRequests) -> EmmcDeviceState {
+    pub fn new(irq_reqs: irq::IrqSyncClient) -> EmmcDeviceState {
         let sd_storage = fs::open_file(fs::LlamaFile::SdCardImg).unwrap();        
         let nand_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();
 
@@ -204,7 +204,7 @@ fn trigger_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
         trace!("SDMMC: Triggering IRQs 0: {:08X}, 1: {:08X}",
                 dev._internal_state.irq_statuses[0] & dev.irq_mask0.get(),
                 dev._internal_state.irq_statuses[1] & dev.irq_mask1.get());
-        dev._internal_state.irq_reqs.add(irq::IrqType::Sdio1);
+        dev._internal_state.irq_reqs.assert(irq::IrqType9::Sdio1);
     }
 }
 

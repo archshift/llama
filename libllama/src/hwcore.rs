@@ -151,6 +151,9 @@ pub struct Hardware9 {
     io_shared_handle: mem::AddressBlockHandle,
 }
 
+/// Hardware9 will not contain any x-thread references
+unsafe impl Send for Hardware9 {}
+
 impl Hardware9 {
     pub fn io9(&self) -> &io::IoRegsArm9 {
         let region = self.arm9.mpu.memory.region(&self.io_handle);
@@ -177,6 +180,9 @@ pub struct Hardware11 {
     io_handle: mem::AddressBlockHandle,
     io_priv_handle: mem::AddressBlockHandle,
 }
+
+/// Hardware11 will not contain any x-thread references
+unsafe impl Send for Hardware11 {}
 
 impl Hardware11 {
     pub fn io11(&self) -> &io::IoRegsArm11 {
@@ -217,8 +223,11 @@ pub struct HwCore {
     _arm11_thread: thread::JoinHandle<()>,
 
     mem_framebuf: mem::MemController,
-    pub irq_tx: cpu::irq::IrqRequests,
+    pub irq_tx: cpu::irq::IrqAsyncClient,
 }
+
+/// HwCore will not contain any x-thread references
+unsafe impl Send for HwCore {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Arm11State {
@@ -229,15 +238,17 @@ pub enum Arm11State {
 
 impl HwCore {
     pub fn new(mut msg_pump: msgs::Pump<Message>, loader: &ldr::Loader) -> HwCore {
-        let (irq_tx, irq_rx) = cpu::irq::make_channel();
-        let clk_tx = clock::make_channel(irq_tx.clone());
+        let irq_subsys = cpu::irq::IrqSubsys::create();
+        let irq_line = irq_subsys.line.clone();
+        let irq_async_tx = irq_subsys.async_tx.clone();
+        let clk_tx = clock::make_channel(irq_subsys.sync_tx.clone());
         let clk_rx = clk_tx.clone();
         
         let client_pica = msg_pump.add_client(&[]);
 
         let mut mem_regions = MemoryRegions::map(|pica_controller| {
             let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
-            io::new_devices(irq_tx.clone(), clk_rx, pica_hw)
+            io::new_devices(irq_subsys, clk_rx, pica_hw)
         });
 
         loader.load9(&mut mem_regions.mem9);
@@ -246,7 +257,7 @@ impl HwCore {
         try_bootrom_load(&mut mem_regions.mem9, fs::LlamaFile::Boot9);
         try_bootrom_load(&mut mem_regions.mem11, fs::LlamaFile::Boot11);
 
-        let mut cpu9 = cpu::Cpu::new(v5, mem_regions.mem9, irq_rx, clk_tx);
+        let mut cpu9 = cpu::Cpu::new(v5, mem_regions.mem9, irq_line, clk_tx);
         cpu9.reset(loader.entrypoint9());
         
         // TODO: put this boot9strap compatibility code behind some configuration
@@ -262,10 +273,11 @@ impl HwCore {
             io_shared_handle: mem_regions.io9_shared_hnd,
         };
 
-        let (irq11_tx, irq11_rx) = cpu::irq::make_channel();
-        let clk11_tx = clock::make_channel(irq11_tx.clone());
+        let irq11_subsys = cpu::irq::IrqSubsys::create();
+        let irq11_line = irq11_subsys.line.clone();
+        let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
         // let clk11_rx = clk11_tx.clone();
-        let mut cpu11 = cpu::Cpu::new(v6, mem_regions.mem11, irq11_rx, clk11_tx);
+        let mut cpu11 = cpu::Cpu::new(v6, mem_regions.mem11, irq11_line, clk11_tx);
         cpu11.reset(loader.entrypoint11());
 
         let hardware11 = Hardware11 {
@@ -316,7 +328,7 @@ impl HwCore {
             _arm11_thread: arm11_thread,
 
             mem_framebuf: mem_regions.mem_framebuf,
-            irq_tx: irq_tx,
+            irq_tx: irq_async_tx,
         }
     }
 
