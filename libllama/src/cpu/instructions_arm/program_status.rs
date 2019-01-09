@@ -87,6 +87,7 @@ pub fn cps<V: Version>(cpu: &mut Cpu<V>, data: arm::Cps::Bf) -> cpu::InstrStatus
     }
     if data.mmod.get() != 0 {
         cpu.cpsr.mode.set(data.mode.get());
+        cpu.regs.swap(cpu::Mode::from_num(data.mode.get()));
     }
 
     cpu::InstrStatus::InBlock

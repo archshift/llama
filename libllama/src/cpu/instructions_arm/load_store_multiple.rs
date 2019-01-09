@@ -110,6 +110,30 @@ pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrSta
     cpu::InstrStatus::Branched
 }
 
+pub fn rfe<V: Version>(cpu: &mut Cpu<V>, data: arm::Rfe::Bf) -> cpu::InstrStatus {
+    assert!( V::is::<cpu::v6>() );
+
+    let p_bit = data.p_bit.get() == 1;
+    let u_bit = data.u_bit.get() == 1;
+    let w_bit = data.w_bit.get() == 1;
+    let rn_val = cpu.regs[data.rn.get() as usize];
+    let (addr, writeback) = addressing_mode_inner(p_bit, u_bit, w_bit, rn_val, 2);
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    assert!( addr % 4 == 0 );
+
+    let new_pc = cpu.mpu.dmem_read::<u32>(addr);
+    let new_cpsr = cpu.mpu.dmem_read::<u32>(addr+4);
+
+    if data.w_bit.get() == 1 {
+        cpu.regs[data.rn.get() as usize] = writeback;
+    }
+
+    cpu.cpsr.val = new_cpsr;
+    cpu.branch(new_pc);
+    cpu::InstrStatus::Branched
+}
+
 pub fn srs<V: Version>(cpu: &mut Cpu<V>, data: arm::Srs::Bf) -> cpu::InstrStatus {
     assert!( V::is::<cpu::v6>() );
 

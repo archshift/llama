@@ -12,9 +12,10 @@ iodevice!(ConfigDevice, {
         0x010 => cardstatus: u8 { }
         0x012 => cardcycles0: u16 { }
         0x014 => cardcycles1: u16 { }
-        0x020 => unknown1: u32 {
-            read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x20 register!");
-            write_effect = |_| warn!("STUBBED: Write to unknown CONFIG+0x20 register!");
+        0x020 => sdmmcctl: u16 { }
+        0x022 => unknown1: u16 {
+            read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x22 register!");
+            write_effect = |_| warn!("STUBBED: Write to unknown CONFIG+0x22 register!");
         }
         0x100 => unknown2: u16 {
             read_effect = |_| warn!("STUBBED: Read from unknown CONFIG+0x100 register!");
