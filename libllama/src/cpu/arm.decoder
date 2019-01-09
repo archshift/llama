@@ -58,6 +58,11 @@ decoder u32 ArmInstruction {
         umull = [ cond:4; 0b0000100:7; s_bit:1; rd_hi:4; rd_lo:4; rs:4; 0b1001:4; rm:4 ]
     }
 
+    category [ _:4; 0b011:3; _:20; 0b1:1; _:4 ] // Media instructions
+    {
+        uxtb = [ cond:4; 0b011011101111:12; rd:4; rot:2; 0b000111:6; rm:4 ]
+    }
+
     category [ _:4; 0b010:3; _:25 ] // Load/store immediate offset
       or [ _:4; 0b011:3; _:20; 0b0:1; _:4 ] // Load/store register offset
     {

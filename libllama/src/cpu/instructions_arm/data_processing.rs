@@ -542,3 +542,4 @@ pub fn umull<V: Version>(cpu: &mut Cpu<V>, data: arm::Umull::Bf) -> cpu::InstrSt
 
     cpu::InstrStatus::InBlock
 }
+
