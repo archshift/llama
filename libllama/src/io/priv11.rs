@@ -1,3 +1,5 @@
+use cpu::irq::Aggregator;
+
 iodevice!(Priv11Device, {
     regs: {
         0x000 => scu_ctrl: u32 {
@@ -24,10 +26,32 @@ iodevice!(Priv11Device, {
     }
 });
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct GidState {
+    agg: Aggregator,
     enabled: [u32; 4],
     pending: [u32; 4],
+}
+
+impl GidState {
+    pub fn new(agg: Aggregator) -> Self {
+        Self {
+            agg,
+            enabled: [0;4],
+            pending: [0;4]
+        }
+    }
+}
+
+fn update_enabled(dev: &mut GidDevice) {
+    let enabled = {
+        let enabled = &dev._internal_state.enabled;
+        ((enabled[3] as u128) << 96)
+            | ((enabled[2] as u128) << 64)
+            | ((enabled[1] as u128) << 32)
+            | (enabled[0] as u128)
+    };
+    dev._internal_state.agg.set_enabled(enabled);
 }
 
 iodevice!(GidDevice, {
@@ -38,29 +62,61 @@ iodevice!(GidDevice, {
         }
 
         0x100 => enable_set0: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[0] |= dev.enable_set0.get(); dev.enable_set0.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[0] |= dev.enable_set0.get();
+                dev.enable_set0.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x104 => enable_set1: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[1] |= dev.enable_set1.get(); dev.enable_set1.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[1] |= dev.enable_set1.get();
+                dev.enable_set1.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x108 => enable_set2: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[2] |= dev.enable_set2.get(); dev.enable_set2.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[2] |= dev.enable_set2.get();
+                dev.enable_set2.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x10C => enable_set3: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[3] |= dev.enable_set3.get(); dev.enable_set3.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[3] |= dev.enable_set3.get();
+                dev.enable_set3.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
 
         0x180 => enable_clr0: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[0] &= !dev.enable_clr0.get(); dev.enable_clr0.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[0] &= !dev.enable_clr0.get();
+                dev.enable_clr0.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x184 => enable_clr1: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[1] &= !dev.enable_clr1.get(); dev.enable_clr1.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| { 
+                dev._internal_state.enabled[1] &= !dev.enable_clr1.get();
+                dev.enable_clr1.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x188 => enable_clr2: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[2] &= !dev.enable_clr2.get(); dev.enable_clr2.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[2] &= !dev.enable_clr2.get();
+                dev.enable_clr2.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
         0x18C => enable_clr3: u32 {
-            write_effect = |dev: &mut GidDevice| { dev._internal_state.enabled[3] &= !dev.enable_clr3.get(); dev.enable_clr3.set_unchecked(0) };
+            write_effect = |dev: &mut GidDevice| {
+                dev._internal_state.enabled[3] &= !dev.enable_clr3.get();
+                dev.enable_clr3.set_unchecked(0);
+                update_enabled(dev);
+            };
         }
 
         0x280 => pending_clr0: u32 {

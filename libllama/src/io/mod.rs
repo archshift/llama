@@ -32,7 +32,8 @@ use cpu::irq::IrqSubsys;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
-pub fn new_devices(irq_subsys: IrqSubsys, clk: clock::SysClock, pica_hw: gpu::HardwarePica)
+pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
+                   clk: clock::SysClock, pica_hw: gpu::HardwarePica)
     -> (IoRegsArm9, IoRegsShared, IoRegsArm11, IoRegsArm11Priv) {
     
     macro_rules! make_dev_uniq {
@@ -45,11 +46,11 @@ pub fn new_devices(irq_subsys: IrqSubsys, clk: clock::SysClock, pica_hw: gpu::Ha
         ($type:ty: $($arg:expr),+) => {{ Arc::new(Mutex::new(<$type>::new($($arg),*))) }};
     }
 
-    let pxi_shared = pxi::PxiShared::make_channel();
+    let pxi_shared = pxi::PxiShared::make_channel(irq_subsys9.async_tx, irq_subsys11.async_tx);
 
     let cfg    = make_dev_uniq! { config::ConfigDevice };
-    let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys.agg };
-    let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_subsys.sync_tx) };
+    let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys9.agg };
+    let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_subsys9.sync_tx) };
     let ndma   = make_dev_uniq! { ndma::NdmaDevice:   Default::default() };
     let otp    = make_dev_uniq! { otp::OtpDevice:     Default::default() };
     let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
@@ -67,7 +68,7 @@ pub fn new_devices(irq_subsys: IrqSubsys, clk: clock::SysClock, pica_hw: gpu::Ha
     let gpu    = make_dev_uniq! { gpu::GpuDevice:     pica_hw };
 
     let priv11 = make_dev_uniq! { priv11::Priv11Device };
-    let gid    = make_dev_uniq! { priv11::GidDevice:  Default::default() };
+    let gid    = make_dev_uniq! { priv11::GidDevice:  priv11::GidState::new(irq_subsys11.agg) };
 
     (IoRegsArm9 {
         cfg:    cfg,

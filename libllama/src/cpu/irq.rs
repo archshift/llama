@@ -151,6 +151,7 @@ pub struct IrqAsyncClient {
 impl IrqClient for IrqAsyncClient {
     fn assert<IRQ: IrqType>(&mut self, irq: IRQ) {
         let index = irq.index();
+        trace!("Trying to assert irq {}", index);
         if !self.is_enabled(index) {
             return
         }

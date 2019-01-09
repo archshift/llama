@@ -39,9 +39,9 @@ impl Mode {
     }
 }
 
-#[allow(non_camel_case_types)] pub struct v5;
-#[allow(non_camel_case_types)] pub struct v6;
-pub trait Version: 'static {
+#[allow(non_camel_case_types)] #[derive(Debug)] pub struct v5;
+#[allow(non_camel_case_types)] #[derive(Debug)] pub struct v6;
+pub trait Version: 'static + ::std::fmt::Debug {
     #[inline(always)]
     fn is<T: Version>() -> bool {
         use std::any::TypeId;
@@ -196,7 +196,7 @@ impl<V: Version> Cpu<V> {
                 cycles = PAUSE_CYCLES;
             }
             if irq_known_pending && self.cpsr.disable_irq_bit.get() == 0 && self.irq_line.is_high() {
-                trace!("ARM9 IRQ triggered!");
+                trace!("Entering exception for ARM{:?}!", self._version);
                 self.enter_exception(addr+4, Mode::Irq);
                 thumb_bit = 0;
                 irq_known_pending = false;
@@ -236,14 +236,26 @@ impl<V: Version> Cpu<V> {
         self.cpsr.thumb_bit.set(0);
         self.cpsr.disable_irq_bit.set(1);
 
-        // These vectors look like 0x080000XX because that's where the bootrom redirects them
-        let vector_addr = match mode {
-            Mode::Irq => 0x08000000,
-            Mode::Fiq => unimplemented!(),
-            Mode::Svc => 0x08000010,
-            Mode::Und => 0x08000018,
-            Mode::Abt => 0x08000028,
-            Mode::Sys | Mode::Usr => panic!("No exception associated with {:?}", mode)
+        let vector_addr = if V::is::<v5>() {
+            // These vectors look like 0x080000XX because that's where the bootrom redirects them
+            match mode {
+                Mode::Irq => 0x08000000,
+                Mode::Fiq => unimplemented!(),
+                Mode::Svc => 0x08000010,
+                Mode::Und => 0x08000018,
+                Mode::Abt => 0x08000028,
+                Mode::Sys | Mode::Usr => panic!("No exception associated with {:?}", mode)
+            }
+        } else {
+            // These vectors look like 0x1FFFFFXX because that's where the bootrom redirects them
+            match mode {
+                Mode::Irq => 0x1FFFFFA0,
+                Mode::Fiq => 0x1FFFFFA8,
+                Mode::Svc => 0x1FFFFFB0,
+                Mode::Und => 0x1FFFFFB8,
+                Mode::Abt => 0x1FFFFFC8,
+                Mode::Sys | Mode::Usr => panic!("No exception associated with {:?}", mode)
+            }
         };
         self.branch(vector_addr);
     }

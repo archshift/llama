@@ -60,9 +60,11 @@ pub fn interpret_next<V: Version>(cpu: &mut Cpu<V>, addr: u32) -> InstrStatus {
     let instr = cpu.mpu.imem_read::<u32>(addr);
     let inst_fn = *cpu.arm_decode_cache.get_or(instr, &mut ());
     
+    if V::is::<::cpu::v5>() {
+        trace!("v5: {:08X}: {}", instr, ::cpu::arm::disasm(instr));
+    }
     if V::is::<::cpu::v6>() {
-        info!("{:08X}: {}", instr, ::cpu::arm::disasm(instr));
-        println!("{:08X}: {}", instr, ::cpu::arm::disasm(instr));
+        trace!("v6: {:08X}: {}", instr, ::cpu::arm::disasm(instr));
     }
     
     inst_fn(cpu, instr)

@@ -18,6 +18,7 @@ impl log::Log for UILogger {
         if record.level() > log::LogLevel::Debug && !TRACE_ENABLED.load(Ordering::SeqCst) { return }
 
         let string = format!("{}: {}\n", record.level(), record.args());
+        println!("{}", string);
         lgl::log(&string);
     }
 }

@@ -119,15 +119,15 @@ impl MemoryRegions {
     }
 }
 
-// fn write_fb_pointers(cpu: &mut cpu::Cpu<v5>) {
-//     // Initialize framebuffer data to be b9s compatible
-//     cpu.mpu.dmem_write(0xFFF00000, 0x18000000u32);
-//     cpu.mpu.dmem_write(0xFFF00004, 0x18000000u32);
-//     cpu.mpu.dmem_write(0x18000000, 0x18000010u32);
-//     cpu.mpu.dmem_write(0x18000008, 0x1808CA10u32);
-//     cpu.regs[0] = 2;
-//     cpu.regs[1] = 0xFFF00000;
-// }
+fn _write_fb_pointers(cpu: &mut cpu::Cpu<v5>) {
+    // Initialize framebuffer data to be b9s compatible
+    cpu.mpu.dmem_write(0xFFF00000, 0x18000000u32);
+    cpu.mpu.dmem_write(0xFFF00004, 0x18000000u32);
+    cpu.mpu.dmem_write(0x18000000, 0x18000010u32);
+    cpu.mpu.dmem_write(0x18000008, 0x1808CA10u32);
+    cpu.regs[0] = 2;
+    cpu.regs[1] = 0xFFF00000;
+}
 
 fn try_bootrom_load(mem: &mut mem::MemController, llama_file: fs::LlamaFile) {
     use std::io::Read;
@@ -240,15 +240,20 @@ impl HwCore {
     pub fn new(mut msg_pump: msgs::Pump<Message>, loader: &ldr::Loader) -> HwCore {
         let irq_subsys = cpu::irq::IrqSubsys::create();
         let irq_line = irq_subsys.line.clone();
+        let irq11_subsys = cpu::irq::IrqSubsys::create();
+        let irq11_line = irq11_subsys.line.clone();
         let irq_async_tx = irq_subsys.async_tx.clone();
+
         let clk_tx = clock::make_channel(irq_subsys.sync_tx.clone());
         let clk_rx = clk_tx.clone();
+        let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
+        // let clk11_rx = clk11_tx.clone();
         
         let client_pica = msg_pump.add_client(&[]);
 
         let mut mem_regions = MemoryRegions::map(|pica_controller| {
             let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
-            io::new_devices(irq_subsys, clk_rx, pica_hw)
+            io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw)
         });
 
         loader.load9(&mut mem_regions.mem9);
@@ -265,7 +270,7 @@ impl HwCore {
         cpu9.regs[2] = 0x3BEEF;
         let arg0 = b"sdmc:/boot.firm\0";
         cpu9.mpu.memory.write_buf(0x01FF8000, arg0);
-        // write_fb_pointers(&mut cpu9);
+        //write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {
             arm9: cpu9,
@@ -273,10 +278,6 @@ impl HwCore {
             io_shared_handle: mem_regions.io9_shared_hnd,
         };
 
-        let irq11_subsys = cpu::irq::IrqSubsys::create();
-        let irq11_line = irq11_subsys.line.clone();
-        let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
-        // let clk11_rx = clk11_tx.clone();
         let mut cpu11 = cpu::Cpu::new(v6, mem_regions.mem11, irq11_line, clk11_tx);
         cpu11.reset(loader.entrypoint11());
 
