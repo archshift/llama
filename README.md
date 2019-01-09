@@ -6,7 +6,7 @@
 
 ### What is llama?
 
-Llama is a ***very*** incomplete and experimental emulator for the Nintendo 3DS's ARM9. While you may find some use in it for debugging or reverse engineering, it still needs a lot of work to reach general usefulness.
+Llama is an experimental emulator for the Nintendo 3DS's ARM9 (with a very limited ARM11 implementation as well).
 
 Llama most certainly cannot run any 3DS games. Don't even try.
 
@@ -18,15 +18,15 @@ See for yourself!
 
 > Source-level debugging in a GDB TUI? That's a lot of buzzwords!
 
-Much like the emulator itself, llama's GUI is currently incomplete and probably not super nice to use.
-
 ### How do I use it?
 
 First, you have to build llama from source. See below.
 
-#### "ctr9 packages"
+#### Loading applications
 
-Llama loads binaries from what I call "ctr9" packages. These packages comprise a directory, named `[dirname].ctr9`, with the following structure:
+Llama loads binaries from either a [FIRM](https://www.3dbrew.org/wiki/FIRM) file or a "ctr9" package. 
+
+A ctr9 package is a directory named `[dirname].ctr9`, with the following structure:
 
 ```
 foo.ctr9:

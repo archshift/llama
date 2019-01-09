@@ -67,7 +67,7 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
 }
 
 fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
-    println!("Reading {} bytes from SHA HASH at +0x{:X}", dest.len(), buf_pos);
+    trace!("Reading {} bytes from SHA HASH at +0x{:X}", dest.len(), buf_pos);
     let src_slice = &dev._internal_state.hash[buf_pos .. buf_pos + dest.len()];
     dest.clone_from_slice(src_slice);
 }
@@ -75,7 +75,7 @@ fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
 // TODO: Does a word written to any part of the hash just add on? What about
 // writing to the fifo in reverse? How does this work?
 fn reg_fifo_write(dev: &mut ShaDevice, buf_pos: usize, source: &[u8]) {
-    println!("Writing {} bytes to SHA FIFO at +0x{:X}", source.len(), buf_pos);
+    trace!("Writing {} bytes to SHA FIFO at +0x{:X}", source.len(), buf_pos);
 
     let hasher = match dev._internal_state.hasher {
         Some(ref mut h) => h,
