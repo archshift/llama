@@ -74,7 +74,7 @@ pub struct Cpu<V: Version> {
 
     pub breakpoints: HashSet<u32>, // addr, is_triggered
 
-    _version: V
+    pub(crate) _version: V
 }
 
 #[derive(Clone)]

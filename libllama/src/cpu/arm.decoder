@@ -3,6 +3,7 @@ decoder u32 ArmInstruction {
     {
         mod_blx = [ 0b1111101:7; h_bit:1; signed_imm_24:24 ]
         cps = [0b111100010000:12; imod:2; mmod:1; 0b00000000:8; a_bit:1; i_bit:1; f_bit:1; 0:1; mode:5]
+        srs = [0b1111100:7; p_bit:1; u_bit:1; 0b1:1; w_bit:1; 0b0110100000101000:16; mode:5]
         undef = [ _:32 ]
     }
 

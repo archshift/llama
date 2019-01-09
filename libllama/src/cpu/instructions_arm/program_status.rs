@@ -99,3 +99,4 @@ pub fn msr_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr1::Bf) -> cpu::InstrSta
 pub fn msr_2<V: Version>(cpu: &mut Cpu<V>, data: arm::Msr2::Bf) -> cpu::InstrStatus {
     instr_msr(cpu, arm::Msr1::new(data.val), false)
 }
+

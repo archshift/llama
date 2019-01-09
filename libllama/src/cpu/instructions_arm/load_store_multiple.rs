@@ -2,6 +2,21 @@ use cpu;
 use cpu::{Cpu, Version};
 use cpu::interpreter_arm as arm;
 
+fn addressing_mode_inner(p_bit: bool, u_bit: bool, w_bit: bool, rn_val: u32, num_registers: u32) -> (u32, u32) {
+    let (addr, wb) = match (p_bit, u_bit) {
+        (false, true)  => (rn_val, rn_val + num_registers * 4), // Increment after
+        (true, true)   => (rn_val + 4, rn_val + num_registers * 4), // Increment before
+        (false, false) => (rn_val - num_registers * 4 + 4, rn_val - num_registers * 4), // Decrement after
+        (true, false)  => (rn_val - num_registers * 4, rn_val - num_registers * 4) // Decrement before
+    };
+
+    if !w_bit {
+        (addr, addr)
+    } else {
+        (addr, wb)
+    }
+}
+
 fn decode_addressing_mode<V: Version>(instr_data: u32, cpu: &mut Cpu<V>) -> (u32, u32) {
     let instr_data = arm::Ldm1::new(instr_data);
 
@@ -10,20 +25,10 @@ fn decode_addressing_mode<V: Version>(instr_data: u32, cpu: &mut Cpu<V>) -> (u32
 
     let p_bit = instr_data.p_bit.get() == 1;
     let u_bit = instr_data.u_bit.get() == 1;
+    let w_bit = instr_data.w_bit.get() == 1;
     let rn_val = cpu.regs[instr_data.rn.get() as usize];
 
-    let (addr, wb) = match (p_bit, u_bit) {
-        (false, true)  => (rn_val, rn_val + num_registers * 4), // Increment after
-        (true, true)   => (rn_val + 4, rn_val + num_registers * 4), // Increment before
-        (false, false) => (rn_val - num_registers * 4 + 4, rn_val - num_registers * 4), // Decrement after
-        (true, false)  => (rn_val - num_registers * 4, rn_val - num_registers * 4) // Decrement before
-    };
-
-    if instr_data.w_bit.get() == 0 {
-        (addr, addr)
-    } else {
-        (addr, wb)
-    }
+    addressing_mode_inner(p_bit, u_bit, w_bit, rn_val, num_registers)
 }
 
 pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrStatus {
@@ -103,6 +108,36 @@ pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrSta
     let dest = cpu.mpu.dmem_read::<u32>(addr);
     cpu.branch(dest & 0xFFFFFFFE);
     cpu::InstrStatus::Branched
+}
+
+pub fn srs<V: Version>(cpu: &mut Cpu<V>, data: arm::Srs::Bf) -> cpu::InstrStatus {
+    assert!( V::is::<cpu::v6>() );
+
+    let src_lr = cpu.regs[14];
+    let src_spsr = cpu.get_current_spsr().val;
+
+    let current_mode = cpu::Mode::from_num(cpu.cpsr.mode.get());
+    let dst_mode = cpu::Mode::from_num(data.mode.get());
+    cpu.regs.swap(dst_mode);
+
+    let p_bit = data.p_bit.get() == 1;
+    let u_bit = data.u_bit.get() == 1;
+    let w_bit = data.w_bit.get() == 1;
+    let rn_val = cpu.regs[13];
+    let (addr, writeback) = addressing_mode_inner(p_bit, u_bit, w_bit, rn_val, 2);
+
+    // TODO: determine behavior based on CP15 r1 bit_U (22)
+    assert!( addr % 4 == 0 );
+
+    cpu.mpu.dmem_write::<u32>(addr, src_lr);
+    cpu.mpu.dmem_write::<u32>(addr+4, src_spsr);
+
+    if data.w_bit.get() == 1 {
+        cpu.regs[13] = writeback;
+    }
+
+    cpu.regs.swap(current_mode);
+    cpu::InstrStatus::InBlock
 }
 
 pub fn stm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Stm1::Bf) -> cpu::InstrStatus {

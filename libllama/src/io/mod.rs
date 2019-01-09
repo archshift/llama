@@ -24,6 +24,7 @@ use std::ptr;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::default::Default;
+use std::rc::Rc;
 
 use parking_lot::Mutex;
 
@@ -67,8 +68,9 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let fbuf   = make_dev_uniq! { fbuf::FbufDevice };
     let gpu    = make_dev_uniq! { gpu::GpuDevice:     pica_hw };
 
-    let priv11 = make_dev_uniq! { priv11::Priv11Device };
-    let gid    = make_dev_uniq! { priv11::GidDevice:  priv11::GidState::new(irq_subsys11.agg) };
+    let irq11_agg = Rc::new(RefCell::new(irq_subsys11.agg));
+    let priv11 = make_dev_uniq! { priv11::Priv11Device: irq11_agg.clone() };
+    let gid    = make_dev_uniq! { priv11::GidDevice:  priv11::GidState::new(irq11_agg.clone()) };
 
     (IoRegsArm9 {
         cfg:    cfg,
