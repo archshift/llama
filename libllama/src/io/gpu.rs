@@ -136,6 +136,28 @@ iodevice!(GpuDevice, {
             };
         }
 
+        0x400 => top_pix_clk: u32 { }
+        0x404 => top_hblank_timer: u32 { }
+        0x408 => top_unk0: u32 { }
+        0x40C => top_unk1: u32 { }
+        0x410 => top_vpix_interp: u32 { }
+        0x414 => top_hdata_offs: u32 { }
+        0x418 => top_unk2: u32 { }
+        0x41C => top_unk3: u32 { }
+        0x420 => top_hpix_offs: u32 { }
+        0x424 => top_unk4: u32 { }
+        0x428 => top_vblank_timer: u32 { }
+        0x42C => top_unk5: u32 { }
+        0x430 => top_vtotal: u32 { }
+        0x434 => top_vdisp: u32 { }
+        0x438 => top_vdata_offs: u32 { }
+        0x43C => top_unk6: u32 { }
+        0x440 => top_unk7: u32 { }
+        0x444 => top_unk8: u32 { }
+        0x448 => top_unk9: u32 { }
+        0x45C => top_fbsize0: u32 { }
+        0x460 => top_fbsize1: u32 { }
+        0x464 => top_fbsize2: u32 { }
         0x468 => top_fb_left0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top left FB0 to 0x{:08X}!", dev.top_fb_left0_addr.get());
@@ -148,7 +170,11 @@ iodevice!(GpuDevice, {
                 FramebufState::publish(dev);
             };
         }
+        0x470 => top_fbfmt: u32 { }
+        0x474 => top_unk10: u32 { }
         0x478 => top_fb_sel: u32 { }
+        0x484 => top_fb_color_lut: u32 { }
+        0x490 => top_fb_stride: u32 { }
         0x494 => top_fb_right0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top right FB0 to 0x{:08X}!", dev.top_fb_right0_addr.get());
@@ -161,8 +187,31 @@ iodevice!(GpuDevice, {
                 FramebufState::publish(dev);
             };
         }
+        0x49C => top_unk11: u32 { }
 
 
+        0x500 => bot_pix_clk: u32 { }
+        0x504 => bot_hblank_timer: u32 { }
+        0x508 => bot_unk0: u32 { }
+        0x50C => bot_unk1: u32 { }
+        0x510 => bot_vpix_interp: u32 { }
+        0x514 => bot_hdata_offs: u32 { }
+        0x518 => bot_unk2: u32 { }
+        0x51C => bot_unk3: u32 { }
+        0x520 => bot_hpix_offs: u32 { }
+        0x524 => bot_unk4: u32 { }
+        0x528 => bot_vblank_timer: u32 { }
+        0x52C => bot_unk5: u32 { }
+        0x530 => bot_vtotal: u32 { }
+        0x534 => bot_vdisp: u32 { }
+        0x538 => bot_vdata_offs: u32 { }
+        0x53C => bot_unk6: u32 { }
+        0x540 => bot_unk7: u32 { }
+        0x544 => bot_unk8: u32 { }
+        0x548 => bot_unk9: u32 { }
+        0x55C => bot_fbsize0: u32 { }
+        0x560 => bot_fbsize1: u32 { }
+        0x564 => bot_fbsize2: u32 { }
         0x568 => bot_fb0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set bottom FB0 to 0x{:08X}!", dev.bot_fb0_addr.get());
@@ -175,6 +224,13 @@ iodevice!(GpuDevice, {
                 FramebufState::publish(dev);
             };
         }
+        0x570 => bot_fbfmt: u32 { }
+        0x574 => bot_unk10: u32 { }
         0x578 => bot_fb_sel: u32 { }
+        0x584 => bot_fb_color_lut: u32 { }
+        0x590 => bot_fb_stride: u32 { }
+        0x594 => bot_fb_unused0_addr: u32 { }
+        0x598 => bot_fb_unused1_addr: u32 { }
+        0x59C => bot_unk11: u32 { }
     }
 });

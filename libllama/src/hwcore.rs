@@ -357,8 +357,8 @@ impl HwCore {
         fbs.top_screen.resize({ let (w, h, d) = fbs.top_screen_size; w*h*d }, 0);
         fbs.bot_screen.resize({ let (w, h, d) = fbs.bot_screen_size; w*h*d }, 0);
 
-        self.mem_framebuf.read_buf(fb_state.addr_top_left[0], fbs.top_screen.as_mut_slice());
-        self.mem_framebuf.read_buf(fb_state.addr_bot[0], fbs.bot_screen.as_mut_slice());
+        let _ = self.mem_framebuf.debug_read_buf(fb_state.addr_top_left[0], fbs.top_screen.as_mut_slice());
+        let _ = self.mem_framebuf.debug_read_buf(fb_state.addr_bot[0], fbs.bot_screen.as_mut_slice());
     }
 }
 
