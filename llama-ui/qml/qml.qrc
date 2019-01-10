@@ -2,6 +2,7 @@
 <RCC version="1.0">
 
 <qresource prefix="/">
+    <file>CommandLine.qml</file>
     <file>DbgConsole.qml</file>
     <file>main.qml</file>
     <file>ScreenView.qml</file>

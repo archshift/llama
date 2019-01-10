@@ -46,27 +46,11 @@ ColumnLayout {
             anchors.fill: parent
             spacing: 4
 
-            Rectangle {
-                radius: 3
-                border.width: 1
-                border.color: "#AAAAAA"
-                color: "#EEEEEE"
-
+            CommandLine {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                TextInput {
-                    id: input
-                    anchors.fill: parent
-                    font.family: "Source Code Pro"
-                    font.pixelSize: 12
-                    padding: 4
-
-                    onAccepted: {
-                        dbg_console.commandRun(text)
-                        clear()
-                    }
-                }
+                onCommandRun: dbg_console.commandRun(cmd)
             }
 
             Button {
