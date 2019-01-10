@@ -230,6 +230,9 @@ impl<'a> DbgHw9Context<'a> {
     pub fn io9_devices(&self) -> &io::IoRegsArm9 {
         self.hw.io9()
     }
+    pub fn io_shared_devices(&self) -> &io::IoRegsShared {
+        self.hw.io_shared()
+    }
 }
 
 impl<'a> HwCtx for DbgHw9Context<'a> {
@@ -243,6 +246,12 @@ impl<'a> HwCtx for DbgHw9Context<'a> {
 
 pub struct DbgHw11Context<'a> {
     hw: sync::MutexGuard<'a, hwcore::Hardware11>
+}
+
+impl<'a> DbgHw11Context<'a> {
+    pub fn io_shared_devices(&self) -> &io::IoRegsShared {
+        self.hw.io_shared()
+    }
 }
 
 impl<'a> HwCtx for DbgHw11Context<'a> {

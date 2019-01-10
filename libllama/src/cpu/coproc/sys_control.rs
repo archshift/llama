@@ -344,7 +344,7 @@ impl<V: Version> Coprocessor<V> for SysControl {
                 7 => effect = self.write_c7(op2, cpreg2),
                 8 => self.write_c8_arm11(op2, cpreg2, val),
                 15 => self.write_c15_arm11(op2, cpreg2, val),
-                _ => unimplemented!()
+                _ => panic!("Unimplemented CP15 write to coproc reg {}", cpreg1)
             }
         } else {
             unreachable!()

@@ -266,10 +266,12 @@ impl HwCore {
         cpu9.reset(loader.entrypoint9());
         
         // TODO: put this boot9strap compatibility code behind some configuration
-        cpu9.regs[0] = 0x01FF8000;
+        cpu9.regs[0] = 1;
+        cpu9.regs[1] = 0x01FF8000;
         cpu9.regs[2] = 0x3BEEF;
-        let arg0 = b"sdmc:/boot.firm\0";
-        cpu9.mpu.memory.write_buf(0x01FF8000, arg0);
+        cpu9.mpu.memory.write(0x01FF8000, 0x01FF8008u32);
+        cpu9.mpu.memory.write(0x01FF8004, 0u32);
+        cpu9.mpu.memory.write_buf(0x01FF8008, b"sdmc:/boot.firm\0");
         //write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {

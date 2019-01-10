@@ -88,6 +88,63 @@ fn cmd_brk<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
     }
 }
 
+/// Toggles or displays button state
+/// Command format: "btn [button name] [up/down]"
+///
+/// `args`: Iterator over &str items
+fn cmd_btn<'a, It>(_active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
+    where It: Iterator<Item=&'a str> {
+    use libllama::io::hid;
+
+    let mut ctx = debugger.ctx(ActiveCpu::Arm11);
+    let hw = ctx.hw11();
+    let io_shared = &hw.io_shared_devices().hid;
+
+    let btn_map = [
+        ("a", hid::Button::A),
+        ("b", hid::Button::B),
+        ("x", hid::Button::X),
+        ("y", hid::Button::Y),
+        ("l", hid::Button::L),
+        ("r", hid::Button::R),
+        ("up", hid::Button::Up),
+        ("down", hid::Button::Down),
+        ("left", hid::Button::Left),
+        ("right", hid::Button::Right),
+        ("start", hid::Button::Start),
+        ("select", hid::Button::Select)
+    ];
+    let mut btn_map = btn_map.iter();
+
+    if let Some(button) = args.next() {
+        let press = match args.next() {
+            Some("up") => hid::ButtonState::Released,
+            Some("down") => hid::ButtonState::Pressed,
+            _ => {
+                error!("Specify whether button `{}` should be `up`/`down`", button);
+                return
+            }
+        };
+
+        if let Some((_, btn)) = btn_map.find(|tup| button.eq_ignore_ascii_case(tup.0)) {
+            hid::update_pad(&mut io_shared.lock(), press(*btn));
+        } else {
+            error!("Button `{}` does not exist!", button);
+        }
+    } else {
+        let pad = hid::pad(&mut io_shared.lock());
+        let mut pressed = Vec::new();
+
+        for (label, btn) in btn_map {
+            if pad & (1 << (*btn as usize)) != 0 {
+                pressed.push(label);
+            }
+        }
+
+        info!("Pressed buttons: {:?}", pressed);
+    }
+}
+
 /// Sets AES key-dumping state
 /// Command format: "keydmp"
 ///
@@ -211,6 +268,7 @@ fn cmd_reg<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
     let hw = ctx.hw();
 
     let print_reg = |reg_num| info!("R{} = 0x{:08X}", reg_num, hw.read_reg(reg_num));
+    let print_cpsr = || info!("CPSR = 0x{:08X}", hw.read_cpsr());
 
     let reg_str = match args.next() {
         Some(arg) => arg.to_owned().to_lowercase(),
@@ -218,6 +276,7 @@ fn cmd_reg<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
             for i in 0..16 {
                 print_reg(i);
             }
+            print_cpsr();
             return;
         }
     };
@@ -239,6 +298,7 @@ fn cmd_reg<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
         "sp" | "r13" => print_reg(13),
         "lr" | "r14" => print_reg(14),
         "pc" | "r15" => print_reg(15),
+        "cpsr" => print_cpsr(),
         _ => error!("Unrecognized register!"),
     }
 }
@@ -263,14 +323,16 @@ pub fn handle<'a, It>(active_cpu: &mut ActiveCpu, debugger: &mut dbgcore::DbgCor
     where It: Iterator<Item=&'a str> {
 
     match command.next() {
-        Some("run") => { debugger.ctx(*active_cpu).resume() },
-        Some("brk") => cmd_brk(*active_cpu, debugger, command),
-        Some("keydmp") => cmd_keydmp(*active_cpu, debugger, command),
-        Some("irq") => cmd_irq(*active_cpu, debugger, command),
         Some("asm") => cmd_asm(*active_cpu, debugger, command),
+        Some("brk") => cmd_brk(*active_cpu, debugger, command),
+        Some("btn") => cmd_btn(*active_cpu, debugger, command),
+        Some("irq") => cmd_irq(*active_cpu, debugger, command),
+        Some("keydmp") => cmd_keydmp(*active_cpu, debugger, command),
         Some("mem") => cmd_mem(*active_cpu, debugger, command),
         Some("reg") => cmd_reg(*active_cpu, debugger, command),
+        Some("run") => { debugger.ctx(*active_cpu).resume() },
         Some("step") => cmd_step(*active_cpu, debugger, command),
+
         Some("cpu") => {
             match command.next() {
                 Some("arm9") => *active_cpu = ActiveCpu::Arm9,

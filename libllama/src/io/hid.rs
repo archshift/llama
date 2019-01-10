@@ -29,6 +29,10 @@ pub fn update_pad(dev: &mut HidDevice, change: ButtonState) {
     dev.pad.set_unchecked(current_pad);
 }
 
+pub fn pad(dev: &mut HidDevice) -> u16 {
+    !dev.pad.get()
+}
+
 iodevice!(HidDevice, {
     regs: {
         0x000 => pad: u16 {

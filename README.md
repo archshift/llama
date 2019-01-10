@@ -66,6 +66,7 @@ Llama has a semi-useful built-in debugger controlled with textual commands.
 - `cpu <arm9|arm11>`: Switches between actively debugged CPUs
 - `asm [address hex]`: Prints disassembly for the current instruction.
 - `brk <address hex>`: Adds a CPU breakpoint at the specified address.
+- `btn [button] [up/down]`: Toggles a button or prints full button state.
 - `irq <type>`: Triggers an interrupt request of the specified type.
 - `keydmp`: Dump AES keys.
 - `mem <start address hex> [# bytes hex] [dumpfile.bin]`: Prints n bytes of memory from the specified address, optionally dumping to file.
