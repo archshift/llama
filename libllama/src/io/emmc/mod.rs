@@ -50,7 +50,7 @@ enum Status0 {
     _CardRemove  = (1 << 3),
     _CardInsert  = (1 << 4),
     SigState    = (1 << 5),
-    _WRProtect   = (1 << 7),
+    WRProtect   = (1 << 7),
     _CardRemoveA = (1 << 8),
     _CardInsertA = (1 << 9),
     _SigStateA   = (1 << 10),
@@ -115,7 +115,11 @@ impl EmmcDeviceState {
 
         EmmcDeviceState {
             irq_reqs: irq_reqs,
-            irq_statuses: [0 | (Status0::SigState as u16), 0],
+            irq_statuses: [
+                // These bits should always be 1
+                (Status0::WRProtect as u16) | (Status0::SigState as u16),
+                0
+            ],
             cards: [
                 Card::new(card::CardType::Sd, sd_storage, card::sd_cid()),
                 Card::new(card::CardType::Mmc, nand_storage, card::nand_cid())
