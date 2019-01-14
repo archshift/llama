@@ -132,8 +132,7 @@ extern "C" int llama_open_gui(int argc, char **argv, Backend *backend, const Fro
     QObject::connect(scrn_view, SIGNAL(reloaded()), &scrnmgr, SLOT(reloadGame()));
     scrn_view->installEventFilter(&scrnmgr);
 
-    QTimer *scrn_update_timer = createScreenRepainter(scrn_view, backend, callbacks);
-    scrn_update_timer->start(16); // TODO: not ideal
+    initScreenRepainter(scrn_view, backend, callbacks);
 
     ConsoleManager consmgr(dbg_console, backend, callbacks);
     QObject::connect(dbg_console, SIGNAL(commandRun(QString)),
