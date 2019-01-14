@@ -72,6 +72,8 @@ public slots:
 
 protected:
     bool handleKey(QKeyEvent* event, bool pressed) {
+        if (event->isAutoRepeat()) return false;
+
         Button button;
         switch(event->key()) {
             case Qt::Key::Key_A: button = BUTTON_A; break;
