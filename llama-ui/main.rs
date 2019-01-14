@@ -133,7 +133,7 @@ mod cbs {
         };
         let state = if pressed { hid::ButtonState::Pressed(button) }
                     else { hid::ButtonState::Released(button) };
-        backend.msg_client.send(Message::HidUpdate(state)).unwrap();
+        backend.msg_client.send(Message::HidUpdate(state));
     }
 
     pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const i8, str_len: usize) {
@@ -158,7 +158,7 @@ mod cbs {
 
     pub unsafe extern fn reload_game(backend: *mut c::Backend) {
         let backend = Backend::from_c(backend);
-        backend.msg_client.send(Message::Quit).unwrap();
+        backend.msg_client.send(Message::Quit);
         backend.gdb.wait(); // Need to wait because the GDB thread owns the port
         *backend = super::load_game(backend.loader);
     }
@@ -187,11 +187,10 @@ fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
         top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
     };
 
-    let mut pump = msgs::Pump::new();
-    let client_gdb = pump.add_client(&["quit", "arm9halted"]);
-    let client_user = pump.add_client(&["framebufstate"]);
+    let mut hwcore = hwcore::HwCore::new(loader);
+    let client_gdb = hwcore.take_client_gdb().unwrap();
+    let client_user = hwcore.take_client_user().unwrap();
 
-    let hwcore = hwcore::HwCore::new(pump, loader);
     let debugger = dbgcore::DbgCore::bind(hwcore);
 
     info!("Using ARM9 as active debug CPU");

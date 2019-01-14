@@ -3,8 +3,8 @@ use std::hash::Hash;
 use std::thread;
 use std::sync::mpsc;
 
-pub fn make_idle_task<S, M, FA, FI>(client: Client<M>, state: S, idle_handler: FI) -> thread::JoinHandle<()>
-        where M: Send + 'static, S: Send + 'static, FI: Fn(M, &mut S) -> bool + Send + 'static {
+pub fn make_idle_task<S, M, FI>(client: Client<M>, state: S, idle_handler: FI) -> thread::JoinHandle<()>
+        where M: Ident + Send + Clone + 'static, S: Send + 'static, FI: Fn(M, &mut S) -> bool + Send + 'static {
     thread::spawn(move || {
         let mut state = state;
         for msg in client.iter() {
@@ -21,67 +21,94 @@ pub trait Ident {
     fn ident(&self) -> Self::Identifier;
 }
 
-pub struct PumpThread {
-    thread: thread::JoinHandle<()>,
+type ClientId = &'static str;
+type TxMsgs<M> = &'static [<M as Ident>::Identifier];
+type RxMsgs<M> = &'static [<M as Ident>::Identifier];
+
+type Route<X> = mpsc::Sender<X>;
+type RouteSink<X> = mpsc::Receiver<X>;
+
+type GraphSpec<M> = &'static [(
+    ClientId,
+    TxMsgs<M>,
+    RxMsgs<M>
+)];
+
+
+type ClientRoutes<M> = HashMap<ClientId, HashMap<<M as Ident>::Identifier, Vec<Route<M>>>>;
+type ClientMap<M> = HashMap<ClientId, (Route<M>, RouteSink<M>)>;
+type MsgDests<M> = HashMap<<M as Ident>::Identifier, Vec<ClientId>>;
+
+pub struct MsgGraph<M: Ident + Clone + Send + 'static> {
+    client_routes: ClientRoutes<M>,
+    clients: ClientMap<M>
 }
 
-impl PumpThread {
-    pub fn join(self) {
-        self.thread.join().unwrap()
-    }
-}
-
-pub struct Pump<M: Ident + Clone + Send + 'static> {
-    incoming_txside: mpsc::Sender<M>,
-    incoming: mpsc::Receiver<M>,
-    outgoing: HashMap<<M as Ident>::Identifier, Vec<mpsc::Sender<M>>>
-}
-
-impl<M: Ident + Clone + Send> Pump<M> {
-    pub fn new() -> Pump<M> {
-        let (mpsc_tx, mpsc_rx) = mpsc::channel();
-        Pump {
-            incoming_txside: mpsc_tx,
-            incoming: mpsc_rx,
-            outgoing: HashMap::new(),
+impl<M: Ident + Clone + Send> MsgGraph<M> {
+    pub fn new(graph_spec: GraphSpec<M>) -> MsgGraph<M> {
+        let mut client_routes: ClientRoutes<M> = HashMap::new();
+        let mut clients: ClientMap<M> = HashMap::new();
+        let mut msg_dests: MsgDests<M> = HashMap::new();
+        
+        for (client, _, rx_msgs) in graph_spec {
+            clients.insert(*client, mpsc::channel());
+            for rx_msg in rx_msgs.iter() {
+                msg_dests.entry(rx_msg.clone()).or_insert(Vec::new())
+                    .push(*client);
+            }
         }
-    }
+        
+        for (client, tx_msgs, _) in graph_spec {
+            let msg_routes = client_routes.entry(client).or_insert(HashMap::new());
 
-    pub fn start(self) -> PumpThread {
-        PumpThread {
-            thread: thread::Builder::new().name("MessagePump".to_owned())
-                                          .stack_size(1<<16).spawn(move || {
-                drop(self.incoming_txside);
-                let incoming = self.incoming;
-                let mut outgoing = self.outgoing;
-                for msg in incoming.iter() {
-                    outgoing.entry(msg.ident()).or_insert(Vec::new())
-                            .retain(|client| client.send(msg.clone()).is_ok())
+            for tx_msg in tx_msgs.iter() {
+                let routes = msg_routes.entry(tx_msg.clone()).or_insert(Vec::new());
+
+                if let Some(dst_clients) = msg_dests.get(tx_msg) {
+                    for dst_client in dst_clients {
+                        let route = clients[dst_client].0.clone();
+                        routes.push(route);
+                    }
                 }
-            }).unwrap()
+            }
+        }
+        
+        MsgGraph {
+            client_routes,
+            clients
         }
     }
-
-    pub fn add_client(&mut self, subscriptions: &[<M as Ident>::Identifier]) -> Client<M> {
-        let (mpsc_tx, mpsc_rx) = mpsc::channel();
-        for subscription in subscriptions {
-            self.outgoing.entry(subscription.clone()).or_insert(Vec::new()).push(mpsc_tx.clone());
+    
+    pub fn client(&mut self, client: ClientId) -> Option<Client<M>> {
+        let mut tx_map = HashMap::new();
+        
+        for (msg, tx_routes) in self.client_routes.remove(client)? {
+            let routes = tx_map.entry(msg.clone()).or_insert(Vec::new());
+            for tx in tx_routes {
+                routes.push(tx);
+            }
         }
-        Client {
-            tx: self.incoming_txside.clone(),
-            rx: mpsc_rx,
-        }
+        
+        Some(Client {
+            tx: tx_map,
+            rx: self.clients.remove(client)?.1
+        })
     }
 }
 
-pub struct Client<M> {
-    tx: mpsc::Sender<M>,
-    rx: mpsc::Receiver<M>
+pub struct Client<M: Ident + Clone> {
+    tx: HashMap<<M as Ident>::Identifier, Vec<Route<M>>>,
+    rx: RouteSink<M>
 }
 
-impl<M> Client<M> {
-    pub fn send(&self, msg: M) -> Result<(), mpsc::SendError<M>> {
-        self.tx.send(msg)
+impl<M: Ident + Clone> Client<M> {
+    pub fn send(&self, msg: M) {
+        let vec = self.tx.get(&msg.ident())
+            .expect("Attempted to send unauthorized message!");
+        
+        for dst in vec {
+            let _ = dst.send(msg.clone());
+        }
     }
     pub fn recv(&self) -> Result<M, mpsc::RecvError> {
         self.rx.recv()

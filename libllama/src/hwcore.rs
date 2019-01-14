@@ -217,8 +217,9 @@ pub struct HwCore {
     pub hardware9: Arc<Mutex<Hardware9>>,
     pub hardware11: Arc<Mutex<Hardware11>>,
 
-    _pump_thread: msgs::PumpThread,
     client_this: msgs::Client<Message>,
+    client_user: Option<msgs::Client<Message>>,
+    client_gdb: Option<msgs::Client<Message>>,
     _arm9_thread: thread::JoinHandle<()>,
     _arm11_thread: thread::JoinHandle<()>,
 
@@ -237,7 +238,24 @@ pub enum Arm11State {
 }
 
 impl HwCore {
-    pub fn new(mut msg_pump: msgs::Pump<Message>, loader: &ldr::Loader) -> HwCore {
+    pub fn new(loader: &ldr::Loader) -> HwCore {
+        let mut msg_spec = msgs::MsgGraph::new(&[
+            ("gdb", &[], &["quit", "arm9halted"]),
+            ("user", &["quit", "hidupdate"], &["framebufstate"]),
+            ("arm9", &["arm9halted"], &["quit", "startemu", "suspendemu"]),
+            ("arm11", &["arm11halted"], &["quit", "startemu", "suspendemu", "hidupdate"]),
+            ("pica", &["framebufstate"], &[]),
+            ("hwcore", &["startemu", "suspendemu"], &[]),
+        ]);
+
+        let client_gdb = msg_spec.client("gdb");
+        let client_user = msg_spec.client("user");
+
+        let client_arm9 = msg_spec.client("arm9").unwrap();
+        let client_arm11 = msg_spec.client("arm11").unwrap();
+        let client_pica = msg_spec.client("pica").unwrap();
+        let client_this = msg_spec.client("hwcore").unwrap();
+
         let irq_subsys = cpu::irq::IrqSubsys::create();
         let irq_line = irq_subsys.line.clone();
         let irq11_subsys = cpu::irq::IrqSubsys::create();
@@ -249,8 +267,6 @@ impl HwCore {
         let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
         // let clk11_rx = clk11_tx.clone();
         
-        let client_pica = msg_pump.add_client(&[]);
-
         let mut mem_regions = MemoryRegions::map(|pica_controller| {
             let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
             io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw)
@@ -293,11 +309,6 @@ impl HwCore {
         let hardware9 = Arc::new(Mutex::new(hardware9));
         let hardware11 = Arc::new(Mutex::new(hardware11));
 
-        let client_arm9 = msg_pump.add_client(&["quit", "startemu", "suspendemu"]);
-        let client_arm11 = msg_pump.add_client(&["quit", "startemu", "suspendemu", "hidupdate"]);
-        let client_this = msg_pump.add_client(&[]);
-        let pump_thread = msg_pump.start();
-
         let hardware = hardware9.clone();
         let arm9_thread = thread::Builder::new().name("ARM9".to_owned()).spawn(move || {
             let client = client_arm9;
@@ -325,8 +336,9 @@ impl HwCore {
         HwCore {
             hardware9: hardware9,
             hardware11: hardware11,
-            _pump_thread: pump_thread,
             client_this: client_this,
+            client_user: client_user,
+            client_gdb: client_gdb,
             _arm9_thread: arm9_thread,
             _arm11_thread: arm11_thread,
 
@@ -336,7 +348,7 @@ impl HwCore {
     }
 
     pub fn start(&mut self) {
-        self.client_this.send(Message::StartEmulation).unwrap();
+        self.client_this.send(Message::StartEmulation);
     }
 
     pub fn running(&mut self) -> bool {
@@ -350,7 +362,7 @@ impl HwCore {
     }
 
     pub fn stop(&mut self) {
-        self.client_this.send(Message::SuspendEmulation).unwrap();
+        self.client_this.send(Message::SuspendEmulation);
         { let _ = self.hardware9.lock().unwrap(); }
         { let _ = self.hardware11.lock().unwrap(); }
     }
@@ -361,6 +373,14 @@ impl HwCore {
 
         let _ = self.mem_framebuf.debug_read_buf(fb_state.addr_top_left[0], fbs.top_screen.as_mut_slice());
         let _ = self.mem_framebuf.debug_read_buf(fb_state.addr_bot[0], fbs.bot_screen.as_mut_slice());
+    }
+
+    pub fn take_client_user(&mut self) -> Option<msgs::Client<Message>> {
+        self.client_user.take()
+    }
+
+    pub fn take_client_gdb(&mut self) -> Option<msgs::Client<Message>> {
+        self.client_gdb.take()
     }
 }
 
@@ -382,7 +402,7 @@ fn arm9_run(client: &msgs::Client<Message>, hardware: &mut Hardware9) -> bool {
         }
     };
 
-    client.send(Message::Arm9Halted(reason)).unwrap();
+    client.send(Message::Arm9Halted(reason));
     true
 }
 
@@ -408,7 +428,7 @@ fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool 
         }
     };
 
-    client.send(Message::Arm11Halted(reason)).unwrap();
+    client.send(Message::Arm11Halted(reason));
     true
 }
 

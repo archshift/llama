@@ -43,7 +43,7 @@ impl FramebufState {
     fn publish(dev: &GpuDevice) {
         let state = Self::from_device(dev);
         let msg = Message::FramebufState(state);
-        dev._internal_state.event_tx.send(msg).unwrap()
+        dev._internal_state.event_tx.send(msg)
     }
 }
 
