@@ -217,7 +217,7 @@ mod test {
         regs: {
             0x000 => reg0: u16 { }
             0x002 => reg2: u16 {
-                write_effect = |dev| { panic!("while writing") };
+                write_effect = |_dev| { panic!("while writing") };
             }
             0x004 => reg4: u16 { write_bits = 0; }
         }
@@ -236,7 +236,7 @@ mod test {
         let mut mmc_regs = MMCRegs::new();
         assert_eq!(mmc_regs.reg0.get(), 0x0000);
 
-        let mut buf = vec![0xFFu8; 2];
+        let buf = vec![0xFFu8; 2];
         unsafe { mmc_regs.write_reg(0x000, buf.as_ptr(), buf.len()); }
         assert_eq!(mmc_regs.reg0.get(), 0xFFFF);
     }
@@ -245,7 +245,7 @@ mod test {
     #[should_panic]
     fn write_effect() {
         let mut mmc_regs = MMCRegs::new();
-        let mut buf = vec![0xFFu8; 2];
+        let buf = vec![0xFFu8; 2];
         unsafe { mmc_regs.write_reg(0x002, buf.as_ptr(), buf.len()); }
     }
 }

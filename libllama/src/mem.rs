@@ -1,21 +1,20 @@
 use std;
 use std::cmp;
-use std::ptr;
-use std::sync::Arc;
-
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use parking_lot::RwLock;
 
 use io;
+use utils::bytes;
 
 const KB_SIZE: usize = 1024;
 pub type SharedMemoryNode = RwLock<[u8; KB_SIZE]>;
 
 pub(crate) trait MemoryBlock {
     fn get_bytes(&self) -> u32;
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize);
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize);
+    fn read_buf(&self, offset: usize, buf: &mut [u8]);
+    fn write_buf(&mut self, offset: usize, buf: &[u8]);
 }
 
 pub struct UniqueMemoryBlock(Vec<u8>);
@@ -29,16 +28,18 @@ impl MemoryBlock for UniqueMemoryBlock {
         self.0.len() as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
         let vec = &self.0;
-        assert!(offset + buf_size <= vec.len());
-        ptr::copy_nonoverlapping(vec.as_ptr().offset(offset as isize), buf, buf_size);
+        assert!(offset + buf.len() <= vec.len());
+        let src = &vec[offset..offset + buf.len()];
+        buf.copy_from_slice(src);
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
         let vec = &mut self.0;
-        assert!(offset + buf_size <= vec.len());
-        ptr::copy_nonoverlapping(buf, vec.as_mut_ptr().offset(offset as isize), buf_size);
+        assert!(offset + buf.len() <= vec.len());
+        let dst = &mut vec[offset..offset + buf.len()];
+        dst.copy_from_slice(buf);
     }
 }
 
@@ -60,41 +61,47 @@ impl MemoryBlock for SharedMemoryBlock {
         (nodes.len() * KB_SIZE) as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+    fn read_buf(&self, offset: usize, mut buf: &mut [u8]) {
         let nodes = &self.0;
-        let mut buf_remaining = buf_size;
+
         let mut node_index = offset / KB_SIZE;
         let mut node_pos = offset % KB_SIZE;
 
-        while buf_remaining > 0 {
+        while buf.len() > 0 {
             assert!(node_index < nodes.len());
-            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-            {
-                let node_ptr = nodes[node_index].read().as_ptr();
-                let buf_pos = buf_size - buf_remaining;
-                ptr::copy_nonoverlapping(node_ptr.offset(node_pos as isize), buf.offset(buf_pos as isize), copy_amount);
-            }
-            buf_remaining -= copy_amount;
+            let copy_amount = cmp::min(KB_SIZE - node_pos, buf.len());
+        
+            buf = {
+                let (buf, buf_rest) = {buf}.split_at_mut(copy_amount);
+                let node = nodes[node_index].read();
+                let src = &node[node_pos .. node_pos + copy_amount];
+                buf.copy_from_slice(src);
+                buf_rest
+            };
+
             node_index += 1;
             node_pos = 0;
         }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+    fn write_buf(&mut self, offset: usize, mut buf: &[u8]) {
         let nodes = &self.0;
-        let mut buf_remaining = buf_size;
+
         let mut node_index = offset / KB_SIZE;
         let mut node_pos = offset % KB_SIZE;
 
-        while buf_remaining > 0 {
+        while buf.len() > 0 {
             assert!(node_index < nodes.len());
-            let copy_amount = cmp::min(KB_SIZE - node_pos, buf_remaining);
-            {
-                let node_ptr = nodes[node_index].write().as_mut_ptr();
-                let buf_pos = buf_size - buf_remaining;
-                ptr::copy_nonoverlapping(buf.offset(buf_pos as isize), node_ptr.offset(node_pos as isize), copy_amount);
-            }
-            buf_remaining -= copy_amount;
+            let copy_amount = cmp::min(KB_SIZE - node_pos, buf.len());
+            
+            buf = {
+                let (buf, buf_rest) = buf.split_at(copy_amount);
+                let mut node = nodes[node_index].write();
+                let dst = &mut node[node_pos .. node_pos + copy_amount];
+                dst.copy_from_slice(buf);
+                buf_rest
+            };
+
             node_index += 1;
             node_pos = 0;
         }
@@ -121,25 +128,25 @@ impl MemoryBlock for AddressBlock {
         }
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
         match *self {
-            AddressBlock::UniqueRam(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
-            AddressBlock::SharedRam(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
-            AddressBlock::Io9(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
-            AddressBlock::Io11(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
-            AddressBlock::IoPriv11(ref inner) => inner.read_to_ptr(offset, buf, buf_size),
-            AddressBlock::IoShared(ref inner) => inner.read_to_ptr(offset, buf, buf_size)
+            AddressBlock::UniqueRam(ref inner) => inner.read_buf(offset, buf),
+            AddressBlock::SharedRam(ref inner) => inner.read_buf(offset, buf),
+            AddressBlock::Io9(ref inner) => inner.read_buf(offset, buf),
+            AddressBlock::Io11(ref inner) => inner.read_buf(offset, buf),
+            AddressBlock::IoPriv11(ref inner) => inner.read_buf(offset, buf),
+            AddressBlock::IoShared(ref inner) => inner.read_buf(offset, buf)
         }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
         match *self {
-            AddressBlock::UniqueRam(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
-            AddressBlock::SharedRam(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
-            AddressBlock::Io9(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
-            AddressBlock::Io11(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
-            AddressBlock::IoPriv11(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size),
-            AddressBlock::IoShared(ref mut inner) => inner.write_from_ptr(offset, buf, buf_size)
+            AddressBlock::UniqueRam(ref mut inner) => inner.write_buf(offset, buf),
+            AddressBlock::SharedRam(ref mut inner) => inner.write_buf(offset, buf),
+            AddressBlock::Io9(ref mut inner) => inner.write_buf(offset, buf),
+            AddressBlock::Io11(ref mut inner) => inner.write_buf(offset, buf),
+            AddressBlock::IoPriv11(ref mut inner) => inner.write_buf(offset, buf),
+            AddressBlock::IoShared(ref mut inner) => inner.write_buf(offset, buf)
         }
     }
 }
@@ -195,8 +202,8 @@ impl MemController {
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
 
         unsafe {
-            let mut t: T = std::mem::uninitialized();
-            block.read_to_ptr((addr - block_addr) as usize, std::mem::transmute(&mut t), std::mem::size_of::<T>());
+            let mut t: T = std::mem::zeroed();
+            block.read_buf((addr - block_addr) as usize, bytes::from_mut_val(&mut t));
             t
         }
     }
@@ -209,9 +216,7 @@ impl MemController {
         match (debug, block) {
             | (true, AddressBlock::Io9(_))
             | (true, AddressBlock::IoShared(_)) => return Err(format!("Cannot issue debug read for IO address 0x{:X}", addr)),
-            (_, block) => unsafe {
-                block.read_to_ptr((addr - block_addr) as usize, buf.as_mut_ptr(), buf.len());
-            }
+            (_, block) => block.read_buf((addr - block_addr) as usize, buf),
         }
         Ok(())
     }
@@ -228,38 +233,31 @@ impl MemController {
         let (block_addr, ref mut block) = self.match_address_mut(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
 
-        unsafe {
-            block.write_from_ptr((addr - block_addr) as usize, std::mem::transmute(&data), std::mem::size_of::<T>());
-        }
+        block.write_buf((addr - block_addr) as usize, unsafe { bytes::from_val(&data) });
     }
 
     pub fn write_buf(&mut self, addr: u32, buf: &[u8]) {
         let (block_addr, ref mut block) = self.match_address_mut(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
 
-        unsafe {
-            block.write_from_ptr((addr - block_addr) as usize, buf.as_ptr(), buf.len());
-        }
+        block.write_buf((addr - block_addr) as usize, buf);
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::io::Write;
 
     #[test]
     fn write_intra_block() {
-        let block = SharedMemoryBlock::new(1);
+        let mut block = SharedMemoryBlock::new(1);
         assert_eq!(block.get_bytes(), 0x400);
-        let nodes = &block.0;
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
-        unsafe {
-            block.write_from_ptr(0x2C8, bytes.as_ptr(), bytes.len());
-        }
+        block.write_buf(0x2C8, &bytes);
 
+        let nodes = &block.0;
         // Compare memory with data
         let block_mem = nodes[0].read();
         assert_eq!(block_mem[0x2C8..0x2CC], bytes[..]);
@@ -274,14 +272,12 @@ mod test {
         // Write data directly to memory
         {
             let mut block_mem = nodes[0].write();
-            (&mut block_mem[0x2C8..0x2CC]).write_all(&[0xFFu8, 0x53u8, 0x28u8, 0xC6u8]);
+            block_mem[0x2C8..0x2CC].copy_from_slice(&[0xFFu8, 0x53u8, 0x28u8, 0xC6u8]);
         }
 
         // Read memory to buffer
         let mut buf = [0u8; 4];
-        unsafe {
-            block.read_to_ptr(0x2C8, buf.as_mut_ptr(), buf.len());
-        }
+        block.read_buf(0x2C8, &mut buf);
 
         // Compare memory and buffer
         let block_mem = nodes[0].read();
@@ -290,16 +286,14 @@ mod test {
 
     #[test]
     fn write_inter_block() {
-        let block = SharedMemoryBlock::new(2);
+        let mut block = SharedMemoryBlock::new(2);
         assert_eq!(block.get_bytes(), 0x800);
-        let nodes = &block.0;
 
         // Write data
         let bytes = [0xFFu8, 0x53u8, 0x28u8, 0xC6u8];
-        unsafe {
-            block.write_from_ptr(0x3FE, bytes.as_ptr(), bytes.len());
-        }
+        block.write_buf(0x3FE, &bytes);
 
+        let nodes = &block.0;
         // Compare memory with data
         let block_mem0 = nodes[0].read();
         let block_mem1 = nodes[1].read();
@@ -317,15 +311,13 @@ mod test {
         {
             let mut block_mem0 = nodes[0].write();
             let mut block_mem1 = nodes[1].write();
-            (&mut block_mem0[0x3FE..0x400]).write_all(&[0xFFu8, 0x53u8]);
-            (&mut block_mem1[0x0..0x2]).write_all(&[0x28u8, 0xC6u8]);
+            block_mem0[0x3FE..0x400].copy_from_slice(&[0xFFu8, 0x53u8]);
+            block_mem1[0x0..0x2].copy_from_slice(&[0x28u8, 0xC6u8]);
         }
 
         // Read memory to buffer
         let mut buf = [0u8; 4];
-        unsafe {
-            block.read_to_ptr(0x3FE, buf.as_mut_ptr(), buf.len());
-        }
+        block.read_buf(0x3FE, &mut buf);
 
         // Compare memory and buffer
         let block_mem0 = nodes[0].read();

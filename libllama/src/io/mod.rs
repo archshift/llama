@@ -184,12 +184,12 @@ impl MemoryBlock for IoRegsArm9 {
         (0x400 * 0x400) as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        self.read_reg(offset, buf, buf_size)
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
+        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
-        self.write_reg(offset, buf, buf_size)
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
+        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
     }
 }
 
@@ -230,12 +230,12 @@ impl MemoryBlock for IoRegsShared {
         (0x400 * 0x400) as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        self.read_reg(offset, buf, buf_size)
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
+        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
-        self.write_reg(offset, buf, buf_size)
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
+        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
     }
 }
 
@@ -257,12 +257,12 @@ impl MemoryBlock for IoRegsArm11 {
         (0xC00 * 0x400) as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        self.read_reg(offset, buf, buf_size)
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
+        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
-        self.write_reg(offset, buf, buf_size)
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
+        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
     }
 }
 
@@ -284,11 +284,11 @@ impl MemoryBlock for IoRegsArm11Priv {
         (8 * 0x400) as u32
     }
 
-    unsafe fn read_to_ptr(&self, offset: usize, buf: *mut u8, buf_size: usize) {
-        self.read_reg(offset, buf, buf_size)
+    fn read_buf(&self, offset: usize, buf: &mut [u8]) {
+        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
     }
 
-    unsafe fn write_from_ptr(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
-        self.write_reg(offset, buf, buf_size)
+    fn write_buf(&mut self, offset: usize, buf: &[u8]) {
+        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
     }
 }
