@@ -1,8 +1,9 @@
 use std;
-// use std::cell;
 use std::cmp;
 use std::ptr;
 use std::sync::Arc;
+
+use std::collections::BTreeMap;
 
 use parking_lot::RwLock;
 
@@ -146,58 +147,52 @@ impl MemoryBlock for AddressBlock {
 pub struct AddressBlockHandle(u32);
 
 pub struct MemController {
-    regions: Vec<(u32, AddressBlock)>,
+    regions: BTreeMap<u32, AddressBlock>,
 }
 
 impl MemController {
     pub fn new() -> MemController {
         MemController {
-            regions: Vec::new(),
+            regions: BTreeMap::new(),
         }
     }
 
-    fn search_region(&self, address: u32) -> Result<usize, usize> {
-        self.regions.binary_search_by(|&(addr, _)| addr.cmp(&address))
-    }
-
-    fn match_address<'a>(&'a self, address: u32) -> Option<usize> {
-        let index = match self.search_region(address) {
-            Ok(a) => a,
-            Err(a) => a - 1,
-        };
-        if index > self.regions.len() {
-            return None;
-        }
-
-        let (block_addr, ref block) = self.regions[index];
+    fn match_address(&self, address: u32) -> Option<(u32, &AddressBlock)> {
+        let matched = self.regions.range(..=address).next_back()?;
+        let (block_addr, block) = matched;
         if address - block_addr < block.get_bytes() {
-            return Some(index);
+            return Some((*block_addr, block));
+        }
+        None
+    }
+
+    fn match_address_mut(&mut self, address: u32) -> Option<(u32, &mut AddressBlock)> {
+        let matched = self.regions.range_mut(..=address).next_back()?;
+        let (block_addr, block) = matched;
+        if address - block_addr < block.get_bytes() {
+            return Some((*block_addr, block));
         }
         None
     }
 
     pub fn map_region(&mut self, address: u32, region: AddressBlock) -> AddressBlockHandle {
-        let insert_index = self.search_region(address).unwrap_err();
-        self.regions.insert(insert_index, (address, region));
+        self.regions.insert(address, region);
         AddressBlockHandle(address)
     }
 
     pub(crate) fn region(&self, handle: &AddressBlockHandle) -> &AddressBlock {
-        let index = self.search_region(handle.0)
-            .expect("Attempted to find region from non-existant handle!");
-        &self.regions[index].1
+        self.regions.get(&handle.0)
+            .expect("Attempted to find region from non-existant handle!")
     }
 
     pub(crate) fn _region_mut(&mut self, handle: &AddressBlockHandle) -> &mut AddressBlock {
-        let index = self.search_region(handle.0)
-            .expect("Attempted to find region from non-existant handle!");
-        &mut self.regions[index].1
+        self.regions.get_mut(&handle.0)
+            .expect("Attempted to find region from non-existant handle!")
     }
 
     pub fn read<T: Copy>(&self, addr: u32) -> T {
-        let block_index = self.match_address(addr)
+        let (block_addr, ref block) = self.match_address(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
-        let (block_addr, ref block) = self.regions[block_index];
 
         unsafe {
             let mut t: T = std::mem::uninitialized();
@@ -208,9 +203,8 @@ impl MemController {
 
     #[inline]
     fn try_read_buf(&self, addr: u32, buf: &mut [u8], debug: bool) -> Result<(), String> {
-        let block_index = self.match_address(addr)
+        let (block_addr, ref block) = self.match_address(addr)
             .ok_or(format!("Could not match address 0x{:X}", addr))?;
-        let (block_addr, ref block) = self.regions[block_index];
     
         match (debug, block) {
             | (true, AddressBlock::Io9(_))
@@ -231,9 +225,8 @@ impl MemController {
     }
 
     pub fn write<T: Copy>(&mut self, addr: u32, data: T) {
-        let block_index = self.match_address(addr)
+        let (block_addr, ref mut block) = self.match_address_mut(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
-        let (block_addr, ref mut block) = self.regions[block_index];
 
         unsafe {
             block.write_from_ptr((addr - block_addr) as usize, std::mem::transmute(&data), std::mem::size_of::<T>());
@@ -241,9 +234,8 @@ impl MemController {
     }
 
     pub fn write_buf(&mut self, addr: u32, buf: &[u8]) {
-        let block_index = self.match_address(addr)
+        let (block_addr, ref mut block) = self.match_address_mut(addr)
             .unwrap_or_else(|| panic!("Could not match address 0x{:X}", addr));
-        let (block_addr, ref mut block) = self.regions[block_index];
 
         unsafe {
             block.write_from_ptr((addr - block_addr) as usize, buf.as_ptr(), buf.len());
