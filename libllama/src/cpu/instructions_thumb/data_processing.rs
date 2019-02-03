@@ -1,5 +1,5 @@
 use cpu;
-use cpu::{Cpu, Version};
+use cpu::{Cpu, Version, v5};
 use cpu::interpreter_arm as arm;
 use cpu::interpreter_thumb as thumb;
 
@@ -266,9 +266,13 @@ pub fn mov_3<V: Version>(cpu: &mut Cpu<V>, data: thumb::Mov3::Bf) -> cpu::InstrS
     assert!(V::is::<cpu::v5>());
     let rd = data.rd.get() | (data.h1.get() << 3);
     let rm = data.rm.get() | (data.h2.get() << 3);
-    let base_val = cpu.regs[rm as usize];
+    let mut base_val = cpu.regs[rm as usize];
 
     if rd == 15 {
+        // Can't figure out why the CPU does this but it's tested :/
+        if V::is::<v5>() {
+            base_val &= 0xFFFFFFFE;
+        }
         cpu.branch(base_val);
         return cpu::InstrStatus::Branched
     }
