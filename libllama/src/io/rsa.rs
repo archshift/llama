@@ -78,6 +78,31 @@ fn reg_slot_cnt_update(dev: &mut RsaDevice, keyslot: usize) {
     }
 }
 
+fn word_swap(buf: &mut [u8;256]) -> &mut [u8;256] {
+    {
+        let mut chunks = buf.chunks_exact_mut(4);
+        loop {
+            match (chunks.next(), chunks.next_back()) {
+                (Some(front), Some(back)) => {
+                    let mut tmp = [0u8;4];
+                    tmp.copy_from_slice(back);
+                    back.copy_from_slice(front);
+                    front.copy_from_slice(&tmp);
+                }
+                _ => break
+            }
+        }
+    }
+    buf
+}
+
+fn byte_swap_inner(buf: &mut [u8;256]) -> &mut [u8;256] {
+    for chunk in buf.chunks_exact_mut(4) {
+        chunk.reverse();
+    }
+    buf
+}
+
 fn reg_cnt_update(dev: &mut RsaDevice) {
     let cnt = RegCnt::new(dev.cnt.get());
     trace!("Wrote 0x{:08X} to RSA CNT register!", cnt.val);
@@ -91,21 +116,29 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
 
         let mut base_buf = [0u8; 0x100];
         base_buf.copy_from_slice(&dev._internal_state.message[..]);
+        let mut exponent_buf = [0u8; 0x100];
+        exponent_buf.copy_from_slice(&dev._internal_state.slots[keyslot].buf[..]);
         let mut modulus_buf = [0u8; 0x100];
         modulus_buf.copy_from_slice(&dev._internal_state.modulus[..]);
 
-        match (cnt.little_endian.get(), cnt.normal_order.get()) {
-            (1, 1) => {},
-            (0, 0) => {
-                base_buf.reverse();
-                modulus_buf.reverse();
-            }
-            _ => unimplemented!()
+        if cnt.little_endian.get() == 0 {
+            byte_swap_inner(&mut modulus_buf);
+            byte_swap_inner(&mut base_buf);
+            byte_swap_inner(&mut exponent_buf);
+        }
+        if cnt.normal_order.get() == 0 {
+            word_swap(&mut modulus_buf);
+            word_swap(&mut base_buf);
         }
 
-        let base = bn::BigNum::from_slice(&base_buf[..]).unwrap();
-        let exponent = bn::BigNum::from_slice(&dev._internal_state.slots[keyslot].buf[..]).unwrap();
+        let mut base = bn::BigNum::from_slice(&base_buf[..]).unwrap();
+        let exponent = bn::BigNum::from_slice(&exponent_buf[..]).unwrap();
         let modulus = bn::BigNum::from_slice(&modulus_buf[..]).unwrap();
+
+        // The AES hardware doesn't like even moduli, and will output 0 when it finds them
+        if !modulus.is_bit_set(0) {
+            base.clear();
+        }
 
         let mut res = bn::BigNum::new().unwrap();
         res.mod_exp(&base, &exponent, &modulus, &mut bn::BigNumContext::new().unwrap()).unwrap();
@@ -114,8 +147,17 @@ fn reg_cnt_update(dev: &mut RsaDevice) {
             *b = 0;
         }
         let res_vec = res.to_vec();
+
         // Copy result to the back of the buffer
         dev._internal_state.message[0x100 - res_vec.len() .. 0x100].copy_from_slice(res_vec.as_slice());
+
+
+        if cnt.little_endian.get() == 0 {
+            byte_swap_inner(&mut dev._internal_state.message);
+        }
+        if cnt.normal_order.get() == 0 {
+            word_swap(&mut dev._internal_state.message);
+        }
 
         let cnt_ref = RegCnt::alias_mut(dev.cnt.ref_mut());
         cnt_ref.busy.set(0);
