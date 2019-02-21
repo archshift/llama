@@ -62,6 +62,7 @@ decoder u32 ArmInstruction {
     category [ _:4; 0b011:3; _:20; 0b1:1; _:4 ] // Media instructions
     {
         uxtb = [ cond:4; 0b011011101111:12; rd:4; rot:2; 0b000111:6; rm:4 ]
+        uxth = [ cond:4; 0b011011111111:12; rd:4; rot:2; 0b000111:6; rm:4 ]
     }
 
     category [ _:4; 0b010:3; _:25 ] // Load/store immediate offset

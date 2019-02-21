@@ -59,6 +59,14 @@ iodevice!(Priv11Device, {
                 warn!("STUBBED: Write {:08X} to ARM11 Timer load register!", dev.timer_load.get());
             };
         }
+        0x604 => timer_counter: u32 {
+            read_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Read {:08X} from ARM11 Timer counter register!", dev.timer_counter.get());
+            };
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Timer counter register!", dev.timer_counter.get());
+            };
+        }
         0x608 => timer_ctrl: u32 {
             write_effect = |dev: &mut Priv11Device| {
                 warn!("STUBBED: Write {:08X} to ARM11 Timer control register!", dev.timer_ctrl.get());
