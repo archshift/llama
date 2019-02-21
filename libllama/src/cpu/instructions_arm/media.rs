@@ -15,3 +15,4 @@ pub fn uxtb<V: Version>(cpu: &mut Cpu<V>, data: arm::Uxtb::Bf) -> cpu::InstrStat
 
     cpu::InstrStatus::InBlock
 }
+

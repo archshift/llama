@@ -63,5 +63,7 @@ decoder u16 ThumbInstruction {
         sub_4 = [ 0b101100001:9; immed_7:7 ]
         swi = [ 0b11011111:8; immed_8:8 ]
         tst = [ 0b0100001000:10; rm:3; rn:3 ]
+        uxtb = [ 0b1011001011:10; rm:3; rd:3 ]
+        uxth = [ 0b1011001010:10; rm:3; rd:3 ]
     }
 }

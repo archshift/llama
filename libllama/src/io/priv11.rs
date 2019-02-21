@@ -53,6 +53,42 @@ iodevice!(Priv11Device, {
                 warn!("STUBBED: Read {} from ARM11 Highest Pending Interrupt register!", next_interrupt)
             };
         }
+
+        0x600 => timer_load: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Timer load register!", dev.timer_load.get());
+            };
+        }
+        0x608 => timer_ctrl: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Timer control register!", dev.timer_ctrl.get());
+            };
+        }
+        0x60C => timer_interrupt_stat: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Timer interrupt status register!", dev.timer_interrupt_stat.get());
+            };
+        }
+        0x628 => wdg_ctrl: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Watchdog control register!", dev.wdg_ctrl.get());
+            };
+        }
+        0x62C => wdg_interrupt_stat: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Watchdog interrupt status register!", dev.wdg_interrupt_stat.get());
+            };
+        }
+        0x630 => wdg_reset_sent: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Watchdog reset sent register!", dev.wdg_reset_sent.get());
+            };
+        }
+        0x634 => wdg_disable: u32 {
+            write_effect = |dev: &mut Priv11Device| {
+                warn!("STUBBED: Write {:08X} to ARM11 Watchdog disable register!", dev.wdg_disable.get());
+            };
+        }
     }
 });
 
@@ -105,6 +141,13 @@ macro_rules! pending_clrX {
     })
 }
 
+macro_rules! pending_setX {
+    ($reg:ident, $i:expr) => (|dev: &mut GidDevice| {
+        let which = (dev.$reg.get() as u128) << ($i * 32);
+        warn!("STUBBED: Force set ARM11 interrupts with val {:X}", which);
+    })
+}
+
 
 iodevice!(GidDevice, {
     internal_state: GidState;
@@ -137,6 +180,19 @@ iodevice!(GidDevice, {
         }
         0x18C => enable_clr3: u32 {
             write_effect = enable_clrX!(enable_clr3, 3);
+        }
+
+        0x200 => pending_set0: u32 {
+            write_effect = pending_setX!(pending_set0, 0);
+        }
+        0x204 => pending_set1: u32 {
+            write_effect = pending_setX!(pending_set1, 1);
+        }
+        0x208 => pending_set2: u32 {
+            write_effect = pending_setX!(pending_set2, 2);
+        }
+        0x20C => pending_set3: u32 {
+            write_effect = pending_setX!(pending_set3, 3);
         }
 
         0x280 => pending_clr0: u32 {

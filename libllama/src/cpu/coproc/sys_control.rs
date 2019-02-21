@@ -357,7 +357,19 @@ impl SysControl {
                 warn!("STUBBED: ARM11 Performance Monitor Control read");
                 self.r15_perfmon_ctrl
             }
-            _ => unimplemented!()
+            (12, 1) => {
+                warn!("STUBBED: ARM11 Performance Monitor Cycle counter read");
+                0
+            }
+            (12, 2) => {
+                warn!("STUBBED: ARM11 Performance Monitor Misc. counter 0 read");
+                0
+            }
+            (12, 3) => {
+                warn!("STUBBED: ARM11 Performance Monitor Misc. counter 0 read");
+                0
+            }
+            _ => panic!("Unimplemented ARM11 C15 read cpreg2={} op2={}", cpreg2, op2)
         }
     }
 }

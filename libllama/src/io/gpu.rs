@@ -119,6 +119,7 @@ iodevice!(GpuDevice, {
     internal_state: HardwarePica;
 
     regs: {
+        0x004 => unk0: u32 { }
         0x010 => memfill0_start_word: u32 { }
         0x014 => memfill0_end_word: u32 { }
         0x018 => memfill0_val: u32 { }
@@ -135,6 +136,7 @@ iodevice!(GpuDevice, {
                 process_memfill(dev, 1);
             };
         }
+        0x030 => unk1: u32 { }
 
         0x400 => top_pix_clk: u32 { }
         0x404 => top_hblank_timer: u32 { }

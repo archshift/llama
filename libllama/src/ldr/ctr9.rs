@@ -107,9 +107,9 @@ impl Desc {
         for binfile in json["binFiles"].members() {
             binfiles.push(DescBinfile::from_json(binfile)?);
         }
-        if binfiles.len() == 0 {
-            bail!(ErrorKind::JsonItemError("binfiles[]".to_owned(), DESC_FILENAME.to_owned()))
-        }
+        //if binfiles.len() == 0 {
+        //    bail!(ErrorKind::JsonItemError("binfiles[]".to_owned(), DESC_FILENAME.to_owned()))
+        //}
 
         let mut binfiles11 = Vec::new();
         for binfile in json["binFiles11"].members() {
