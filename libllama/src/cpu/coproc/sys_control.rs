@@ -1,4 +1,5 @@
 use cpu::coproc::{CpEffect, Coprocessor};
+use cpu::caches::{Ops, MemMgr};
 use cpu::{Version, v5, v6};
 
 bf!(RegControl[u32] {
@@ -35,6 +36,7 @@ pub struct SysControl {
     r2_dcacheability: u32,
     r2_icacheability: u32,
     r3_bufferability: u32,
+    r3_domain_access: u32,
     r5_daccessperms: u32,
     r5_iaccessperms: u32,
     r6_memregions: [MpuRegion::Bf; 8],
@@ -57,6 +59,7 @@ impl SysControl {
             r2_dcacheability: 0,
             r2_icacheability: 0,
             r3_bufferability: 0,
+            r3_domain_access: 0,
             r5_daccessperms: 0,
             r5_iaccessperms: 0,
             r6_memregions: [MpuRegion::new(0); 8],
@@ -76,9 +79,12 @@ impl SysControl {
 
                 let control = self.r1_control;
                 Box::new(move |cpu| {
-                    cpu.mpu.enabled = control.use_mpu.get() == 1;
-                    cpu.mpu.icache_enabled = control.use_icache.get() == 1;
-                    cpu.mpu.dcache_enabled = control.use_dcache.get() == 1;
+                    cpu.mpu.set_enabled(control.use_mpu.get() == 1);
+                    cpu.mpu.icache_set_enabled(control.use_icache.get() == 1);
+                    cpu.mpu.dcache_set_enabled(control.use_dcache.get() == 1);
+                    if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
+                        mmu.backcompat_walk = control.disable_subpage_ap.get() == 0;
+                    }
                 })
             }
             0b001 => {
@@ -101,7 +107,9 @@ impl SysControl {
                 self.r2_dcacheability = val;
                 let cacheable = val;
                 Box::new(move |cpu| {
-                    cpu.mpu.region_use_dcache = cacheable as u8
+                    if let MemMgr::Mpu(ref mut mpu) = cpu.mpu {
+                        mpu.region_use_dcache = cacheable as u8
+                    }
                 })
             }
             1 => {
@@ -109,7 +117,39 @@ impl SysControl {
                 self.r2_icacheability = val;
                 let cacheable = val;
                 Box::new(move |cpu| {
-                    cpu.mpu.region_use_icache = cacheable as u8
+                    if let MemMgr::Mpu(ref mut mpu) = cpu.mpu {
+                        mpu.region_use_icache = cacheable as u8
+                    }
+                })
+            }
+            _ => unreachable!()
+        }
+    }
+
+    fn write_c2_arm11<V: Version>(&mut self, op2: usize, val: u32) -> CpEffect<V> {
+        match op2 {
+            0 => {
+                debug!("STUBBED: Trans. table base 0 register write: {:08X}", val);
+                Box::new(move |cpu| {
+                    if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
+                        mmu.page_tables[0] = val & !0b11111;
+                    }
+                })
+            }
+            1 => {
+                debug!("STUBBED: Trans. table base 1 register write: {:08X}", val);
+                Box::new(move |cpu| {
+                    if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
+                        mmu.page_tables[1] = val & !0b11111;
+                    }
+                })
+            }
+            2 => {
+                debug!("STUBBED: Trans. table base ctrl. register write: {:08X}", val);
+                Box::new(move |cpu| {
+                    if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
+                        mmu.pagesel = val as usize;
+                    }
                 })
             }
             _ => unreachable!()
@@ -119,6 +159,11 @@ impl SysControl {
     fn write_c3_arm9(&mut self, val: u32) {
         warn!("STUBBED: Data bufferability register write");
         self.r3_bufferability = val;
+    }
+
+    fn write_c3_arm11(&mut self, val: u32) {
+        warn!("STUBBED: Domain access control register write");
+        self.r3_domain_access = val;
     }
 
     fn write_c5_arm9(&mut self, op2: usize, val: u32) {
@@ -142,10 +187,12 @@ impl SysControl {
 
         let region_data = self.r6_memregions[index];
         Box::new(move |cpu| {
-            let size_exp = region_data.size.get() + 1;
-            cpu.mpu.region_size_exp[index] = size_exp;
-            cpu.mpu.region_base_sigbits[index] = region_data.base_shr_12.get() << 12 >> size_exp;
-            cpu.mpu.region_enabled |= (region_data.enabled.get() << index) as u8;
+            if let MemMgr::Mpu(ref mut mpu) = cpu.mpu {
+                let size_exp = region_data.size.get() + 1;
+                mpu.region_size_exp[index] = size_exp;
+                mpu.region_base_sigbits[index] = region_data.base_shr_12.get() << 12 >> size_exp;
+                mpu.region_enabled |= (region_data.enabled.get() << index) as u8;
+            }
         })
     }
 
@@ -341,6 +388,8 @@ impl<V: Version> Coprocessor<V> for SysControl {
         } else if V::is::<v6>() {
             match cpreg1 {
                 1 => effect = self.write_c1(op2, val),
+                3 => self.write_c3_arm11(val),
+                2 => effect = self.write_c2_arm11(op2, val),
                 7 => effect = self.write_c7(op2, cpreg2),
                 8 => self.write_c8_arm11(op2, cpreg2, val),
                 15 => self.write_c15_arm11(op2, cpreg2, val),

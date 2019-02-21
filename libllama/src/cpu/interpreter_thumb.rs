@@ -1,4 +1,5 @@
 use cpu::{Cpu, InstrStatus, Version};
+use cpu::caches::Ops;
 
 pub type InstFn<V> = fn(&mut Cpu<V>, u16) -> InstrStatus;
 mod interpreter {

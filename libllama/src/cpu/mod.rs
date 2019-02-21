@@ -1,6 +1,6 @@
 mod cpu;
 
-mod caches;
+pub mod caches;
 mod coproc;
 pub mod interpreter_arm;
 pub mod interpreter_thumb;

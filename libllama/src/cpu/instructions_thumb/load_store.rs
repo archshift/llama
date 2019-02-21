@@ -1,5 +1,6 @@
 use cpu;
 use cpu::Cpu;
+use cpu::caches::Ops;
 use cpu::interpreter_arm as arm;
 use cpu::interpreter_thumb as thumb;
 use cpu::Version;

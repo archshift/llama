@@ -61,7 +61,7 @@ pub struct Cpu<V: Version> {
     pub spsr_und: Psr::Bf,
 
     coproc_syscnt: coproc::SysControl,
-    pub mpu: caches::Mpu,
+    pub mpu: caches::MemMgr,
 
     irq_line: irq::IrqLine,
     cycles: usize,
@@ -99,7 +99,7 @@ impl<V: Version> Cpu<V> {
             spsr_und: Psr::new(0),
 
             coproc_syscnt: coproc::SysControl::new(),
-            mpu: caches::Mpu::new(memory),
+            mpu: caches::MemMgr::new::<V>(memory),
 
             irq_line: irq_line,
             cycles: PAUSE_CYCLES,

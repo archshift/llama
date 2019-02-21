@@ -1,4 +1,5 @@
 use cpu::{self, Cpu, Version};
+use cpu::caches::Ops;
 use cpu::interpreter_arm as arm;
 
 use bitutils::sign_extend32;

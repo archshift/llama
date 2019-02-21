@@ -10,6 +10,7 @@ use msgs;
 use fs;
 
 use cpu::{v5, v6};
+use cpu::caches::Ops;
 
 #[derive(Clone)]
 pub enum Message {
@@ -156,7 +157,7 @@ unsafe impl Send for Hardware9 {}
 
 impl Hardware9 {
     pub fn io9(&self) -> &io::IoRegsArm9 {
-        let region = self.arm9.mpu.memory.region(&self.io_handle);
+        let region = self.arm9.mpu.main_mem().region(&self.io_handle);
         if let mem::AddressBlock::Io9(ref io) = region {
             io
         } else {
@@ -165,7 +166,7 @@ impl Hardware9 {
     }
 
     pub fn io_shared(&self) -> &io::IoRegsShared {
-        let region = self.arm9.mpu.memory.region(&self.io_shared_handle);
+        let region = self.arm9.mpu.main_mem().region(&self.io_shared_handle);
         if let mem::AddressBlock::IoShared(ref io) = region {
             io
         } else {
@@ -186,7 +187,7 @@ unsafe impl Send for Hardware11 {}
 
 impl Hardware11 {
     pub fn io11(&self) -> &io::IoRegsArm11 {
-        let region = self.arm11.mpu.memory.region(&self.io_handle);
+        let region = self.arm11.mpu.main_mem().region(&self.io_handle);
         if let mem::AddressBlock::Io11(ref io) = region {
             io
         } else {
@@ -195,7 +196,7 @@ impl Hardware11 {
     }
 
     pub fn io_shared(&self) -> &io::IoRegsShared {
-        let region = self.arm11.mpu.memory.region(&self.io_shared_handle);
+        let region = self.arm11.mpu.main_mem().region(&self.io_shared_handle);
         if let mem::AddressBlock::IoShared(ref io) = region {
             io
         } else {
@@ -204,7 +205,7 @@ impl Hardware11 {
     }
 
     pub fn io_priv(&self) -> &io::IoRegsArm11Priv {
-        let region = self.arm11.mpu.memory.region(&self.io_priv_handle);
+        let region = self.arm11.mpu.main_mem().region(&self.io_priv_handle);
         if let mem::AddressBlock::IoPriv11(ref io) = region {
             io
         } else {
@@ -285,9 +286,9 @@ impl HwCore {
         cpu9.regs[0] = 1;
         cpu9.regs[1] = 0x01FF8000;
         cpu9.regs[2] = 0x3BEEF;
-        cpu9.mpu.memory.write(0x01FF8000, 0x01FF8008u32);
-        cpu9.mpu.memory.write(0x01FF8004, 0u32);
-        cpu9.mpu.memory.write_buf(0x01FF8008, b"sdmc:/boot.firm\0");
+        cpu9.mpu.main_mem_mut().write(0x01FF8000, 0x01FF8008u32);
+        cpu9.mpu.main_mem_mut().write(0x01FF8004, 0u32);
+        cpu9.mpu.main_mem_mut().write_buf(0x01FF8008, b"sdmc:/boot.firm\0");
         //write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {

@@ -2,6 +2,7 @@ use std::sync;
 
 use cpu::{self, v5, v6};
 pub use cpu::irq::{IrqType9, IrqClient};
+use cpu::caches::Ops;
 use hwcore;
 use io;
 
@@ -141,7 +142,7 @@ pub trait HwCtx {
         any_cpu!(self, mut cpu; {
             cpu.mpu.icache_invalidate();
             cpu.mpu.dcache_invalidate();
-            cpu.mpu.memory.debug_read_buf(address, bytes)
+            cpu.mpu.main_mem_mut().debug_read_buf(address, bytes)
         })
     }
 
@@ -149,7 +150,7 @@ pub trait HwCtx {
         any_cpu!(self, mut cpu; {
             cpu.mpu.icache_invalidate();
             cpu.mpu.dcache_invalidate();
-            cpu.mpu.memory.write_buf(address, bytes);
+            cpu.mpu.main_mem_mut().write_buf(address, bytes);
         })
     }
 

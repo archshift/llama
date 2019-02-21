@@ -1,5 +1,6 @@
 use cpu;
 use cpu::{Cpu, Version};
+use cpu::caches::Ops;
 use cpu::interpreter_arm as arm;
 
 fn addressing_mode_inner(p_bit: bool, u_bit: bool, w_bit: bool, rn_val: u32, num_registers: u32) -> (u32, u32) {

@@ -1,4 +1,5 @@
 use cpu::{Cpu, Version};
+use cpu::caches::Ops;
 use cpu::regs::Psr;
 use cpu::InstrStatus;
 
