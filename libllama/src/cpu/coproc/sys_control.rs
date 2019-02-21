@@ -129,7 +129,7 @@ impl SysControl {
     fn write_c2_arm11<V: Version>(&mut self, op2: usize, val: u32) -> CpEffect<V> {
         match op2 {
             0 => {
-                debug!("STUBBED: Trans. table base 0 register write: {:08X}", val);
+                trace!("Trans. table base 0 register write: {:08X}", val);
                 Box::new(move |cpu| {
                     if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
                         mmu.page_tables[0] = val & !0b11111;
@@ -137,7 +137,7 @@ impl SysControl {
                 })
             }
             1 => {
-                debug!("STUBBED: Trans. table base 1 register write: {:08X}", val);
+                trace!("Trans. table base 1 register write: {:08X}", val);
                 Box::new(move |cpu| {
                     if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
                         mmu.page_tables[1] = val & !0b11111;
@@ -145,7 +145,7 @@ impl SysControl {
                 })
             }
             2 => {
-                debug!("STUBBED: Trans. table base ctrl. register write: {:08X}", val);
+                trace!("Trans. table base ctrl. register write: {:08X}", val);
                 Box::new(move |cpu| {
                     if let MemMgr::Mmu(ref mut mmu) = cpu.mpu {
                         mmu.pagesel = val as usize;

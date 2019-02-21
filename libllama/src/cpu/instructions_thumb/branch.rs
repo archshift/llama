@@ -3,7 +3,6 @@ use cpu::interpreter_thumb as thumb;
 use bitutils::sign_extend32;
 
 pub fn b_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::B1::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     let offset_8 = data.signed_imm_8.get();
     let cond = data.cond.get();
 
@@ -17,7 +16,6 @@ pub fn b_1<V: Version>(cpu: &mut Cpu<V>, data: thumb::B1::Bf) -> cpu::InstrStatu
 }
 
 pub fn branch<V: Version>(cpu: &mut Cpu<V>, data: thumb::Branch::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     let offset_11 = data.offset_11.get();
 
     match data.h_bits.get() {
@@ -48,7 +46,6 @@ pub fn branch<V: Version>(cpu: &mut Cpu<V>, data: thumb::Branch::Bf) -> cpu::Ins
 }
 
 pub fn blx_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Blx2::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     let rm = data.rm.get() | (data.h2.get() << 3);
     let addr = cpu.regs[rm as usize];
 
@@ -60,7 +57,6 @@ pub fn blx_2<V: Version>(cpu: &mut Cpu<V>, data: thumb::Blx2::Bf) -> cpu::InstrS
 }
 
 pub fn bx<V: Version>(cpu: &mut Cpu<V>, data: thumb::Bx::Bf) -> cpu::InstrStatus {
-    assert!(V::is::<cpu::v5>());
     let addr = cpu.regs[((data.h2.get() << 3) | data.rm.get()) as usize];
     cpu.cpsr.thumb_bit.set(bit!(addr, 0));
     cpu.branch(addr & 0xFFFFFFFE);
