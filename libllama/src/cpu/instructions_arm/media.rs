@@ -7,11 +7,11 @@ pub fn uxtb<V: Version>(cpu: &mut Cpu<V>, data: arm::Uxtb::Bf) -> cpu::InstrStat
         return cpu::InstrStatus::InBlock;
     }
 
-    let rm = dbg!(cpu.regs[dbg!(data.rm.get() as usize)]);
-    let rot = dbg!(8 * data.rot.get() as usize);
+    let rm = cpu.regs[data.rm.get() as usize];
+    let rot = 8 * data.rot.get() as usize;
 
-    let val = dbg!((rm >> rot) & 0xFF);
-    cpu.regs[dbg!(data.rd.get() as usize)] = val;
+    let val = (rm >> rot) & 0xFF;
+    cpu.regs[data.rd.get() as usize] = val;
 
     cpu::InstrStatus::InBlock
 }

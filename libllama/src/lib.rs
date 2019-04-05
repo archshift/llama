@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate bitutils;
 #[macro_use]
-extern crate error_chain;
+extern crate derive_error;
 extern crate indextree;
 #[macro_use]
 extern crate log;

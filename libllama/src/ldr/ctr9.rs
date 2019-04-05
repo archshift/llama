@@ -8,18 +8,16 @@ use ldr;
 use mem;
 use utils;
 
-error_chain! {
-    foreign_links {
-        Io(::std::io::Error);
-        Json(json::Error);
-    }
+#[derive(Debug, Error)]
+pub enum ErrorKind {
+    #[error(non_std, no_from, msg_embedded)]
+    JsonItemError(String),
+    Io(::std::io::Error),
+    Json(json::Error),
+}
 
-    errors {
-        JsonItemError(item: String, filename: String) {
-            description("invalid or missing json item")
-            display("invalid or missing item `{}` in file {}", item, filename)
-        }
-    }
+fn item_error(item: &str, filename: &str) -> ErrorKind {
+    ErrorKind::JsonItemError(format!("invalid or missing item `{}` in file {}", item, filename))
 }
 
 const DESC_FILENAME: &'static str = "desc.json";
@@ -30,7 +28,7 @@ pub struct Ctr9Loader {
 }
 
 impl Ctr9Loader {
-    pub fn from_folder(path: &Path) -> Result<Ctr9Loader> {
+    pub fn from_folder(path: &Path) -> Result<Ctr9Loader, ErrorKind> {
         let json = Ctr9Loader::load_desc_json(&path)?;
 
         Ok(Ctr9Loader {
@@ -39,7 +37,7 @@ impl Ctr9Loader {
         })
     }
 
-    fn load_desc_json(path: &Path) -> Result<json::JsonValue> {
+    fn load_desc_json(path: &Path) -> Result<json::JsonValue, ErrorKind> {
         let mut desc = File::open(path.join(DESC_FILENAME))?;
         let mut desc_str = String::new();
         desc.read_to_string(&mut desc_str)?;
@@ -91,16 +89,16 @@ struct Desc {
 }
 
 impl Desc {
-    fn from_json(json: &json::JsonValue) -> Result<Desc> {
+    fn from_json(json: &json::JsonValue) -> Result<Desc, ErrorKind> {
         let entrypoint_str = json["entryPoint"].as_str()
-            .ok_or(ErrorKind::JsonItemError("entryPoint".to_owned(), DESC_FILENAME.to_owned()));
+            .ok_or(item_error("entryPoint", DESC_FILENAME));
         let entrypoint = utils::from_hex(entrypoint_str?)
-            .chain_err(|| ErrorKind::JsonItemError("entryPoint".to_owned(), DESC_FILENAME.to_owned()));
+            .or(Err(item_error("entryPoint", DESC_FILENAME)));
 
         let entrypoint11_str = json["entryPoint11"].as_str()
-            .ok_or(ErrorKind::JsonItemError("entryPoint11".to_owned(), DESC_FILENAME.to_owned()));
+            .ok_or(item_error("entryPoint11", DESC_FILENAME));
         let entrypoint11 = utils::from_hex(entrypoint11_str?)
-            .chain_err(|| ErrorKind::JsonItemError("entryPoint11".to_owned(), DESC_FILENAME.to_owned()));
+            .or(Err(item_error("entryPoint11", DESC_FILENAME)));
 
         // Load binfiles arrays into vec, make sure >1 binfile exists
         let mut binfiles = Vec::new();
@@ -131,13 +129,13 @@ struct DescBinfile {
 }
 
 impl DescBinfile {
-    fn from_json(json: &json::JsonValue) -> Result<DescBinfile> {
+    fn from_json(json: &json::JsonValue) -> Result<DescBinfile, ErrorKind> {
         let bin = json["bin"].as_str()
-            .ok_or(ErrorKind::JsonItemError("binfiles[].bin".to_owned(), DESC_FILENAME.to_owned()));
+            .ok_or(item_error("binfiles[].bin", DESC_FILENAME));
         let vaddr_str = json["vAddr"].as_str()
-            .ok_or(ErrorKind::JsonItemError("binfiles[].vAddr".to_owned(), DESC_FILENAME.to_owned()));
+            .ok_or(item_error("binfiles[].vAddr", DESC_FILENAME));
         let vaddr = utils::from_hex(vaddr_str?)
-            .chain_err(|| ErrorKind::JsonItemError("binfiles[].vAddr".to_owned(), DESC_FILENAME.to_owned()));
+            .or(Err(item_error("binfiles[].vAddr", DESC_FILENAME)));
 
         Ok(DescBinfile {
             bin: bin?.to_owned(),

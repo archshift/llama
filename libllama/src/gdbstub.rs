@@ -13,20 +13,18 @@ use hwcore::Message;
 use msgs;
 use utils;
 
-error_chain! {
-    foreign_links {
-        Io(io::Error);
-        Hex(::std::num::ParseIntError);
-    }
-    errors {
-        Parse {
-            description("could not find next element to parse")
-        }
-        NoResponse {
-            description("client should not expect a response")
-        }
-    }
+#[derive(Debug, Error)]
+pub enum ErrorKind {
+    Hex(::std::num::ParseIntError),
+    Io(io::Error),
+
+    /// Client should not expect a response
+    NoResponse,
+    /// Could not find next element to parse
+    Parse,
 }
+
+pub type Result<T> = ::std::result::Result<T, ErrorKind>;
 
 fn parse_next<T, I: Iterator<Item=T>>(it: &mut I) -> Result<T> {
     it.next().ok_or(ErrorKind::Parse.into())
@@ -47,7 +45,7 @@ fn cmd_step(ctx: &mut GdbCtx) -> Result<String> {
 
 fn cmd_continue(ctx: &mut GdbCtx) -> Result<String> {
     ctx.dbg.resume();
-    bail!(ErrorKind::NoResponse)
+    Err(ErrorKind::NoResponse)
 }
 
 struct BreakData {
@@ -331,7 +329,7 @@ fn handle_gdb_packet(data: &[u8], stream: &mut TcpStream, ctx: &mut GdbCtx) -> R
                 match handle_gdb_cmd(&cmd, ctx) {
                     Ok(out) => write_gdb_packet(&out, stream)?,
                     Err(e) => {
-                        if let &ErrorKind::NoResponse = e.kind() {}
+                        if let ErrorKind::NoResponse = e {}
                         else { return Err(e) }
                     }
                 }

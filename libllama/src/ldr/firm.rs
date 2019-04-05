@@ -6,13 +6,9 @@ use ldr;
 use mem;
 use utils::bytes;
 
-error_chain! {
-    foreign_links {
-        Io(::std::io::Error);
-    }
-
-    errors {
-    }
+#[derive(Debug, Error)]
+pub enum ErrorKind {
+    Io(::std::io::Error)
 }
 
 struct FirmSection {
@@ -46,7 +42,7 @@ pub struct FirmLoader {
 }
 
 impl FirmLoader {
-    pub fn from_file(filename: &Path) -> Result<Self> {
+    pub fn from_file(filename: &Path) -> Result<Self, ErrorKind> {
         let mut file = File::open(filename)?;
         let mut header = [0u8; 0x200];
         file.read_exact(&mut header)?;
