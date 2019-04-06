@@ -17,7 +17,14 @@ impl log::Log for UILogger {
 
         if record.level() > log::LogLevel::Debug && !TRACE_ENABLED.load(Ordering::SeqCst) { return }
 
-        let string = format!("{}: {}\n", record.level(), record.args());
+        let thread = ::std::thread::current();
+        let thread_name: String = if let Some(name) = thread.name() {
+            name.into()
+        } else {
+            format!("{:?}", thread.id())
+        };
+        let string = format!("[[{}]] ## {}: {}\n", thread_name, record.level(), record.args());
+        print!("{}", string);
         lgl::log(&string);
     }
 }

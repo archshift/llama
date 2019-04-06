@@ -253,8 +253,9 @@ impl SysControl {
 
     fn read_c0_arm11(&self, op2: usize) -> u32 {
         match op2 {
-            5 => 0x000000000, // On the 3DS: 2xMPCore
-            _ => unimplemented!(),
+            0 => 0x41060361, // TODO: Educated guess, hopefully works?
+            5 => 0x00000000, // On the 3DS: 2xMPCore
+            n => panic!("Unimplemented access to CP15 c0 with op2={}", n),
         }
     }
 

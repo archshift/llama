@@ -1,6 +1,19 @@
 use cpu::{self, Cpu, Version};
 use cpu::interpreter_arm as arm;
 
+pub fn rev<V: Version>(cpu: &mut Cpu<V>, data: arm::Rev::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v6>());
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let rn = cpu.regs[data.rn.get() as usize];
+    let out = rn.swap_bytes();
+    cpu.regs[data.rd.get() as usize] = out;
+
+    cpu::InstrStatus::InBlock
+}
+
 pub fn uxtb<V: Version>(cpu: &mut Cpu<V>, data: arm::Uxtb::Bf) -> cpu::InstrStatus {
     assert!( V::is::<cpu::v6>() );
     if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {

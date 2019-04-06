@@ -15,7 +15,7 @@ mod xdma;
 
 pub mod hid;
 
-mod fbuf;
+mod lcd;
 pub mod gpu;
 
 mod priv11;
@@ -65,7 +65,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
     let hid    = make_dev_shared! { hid::HidDevice };
 
-    let fbuf   = make_dev_uniq! { fbuf::FbufDevice };
+    let lcd    = make_dev_uniq! { lcd::LcdDevice };
     let gpu    = make_dev_uniq! { gpu::GpuDevice:     pica_hw };
 
     let irq11_agg = Rc::new(RefCell::new(irq_subsys11.agg));
@@ -91,7 +91,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
         pxi11:  pxi11.clone(),
     },
     IoRegsArm11 {
-        fbuf:   fbuf,
+        lcd:    lcd,
         gpu:    gpu,
     },
     IoRegsArm11Priv {
@@ -241,13 +241,13 @@ impl MemoryBlock for IoRegsShared {
 
 
 pub struct IoRegsArm11 {
-    pub fbuf: RefCell< fbuf::FbufDevice >,
+    pub lcd:  RefCell< lcd::LcdDevice >,
     pub gpu:  RefCell< gpu::GpuDevice >,
 }
 
 impl IoRegsArm11 {
     impl_rw! {
-        0x002 => fbuf,
+        0x002 => lcd,
         0x200 => gpu
     }
 }

@@ -182,6 +182,7 @@ iodevice!(PxiDevice, {
             read_effect = reg_cnt_read;
             write_effect = reg_cnt_write;
         }
+        0x006 => cnt_ext: u16 { }
         0x008 => send: u32 {
             write_effect = |dev: &mut PxiDevice| {
                 let dat = dev.send.get();

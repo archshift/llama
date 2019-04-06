@@ -157,6 +157,7 @@ iodevice!(GpuDevice, {
         0x440 => top_unk7: u32 { }
         0x444 => top_unk8: u32 { }
         0x448 => top_unk9: u32 { }
+        0x44C => top_overscan_color: u32 { }
         0x45C => top_fbsize0: u32 { }
         0x460 => top_fbsize1: u32 { }
         0x464 => top_fbsize2: u32 { }
@@ -175,7 +176,20 @@ iodevice!(GpuDevice, {
         0x470 => top_fbfmt: u32 { }
         0x474 => top_unk10: u32 { }
         0x478 => top_fb_sel: u32 { }
-        0x484 => top_fb_color_lut: u32 { }
+        0x480 => top_fb_color_lut_idx: u32 {
+            write_bits = 0xFF;
+            write_effect = |dev: &mut GpuDevice| {
+                info!("Updated top FB color LUT index to 0x{:02X}", dev.top_fb_color_lut_idx.get());
+            };
+        }
+        0x484 => top_fb_color_lut_out: u32 {
+            write_bits = 0;
+            read_effect = |dev: &mut GpuDevice| {
+                let idx = dev.top_fb_color_lut_idx.get();
+                info!("STUBBED: Reading top FB color LUT at index 0x{:02X}", idx);
+                dev.top_fb_color_lut_out.set_unchecked(idx << 16 | idx << 8 | idx);
+            };
+        }
         0x490 => top_fb_stride: u32 { }
         0x494 => top_fb_right0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
@@ -211,6 +225,7 @@ iodevice!(GpuDevice, {
         0x540 => bot_unk7: u32 { }
         0x544 => bot_unk8: u32 { }
         0x548 => bot_unk9: u32 { }
+        0x54C => bot_overscan_color: u32 { }
         0x55C => bot_fbsize0: u32 { }
         0x560 => bot_fbsize1: u32 { }
         0x564 => bot_fbsize2: u32 { }
@@ -229,7 +244,20 @@ iodevice!(GpuDevice, {
         0x570 => bot_fbfmt: u32 { }
         0x574 => bot_unk10: u32 { }
         0x578 => bot_fb_sel: u32 { }
-        0x584 => bot_fb_color_lut: u32 { }
+        0x580 => bot_fb_color_lut_idx: u32 {
+            write_bits = 0xFF;
+            write_effect = |dev: &mut GpuDevice| {
+                info!("Updated bot FB color LUT index to 0x{:02X}", dev.bot_fb_color_lut_idx.get());
+            };
+        }
+        0x584 => bot_fb_color_lut_out: u32 {
+            write_bits = 0;
+            read_effect = |dev: &mut GpuDevice| {
+                let idx = dev.bot_fb_color_lut_idx.get();
+                info!("STUBBED: Reading bot FB color LUT at index 0x{:02X}", idx);
+                dev.bot_fb_color_lut_out.set_unchecked(idx << 16 | idx << 8 | idx);
+            };
+        }
         0x590 => bot_fb_stride: u32 { }
         0x594 => bot_fb_unused0_addr: u32 { }
         0x598 => bot_fb_unused1_addr: u32 { }

@@ -47,6 +47,7 @@ decoder u16 ThumbInstruction {
         orr = [ 0b0100001100:10; rm:3; rd:3 ]
         pop = [ 0b1011110:7; r_bit:1; register_list:8 ]
         push = [ 0b1011010:7; r_bit:1; register_list:8 ]
+        rev = [ 0b1011101000:10; rn:3; rd:3 ]
         ror = [ 0b0100000111:10; rs:3; rd:3 ]
         sbc = [ 0b0100000110:10; rm:3; rd:3 ]
         stmia = [ 0b11000:5; rn:3; register_list:8 ]

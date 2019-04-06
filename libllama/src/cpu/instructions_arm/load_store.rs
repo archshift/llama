@@ -231,6 +231,13 @@ fn instr_store_misc<V: Version>(cpu: &mut Cpu<V>, data: arm::Strh::Bf, ty: MiscL
     cpu::InstrStatus::InBlock
 }
 
+pub fn clrex<V: Version>(_cpu: &mut Cpu<V>, _data: arm::Clrex::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v6>());
+    warn!("clrex: implemented as no-op!");
+
+    cpu::InstrStatus::InBlock
+}
+
 pub fn ldr<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldr::Bf) -> cpu::InstrStatus {
     instr_load(cpu, data, false)
 }
@@ -242,6 +249,22 @@ pub fn ldrb<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrb::Bf) -> cpu::InstrStat
 pub fn ldrd<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrd::Bf) -> cpu::InstrStatus {
     assert!(V::is::<cpu::v5>());
     instr_load_misc(cpu, arm::Ldrh::new(data.val), MiscLsType::Doubleword)
+}
+
+pub fn ldrex<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrex::Bf) -> cpu::InstrStatus {
+    assert!(V::is::<cpu::v6>());
+
+    if !cpu::cond_passed(data.cond.get(), &cpu.cpsr) {
+        return cpu::InstrStatus::InBlock;
+    }
+
+    let addr = cpu.regs[data.rn.get() as usize];
+    let word = cpu.mpu.dmem_read::<u32>(addr);
+    cpu.regs[data.rd.get() as usize] = word;
+
+    warn!("ldrex: implemented as ldr!");
+
+    cpu::InstrStatus::InBlock
 }
 
 pub fn ldrh<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldrh::Bf) -> cpu::InstrStatus {

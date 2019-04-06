@@ -10,6 +10,7 @@ iodevice!(Priv11Device, {
             default = 0x00001FFE;
             write_effect = |_| warn!("STUBBED: Write to ARM11 SCU ctrl register!");
         }
+        0x00C => scu_invalidate_all: u32 {}
         0x100 => interrupt_ctrl: u32 {
             write_effect = |_| warn!("STUBBED: Write to ARM11 Interrupt ctrl register!");
         }
@@ -156,6 +157,14 @@ macro_rules! pending_setX {
     })
 }
 
+macro_rules! pending_getX {
+    ($reg:ident, $i:expr) => (|dev: &mut GidDevice| {
+        let asserted = dev._internal_state.agg
+            .borrow_mut().drain_asserts();
+        dev.$reg.set_unchecked((asserted >> ($i * 32)) as u32);
+    })
+}
+
 
 iodevice!(GidDevice, {
     internal_state: GidState;
@@ -191,28 +200,36 @@ iodevice!(GidDevice, {
         }
 
         0x200 => pending_set0: u32 {
+            read_effect = pending_getX!(pending_set0, 0);
             write_effect = pending_setX!(pending_set0, 0);
         }
         0x204 => pending_set1: u32 {
+            read_effect = pending_getX!(pending_set1, 1);
             write_effect = pending_setX!(pending_set1, 1);
         }
         0x208 => pending_set2: u32 {
+            read_effect = pending_getX!(pending_set2, 2);
             write_effect = pending_setX!(pending_set2, 2);
         }
         0x20C => pending_set3: u32 {
+            read_effect = pending_getX!(pending_set3, 3);
             write_effect = pending_setX!(pending_set3, 3);
         }
 
         0x280 => pending_clr0: u32 {
+            read_effect = |_| unimplemented!();
             write_effect = pending_clrX!(pending_clr0, 0);
         }
         0x284 => pending_clr1: u32 {
+            read_effect = |_| unimplemented!();
             write_effect = pending_clrX!(pending_clr1, 1);
         }
         0x288 => pending_clr2: u32 {
+            read_effect = |_| unimplemented!();
             write_effect = pending_clrX!(pending_clr2, 2);
         }
         0x28C => pending_clr3: u32 {
+            read_effect = |_| unimplemented!();
             write_effect = pending_clrX!(pending_clr3, 3);
         }
     }
