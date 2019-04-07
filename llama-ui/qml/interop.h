@@ -31,13 +31,21 @@ enum Button {
     BUTTON_START
 };
 
+enum ColorFormat {
+    COLOR_RGBA8,
+    COLOR_RGB8,
+    COLOR_RGB565,
+    COLOR_RGB5A1,
+    COLOR_RGBA4
+};
+
 typedef struct FrontendCallbacks {
     void(*set_running)(Backend*, bool);
     bool(*is_running)(Backend*);
     void(*reload_game)(Backend*);
 
-    const uint8_t*(*top_screen)(Backend*, size_t*);
-    const uint8_t*(*bot_screen)(Backend*, size_t*);
+    const uint8_t*(*top_screen)(Backend*, size_t*, enum ColorFormat*);
+    const uint8_t*(*bot_screen)(Backend*, size_t*, enum ColorFormat*);
     void(*mod_button)(Backend*, Button, bool);
 
     void(*run_command)(Backend*, const char*, size_t);

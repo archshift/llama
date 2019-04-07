@@ -243,8 +243,8 @@ impl HwCore {
         let mut msg_spec = msgs::MsgGraph::new(&[
             ("gdb", &[], &["quit", "arm9halted"]),
             ("user", &["quit", "hidupdate"], &["framebufstate"]),
-            ("arm9", &["arm9halted"], &["quit", "startemu", "suspendemu"]),
-            ("arm11", &["arm11halted"], &["quit", "startemu", "suspendemu", "hidupdate"]),
+            ("arm9", &["arm9halted", "arm11halted"], &["quit", "startemu", "suspendemu"]),
+            ("arm11", &["arm9halted", "arm11halted"], &["quit", "startemu", "suspendemu", "hidupdate"]),
             ("pica", &["framebufstate"], &[]),
             ("hwcore", &["startemu", "suspendemu"], &[]),
         ]);
@@ -368,7 +368,16 @@ impl HwCore {
         { let _ = self.hardware11.lock().unwrap(); }
     }
 
-    pub fn copy_framebuffers(&mut self, fbs: &mut Framebuffers, fb_state: &io::gpu::FramebufState) {
+    pub fn copy_framebuffers(&self, fbs: &mut Framebuffers, fb_state: &io::gpu::FramebufState) {
+        let pixel_depth = |color_fmt: io::gpu::ColorFormat| match color_fmt {
+            io::gpu::ColorFormat::Rgb8 => 3,
+            io::gpu::ColorFormat::Rgba8 => 4,
+            io::gpu::ColorFormat::Rgba4 | io::gpu::ColorFormat::Rgb5a1 | io::gpu::ColorFormat::Rgb565 => 2
+        };
+
+        fbs.top_screen_size = (240, 400, pixel_depth(fb_state.color_fmt[0]));
+        fbs.bot_screen_size = (240, 320, pixel_depth(fb_state.color_fmt[0]));
+
         fbs.top_screen.resize({ let (w, h, d) = fbs.top_screen_size; w*h*d }, 0);
         fbs.bot_screen.resize({ let (w, h, d) = fbs.bot_screen_size; w*h*d }, 0);
 
@@ -399,6 +408,7 @@ fn arm9_run(client: &msgs::Client<Message>, hardware: &mut Hardware9) -> bool {
 
         if let reason @ cpu::BreakReason::Breakpoint = hardware.arm9.run(1000) {
             info!("Breakpoint hit @ 0x{:X}!", hardware.arm9.regs[15] - hardware.arm9.get_pc_offset());
+            client.send(Message::Arm11Halted(reason));
             break 't reason
         }
     };
@@ -425,11 +435,13 @@ fn arm11_run(client: &msgs::Client<Message>, hardware: &mut Hardware11) -> bool 
 
         if let reason @ cpu::BreakReason::Breakpoint = hardware.arm11.run(1000) {
             info!("Breakpoint hit @ 0x{:X}!", hardware.arm11.regs[15] - hardware.arm11.get_pc_offset());
+            client.send(Message::Arm9Halted(reason));
             break 't reason
         }
     };
 
     client.send(Message::Arm11Halted(reason));
+
     true
 }
 
@@ -445,6 +457,7 @@ fn emu_idle(client: &msgs::Client<Message>) -> bool {
 }
 
 
+#[derive(Default)]
 pub struct Framebuffers {
     pub top_screen: Vec<u8>,
     pub bot_screen: Vec<u8>,

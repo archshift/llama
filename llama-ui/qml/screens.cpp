@@ -8,6 +8,7 @@
 #include <QtQuick/QQuickPaintedItem>
 
 #include <cassert>
+#include <utility>
 
 Screen::Screen(WhichScreen screen, QQuickItem *parent):
         QQuickPaintedItem(parent),
@@ -26,20 +27,34 @@ void Screen::paint(QPainter *painter) {
     painter->setRenderHint(QPainter::Antialiasing);
 
     size_t buf_size = 0;
+    ColorFormat fmt;
     const uint8_t *buf;
+
     switch (screen) {
-        case WhichScreen::Top: buf = callbacks->top_screen(backend, &buf_size); break;
-        case WhichScreen::Bottom: buf = callbacks->bot_screen(backend, &buf_size); break;
+        case WhichScreen::Top: buf = callbacks->top_screen(backend, &buf_size, &fmt); break;
+        case WhichScreen::Bottom: buf = callbacks->bot_screen(backend, &buf_size, &fmt); break;
+        default:
+            assert("Found improper screen!");
     }
 
     static const QMatrix SCREEN_ROTATE(0, -1,
                                        1,  0,
                                        0,  0);
 
+    QImage::Format img_fmt;
+    switch (fmt) {
+    case COLOR_RGB8: img_fmt = QImage::Format_RGB888; break;
+    case COLOR_RGBA8: img_fmt = QImage::Format_ARGB32; break;
+    case COLOR_RGB565: img_fmt = QImage::Format_RGB16; break;
+    case COLOR_RGB5A1: img_fmt = QImage::Format_RGB555; break; // Actually wrong
+    case COLOR_RGBA4: img_fmt = QImage::Format_ARGB4444_Premultiplied; break;
+    default:
+        assert("Found improper color format!");
+    }
+
     auto image = [&] {
         if (buf) {
-            QImage img(buf, real_h, real_w, real_h*3, QImage::Format_RGB888);
-            assert(buf_size == (size_t)(real_w*3*real_h));
+            QImage img(buf, real_h, real_w, buf_size / real_w, img_fmt);
             return img.transformed(SCREEN_ROTATE);
         } else {
             return QImage();

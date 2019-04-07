@@ -145,6 +145,39 @@ fn cmd_btn<'a, It>(_active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut 
     }
 }
 
+/// Dumps framebuffer to file
+/// Command format: "fbdmp"
+///
+/// `args`: Unused
+fn cmd_fbdmp<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, _: It)
+    where It: Iterator<Item=&'a str> {
+
+    use libllama::io::gpu;
+
+    let mut ctx = debugger.ctx(active_cpu);
+    let fb_state = {
+        let hw = ctx.hw11();
+        let gpu = &hw.io11_devices().gpu;
+        let fb_state = gpu::fb_state(&*gpu.borrow());
+        fb_state
+    };
+
+    let mut fbs = libllama::hwcore::Framebuffers::default();
+    ctx.hwcore().copy_framebuffers(&mut fbs, &fb_state);
+
+    info!("Dumping framebuffers to disk in CWD...");
+
+    let mut top = File::create("./fb-top.bin")
+        .expect("Could not create fb-top.bin file!");
+    top.write_all(fbs.top_screen.as_slice())
+        .expect("Could not write top framebuffer!");
+
+    let mut bot = File::create("./fb-bot.bin")
+        .expect("Could not create fb-bot.bin file!");
+    bot.write_all(fbs.bot_screen.as_slice())
+        .expect("Could not write bottom framebuffer!");
+}
+
 /// Sets AES key-dumping state
 /// Command format: "keydmp"
 ///
@@ -326,6 +359,7 @@ pub fn handle<'a, It>(active_cpu: &mut ActiveCpu, debugger: &mut dbgcore::DbgCor
         Some("asm") => cmd_asm(*active_cpu, debugger, command),
         Some("brk") => cmd_brk(*active_cpu, debugger, command),
         Some("btn") => cmd_btn(*active_cpu, debugger, command),
+        Some("fbdmp") => cmd_fbdmp(*active_cpu, debugger, command),
         Some("irq") => cmd_irq(*active_cpu, debugger, command),
         Some("keydmp") => cmd_keydmp(*active_cpu, debugger, command),
         Some("mem") => cmd_mem(*active_cpu, debugger, command),

@@ -3,9 +3,12 @@ use msgs;
 use hwcore::Message;
 
 use std::fmt;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct HardwarePica {
     event_tx: msgs::Client<Message>,
+    fb_state: FramebufState,
     mem: mem::MemController,
 }
 
@@ -13,6 +16,7 @@ impl HardwarePica {
     pub fn new(client: msgs::Client<Message>, mem: mem::MemController) -> Self {
         Self {
             event_tx: client,
+            fb_state: FramebufState::new(),
             mem: mem
         }
     }
@@ -24,26 +28,83 @@ impl fmt::Debug for HardwarePica {
     }
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug)]
+pub enum ColorFormat {
+    Rgba8 = 0,
+    Rgb8 = 1,
+    Rgb565 = 2,
+    Rgb5a1 = 3,
+    Rgba4 = 4
+}
+
+impl ColorFormat {
+    fn from_index(idx: u32) -> Self {
+        match idx {
+            0 => ColorFormat::Rgba8,
+            1 => ColorFormat::Rgb8,
+            2 => ColorFormat::Rgb565,
+            3 => ColorFormat::Rgb5a1,
+            4 => ColorFormat::Rgba4,
+            _ => unimplemented!()
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FramebufState {
     pub addr_top_left: [u32; 2],
     pub addr_top_right: [u32; 2],
-    pub addr_bot: [u32; 2]
+    pub addr_bot: [u32; 2],
+    pub color_fmt: [ColorFormat; 2],
+    pub bg_color: [u32; 2]
 }
 
 impl FramebufState {
-    fn from_device(dev: &GpuDevice) -> Self {
+    fn new() -> Self {
         Self {
-            addr_top_left:  [dev.top_fb_left0_addr.get(),  dev.top_fb_left1_addr.get()],
-            addr_top_right: [dev.top_fb_right0_addr.get(), dev.top_fb_right1_addr.get()],
-            addr_bot:       [dev.bot_fb0_addr.get(),       dev.bot_fb1_addr.get()],
+            addr_top_left: [0; 2],
+            addr_top_right: [0; 2],
+            addr_bot: [0; 2],
+            color_fmt: [ColorFormat::Rgb8; 2],
+            bg_color: [0; 2],
         }
     }
 
-    fn publish(dev: &GpuDevice) {
-        let state = Self::from_device(dev);
-        let msg = Message::FramebufState(state);
-        dev._internal_state.event_tx.send(msg)
+    fn lcd_update(dev: &mut LcdDevice) {
+        let state = &mut dev._internal_state.borrow_mut();
+        {
+            let this = &mut state.fb_state;
+            let top_fill = dev.top_fill.get();
+            let bot_fill = dev.bot_fill.get();
+            this.bg_color = [
+                top_fill & 0xFFFFFF * ((top_fill >> 6) & 1),
+                bot_fill & 0xFFFFFF * ((bot_fill >> 6) & 1)
+            ];
+        }
+
+        Self::publish(&state.fb_state, &state.event_tx);
+    }
+
+    fn gpu_update(dev: &mut GpuDevice) {
+        let state = &mut dev._internal_state.borrow_mut();
+        {
+            let this = &mut state.fb_state;
+
+            this.addr_top_left = [dev.top_fb_left0_addr.get(), dev.top_fb_left1_addr.get()];
+            this.addr_top_right = [dev.top_fb_right0_addr.get(), dev.top_fb_right1_addr.get()];
+            this.addr_bot = [dev.bot_fb0_addr.get(), dev.bot_fb1_addr.get()];
+            this.color_fmt = [
+                ColorFormat::from_index(FbFmt::new(dev.top_fbfmt.get()).colorFmt.get()),
+                ColorFormat::from_index(FbFmt::new(dev.bot_fbfmt.get()).colorFmt.get())
+            ];
+        }
+
+        Self::publish(&state.fb_state, &state.event_tx);
+    }
+
+    fn publish(&self, client: &msgs::Client<Message>) {
+        let msg = Message::FramebufState(self.clone());
+        client.send(msg)
     }
 }
 
@@ -70,6 +131,10 @@ bf!(FillCtrl[u32] {
     width: 8:9,
 });
 
+bf!(FbFmt[u32] {
+    colorFmt: 0:2
+});
+
 fn process_memfill(dev: &mut GpuDevice, which: usize) {
     let (start_word, end_word, val, ctrl) = match which {
         0 => (
@@ -83,7 +148,7 @@ fn process_memfill(dev: &mut GpuDevice, which: usize) {
         _ => unreachable!()
     };
 
-    let mem = &mut dev._internal_state.mem;
+    let mem = &mut dev._internal_state.borrow_mut().mem;
 
     let ctrl = FillCtrl::alias_mut(ctrl.ref_mut());
     if ctrl.busy.get() == 0 {
@@ -115,8 +180,54 @@ fn process_memfill(dev: &mut GpuDevice, which: usize) {
     ctrl.done.set(1);
 }
 
+
+
+iodevice!(LcdDevice, {
+    internal_state: Rc<RefCell<HardwarePica>>;
+
+    regs: {
+        0x000 => parallax_enable: u32 { }
+        0x004 => unk0: u32 { }
+        0x008 => unk1: u32 { }
+        0x00C => unk2: u32 { }
+        0x014 => unk3: u32 { }
+        0x200 => top_unk0: u32 { }
+        0x204 => top_fill: u32 {
+            write_effect = |dev: &mut LcdDevice| {
+                let fill = dev.top_fill.get();
+                if (fill & (1 << 24) != 0) {
+                    warn!("Enabling top screen pixel fill! Color: #{:06X}", fill & 0xFFFFFF);
+                }
+                FramebufState::lcd_update(dev);
+            };
+        }
+        0x238 => top_unk1: u32 { }
+        0x240 => top_backlight: u32 { }
+        0x244 => top_unk2: u32 { }
+        0xA00 => bot_unk0: u32 { }
+        0xA04 => bot_fill: u32 {
+            write_effect = |dev: &mut LcdDevice| {
+                let fill = dev.bot_fill.get();
+                if (fill & (1 << 24) != 0) {
+                    warn!("Enabling bottom screen pixel fill! Color: #{:06X}", fill & 0xFFFFFF);
+                }
+                FramebufState::lcd_update(dev);
+            };
+        }
+        0xA38 => bot_unk1: u32 { }
+        0xA40 => bot_backlight: u32 { }
+        0xA44 => bot_unk2: u32 { }
+    }
+    ranges: {
+        0x400;0x400 => { } // top unknown region
+        0xC00;0x400 => { } // bottom unknown region
+    }
+
+});
+
+
 iodevice!(GpuDevice, {
-    internal_state: HardwarePica;
+    internal_state: Rc<RefCell<HardwarePica>>;
 
     regs: {
         0x004 => unk0: u32 { }
@@ -164,16 +275,24 @@ iodevice!(GpuDevice, {
         0x468 => top_fb_left0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top left FB0 to 0x{:08X}!", dev.top_fb_left0_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
         0x46C => top_fb_left1_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top left FB1 to 0x{:08X}!", dev.top_fb_left1_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
-        0x470 => top_fbfmt: u32 { }
+        0x470 => top_fbfmt: u32 {
+            default = 1;
+            write_effect = |dev: &mut GpuDevice| {
+                let fmt = FbFmt::new(dev.top_fbfmt.get());
+                let colorfmt = ColorFormat::from_index(fmt.colorFmt.get());
+                info!("Set top FB color format to {:?}!", colorfmt);
+                FramebufState::gpu_update(dev);
+            };
+        }
         0x474 => top_unk10: u32 { }
         0x478 => top_fb_sel: u32 { }
         0x480 => top_fb_color_lut_idx: u32 {
@@ -194,13 +313,13 @@ iodevice!(GpuDevice, {
         0x494 => top_fb_right0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top right FB0 to 0x{:08X}!", dev.top_fb_right0_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
         0x498 => top_fb_right1_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set top right FB1 to 0x{:08X}!", dev.top_fb_right1_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
         0x49C => top_unk11: u32 { }
@@ -232,16 +351,23 @@ iodevice!(GpuDevice, {
         0x568 => bot_fb0_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set bottom FB0 to 0x{:08X}!", dev.bot_fb0_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
         0x56C => bot_fb1_addr: u32 {
             write_effect = |dev: &mut GpuDevice| {
                 info!("Set bottom FB1 to 0x{:08X}!", dev.bot_fb1_addr.get());
-                FramebufState::publish(dev);
+                FramebufState::gpu_update(dev);
             };
         }
-        0x570 => bot_fbfmt: u32 { }
+        0x570 => bot_fbfmt: u32 {
+            write_effect = |dev: &mut GpuDevice| {
+                let fmt = FbFmt::new(dev.bot_fbfmt.get());
+                let colorfmt = ColorFormat::from_index(fmt.colorFmt.get());
+                info!("Set bottom FB color format to {:?}!", colorfmt);
+                FramebufState::gpu_update(dev);
+            };
+        }
         0x574 => bot_unk10: u32 { }
         0x578 => bot_fb_sel: u32 { }
         0x580 => bot_fb_color_lut_idx: u32 {
@@ -264,3 +390,7 @@ iodevice!(GpuDevice, {
         0x59C => bot_unk11: u32 { }
     }
 });
+
+pub fn fb_state(dev: &GpuDevice) -> FramebufState {
+    dev._internal_state.borrow().fb_state.clone()
+}

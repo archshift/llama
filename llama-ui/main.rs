@@ -61,6 +61,7 @@ mod cbs {
     use libllama::hwcore::Message;
     use libllama::io::hid;
     use libllama::dbgcore::ActiveCpu::Arm9;
+    use libllama::io::gpu::ColorFormat;
 
     pub unsafe extern fn set_running(backend: *mut c::Backend, state: bool) {
         let backend = Backend::from_c(backend);
@@ -80,12 +81,25 @@ mod cbs {
             .running()
     }
 
-    pub unsafe extern fn top_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
+    fn fix_color_rgba8(buf: &mut [u8]) {
+        for window in buf.chunks_exact_mut(4) {
+            let tmp = window[0];
+            window[0] = window[1];
+            window[1] = window[2];
+            window[2] = window[3];
+            window[3] = tmp;
+        }
+    }
+
+    pub unsafe extern fn top_screen(backend: *mut c::Backend,
+                                    buf_size_out: *mut usize,
+                                    color_fmt: *mut c::ColorFormat) -> *const u8 {
         let backend = Backend::from_c(backend);
 
         backend.update_fb_state();
         if backend.fb_state.is_none() {
             *buf_size_out = 0;
+            *color_fmt = c::ColorFormat_COLOR_RGB8;
             return std::ptr::null();
         }
         let fb_state = backend.fb_state.as_ref().unwrap();
@@ -93,16 +107,31 @@ mod cbs {
         backend.debugger.ctx(Arm9)
             .hwcore_mut()
             .copy_framebuffers(&mut backend.fbs, fb_state);
+
+        *color_fmt = match fb_state.color_fmt[0] {
+            ColorFormat::Rgb8 => c::ColorFormat_COLOR_RGB8,
+            ColorFormat::Rgba8 => {
+                fix_color_rgba8(backend.fbs.top_screen.as_mut_slice());
+                c::ColorFormat_COLOR_RGBA8
+            },
+            ColorFormat::Rgb565 => c::ColorFormat_COLOR_RGB565,
+            ColorFormat::Rgb5a1 => c::ColorFormat_COLOR_RGB5A1,
+            ColorFormat::Rgba4 => c::ColorFormat_COLOR_RGBA4,
+        };
+
         *buf_size_out = backend.fbs.top_screen.len();
         backend.fbs.top_screen.as_ptr()
     }
 
-    pub unsafe extern fn bot_screen(backend: *mut c::Backend, buf_size_out: *mut usize) -> *const u8 {
+    pub unsafe extern fn bot_screen(backend: *mut c::Backend,
+                                    buf_size_out: *mut usize,
+                                    color_fmt: *mut c::ColorFormat) -> *const u8 {
         let backend = Backend::from_c(backend);
 
         backend.update_fb_state();
         if backend.fb_state.is_none() {
             *buf_size_out = 0;
+            *color_fmt = c::ColorFormat_COLOR_RGB8;
             return std::ptr::null();
         }
         let fb_state = backend.fb_state.as_ref().unwrap();
@@ -110,6 +139,18 @@ mod cbs {
         backend.debugger.ctx(Arm9)
             .hwcore_mut()
             .copy_framebuffers(&mut backend.fbs, fb_state);
+
+        *color_fmt = match fb_state.color_fmt[1] {
+            ColorFormat::Rgb8 => c::ColorFormat_COLOR_RGB8,
+            ColorFormat::Rgba8 => {
+                fix_color_rgba8(backend.fbs.bot_screen.as_mut_slice());
+                c::ColorFormat_COLOR_RGBA8
+            },
+            ColorFormat::Rgb565 => c::ColorFormat_COLOR_RGB565,
+            ColorFormat::Rgb5a1 => c::ColorFormat_COLOR_RGB5A1,
+            ColorFormat::Rgba4 => c::ColorFormat_COLOR_RGBA4,
+        };
+
         *buf_size_out = backend.fbs.bot_screen.len();
         backend.fbs.bot_screen.as_ptr()
     }
@@ -182,10 +223,7 @@ mod cbs {
 }
 
 fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
-    let fbs = hwcore::Framebuffers {
-        top_screen: Vec::new(), bot_screen: Vec::new(),
-        top_screen_size: (240, 400, 3), bot_screen_size: (240, 320, 3),
-    };
+    let fbs = hwcore::Framebuffers::default();
 
     let mut hwcore = hwcore::HwCore::new(loader);
     let client_gdb = hwcore.take_client_gdb().unwrap();

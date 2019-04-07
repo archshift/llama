@@ -77,7 +77,7 @@ pub struct Cpu<V: Version> {
     pub(crate) _version: V
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum BreakReason {
     LimitReached,
     Breakpoint,

@@ -1,7 +1,19 @@
 iodevice!(ConfigDevice, {
     regs: {
-        0x000 => sysprot9: u8 { }
-        0x001 => sysprot11: u8 { }
+        0x000 => sysprot9: u8 {
+            write_effect = |dev: &ConfigDevice| {
+                if dev.sysprot9.get() != 0 {
+                    panic!("Protecting ARM9 bootrom!");
+                }
+            };
+        }
+        0x001 => sysprot11: u8 {
+            write_effect = |dev: &ConfigDevice| {
+                if dev.sysprot11.get() != 0 {
+                    panic!("Protecting ARM11 bootrom!");
+                }
+            };
+        }
         0x002 => reset11: u8 { }
         0x004 => debugctl: u16 { }
         0x008 => unknown0: u8 {

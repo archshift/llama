@@ -250,6 +250,9 @@ pub struct DbgHw11Context<'a> {
 }
 
 impl<'a> DbgHw11Context<'a> {
+    pub fn io11_devices(&self) -> &io::IoRegsArm11 {
+        self.hw.io11()
+    }
     pub fn io_shared_devices(&self) -> &io::IoRegsShared {
         self.hw.io_shared()
     }
