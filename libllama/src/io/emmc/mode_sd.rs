@@ -45,6 +45,7 @@ static ACMDS: [(usize, CmdHandler, CardType); 5] = [
 #[inline]
 fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)], cmd_index: u16) {
     let mut found_wrong_type = false;
+    emmc::get_active_card(dev).csr.illegal_cmd.set(0);
 
     for &(i, ref handler, ty) in cmdlist.iter() {
         if i != cmd_index as usize { continue }
@@ -89,7 +90,7 @@ fn handle_any_cmd(dev: &mut EmmcDevice, cmdlist: &[(usize, CmdHandler, CardType)
     if found_wrong_type {
         emmc::get_active_card(dev).csr.illegal_cmd.set(1);
         warn!("Tried to run illegal SDMMC (APP_?')CMD{}", cmd_index);
-        emmc::trigger_status(dev, emmc::Status1::IllegalCmd);
+        emmc::trigger_status(dev, emmc::Status1::CmdTimeout);
     } else {
         panic!("UNIMPLEMENTED: SDMMC (APP_?')CMD{}", cmd_index)
     }

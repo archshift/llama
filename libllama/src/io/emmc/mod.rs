@@ -70,12 +70,12 @@ enum Status1 {
     _DataTimeout = (1 << 3),
     _RxOverflow  = (1 << 4),
     _TxUnderrun  = (1 << 5),
-    _CmdTimeout  = (1 << 6),
+    CmdTimeout  = (1 << 6),
     RxReady     = (1 << 8),
     TxRq        = (1 << 9),
     _IllFunc     = (1 << 13),
     CmdBusy     = (1 << 14),
-    IllegalCmd  = (1 << 15),
+    _IllegalCmd  = (1 << 15),
 }
 
 impl Into<Status> for Status1 {
