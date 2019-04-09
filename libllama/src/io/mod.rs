@@ -4,6 +4,7 @@ mod regs;
 pub mod aes;
 mod config;
 mod emmc;
+mod i2c;
 mod irq;
 mod ndma;
 mod otp;
@@ -63,6 +64,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
 
     let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
     let hid    = make_dev_shared! { hid::HidDevice };
+    let i2c    = make_dev_shared! { i2c::I2cDevice:   i2c::I2cDeviceState::new(i2c::make_peripherals()) };
 
     let pica_hw = Rc::new(RefCell::new(pica_hw));
     let lcd    = make_dev_uniq! { gpu::LcdDevice:     pica_hw.clone() };
@@ -87,7 +89,8 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
         cfgext: cfgext,
     },
     IoRegsShared {
-        hid:    hid.clone(),
+        hid:    hid,
+        i2c:    i2c,
         pxi11:  pxi11.clone(),
     },
     IoRegsArm11 {
@@ -207,7 +210,7 @@ pub struct IoRegsShared {
     // mvd,
     // config11,
     // spi,
-    // i2c,
+    pub i2c: Arc<Mutex< i2c::I2cDevice >>,
     // codec,
     pub hid: Arc<Mutex< hid::HidDevice >>,
     // gpio,
@@ -219,6 +222,7 @@ pub struct IoRegsShared {
 
 impl IoRegsShared {
     impl_rw_locked! {
+        0x44 => i2c,
         0x46 => hid,
         0x63 => pxi11
     }

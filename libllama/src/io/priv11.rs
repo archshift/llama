@@ -217,19 +217,19 @@ iodevice!(GidDevice, {
         }
 
         0x280 => pending_clr0: u32 {
-            read_effect = |_| unimplemented!();
+            read_effect = pending_getX!(pending_clr0, 0);
             write_effect = pending_clrX!(pending_clr0, 0);
         }
         0x284 => pending_clr1: u32 {
-            read_effect = |_| unimplemented!();
+            read_effect = pending_getX!(pending_clr1, 1);
             write_effect = pending_clrX!(pending_clr1, 1);
         }
         0x288 => pending_clr2: u32 {
-            read_effect = |_| unimplemented!();
+            read_effect = pending_getX!(pending_clr2, 2);
             write_effect = pending_clrX!(pending_clr2, 2);
         }
         0x28C => pending_clr3: u32 {
-            read_effect = |_| unimplemented!();
+            read_effect = pending_getX!(pending_clr3, 3);
             write_effect = pending_clrX!(pending_clr3, 3);
         }
     }
