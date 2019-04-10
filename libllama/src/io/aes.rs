@@ -185,7 +185,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         trace!("Setting AES active keyslot to 0x{:X}", dev._internal_state.active_keyslot);
 
         if dev.key_sel.get() < 4 {
-            error!("Attempting to set keys for unimplemented TWL keyslots!");
+            error!("Attempting to set AES keys for unimplemented TWL keyslots!");
         }
 
         // Remove update_keyslot bit

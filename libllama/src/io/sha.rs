@@ -16,7 +16,7 @@ bf!(RegCnt[u32] {
 #[derive(Default)]
 pub struct ShaDeviceState {
     hasher: Option<Hasher>,
-    hash: [u8; 32]
+    hash: [u8; 32],
 }
 
 impl fmt::Debug for ShaDeviceState {
@@ -31,51 +31,55 @@ unsafe impl Send for ShaDeviceState {} // TODO: Not good!
 
 fn reg_cnt_update(dev: &mut ShaDevice) {
     let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
+    let state = &mut dev._internal_state;
     trace!("Wrote 0x{:08X} to SHA CNT register!", cnt.val);
+    trace!("SHA hasher state: {}", if state.hasher.is_some() { "active" } else { "inactive" });
 
-    if cnt.final_round.get() == 1 && cnt.busy.get() == 0 {
-        info!("Reached end of final round!");
-        if let Some(ref mut h) = dev._internal_state.hasher {
+    if cnt.final_round.get() == 1 {
+        trace!("Reached end of SHA final round!");
+        if let Some(ref mut h) = state.hasher {
             let hash_slice = &*h.finish().unwrap();
-            dev._internal_state.hash = [0u8; 32];
-            dev._internal_state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
+            state.hash = [0u8; 32];
+            trace!("SHA output hash: {:X?}", hash_slice);
+            state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }
+
         cnt.final_round.set(0);
     }
 
-    else if cnt.clear_fifo.get() == 1 {
-        dev._internal_state.hasher = None;
-    }
-
-    else if cnt.busy.get() == 0 {
-    }
-
-    else if dev._internal_state.hasher.is_none() {
+    if cnt.busy.get() == 0 {
+        state.hasher = None;
+    } else if state.hasher.is_none() {
         // Create new hasher
-        assert_eq!(cnt.big_endian.get(), 1);
+        trace!("Starting SHA hasher");
 
         let mode = match cnt.hash_mode.get() {
             0b00 => MessageDigest::sha256(),
             0b01 => MessageDigest::sha224(),
             _ => MessageDigest::sha1()
         };
-
-        dev._internal_state.hasher = Some(Hasher::new(mode).unwrap());
+        state.hasher = Some(Hasher::new(mode).unwrap());
     }
 
     cnt.busy.set(0);
 }
 
 fn reg_hash_read(dev: &mut ShaDevice, buf_pos: usize, dest: &mut [u8]) {
-    trace!("Reading {} bytes from SHA HASH at +0x{:X}", dest.len(), buf_pos);
     let src_slice = &dev._internal_state.hash[buf_pos .. buf_pos + dest.len()];
-    dest.clone_from_slice(src_slice);
+    dest.copy_from_slice(src_slice);
+    trace!("Reading {} bytes from SHA HASH at +0x{:X}: {:X?}", dest.len(), buf_pos, dest);
+
+    let cnt = RegCnt::new(dev.cnt.get());
+    assert_eq!(cnt.big_endian.get(), 1);
 }
 
 // TODO: Does a word written to any part of the hash just add on? What about
 // writing to the fifo in reverse? How does this work?
 fn reg_fifo_write(dev: &mut ShaDevice, buf_pos: usize, source: &[u8]) {
-    trace!("Writing {} bytes to SHA FIFO at +0x{:X}", source.len(), buf_pos);
+    trace!("Writing {} bytes to SHA FIFO at +0x{:X}: {:X?}", source.len(), buf_pos, source);
+
+    let cnt = RegCnt::new(dev.cnt.get());
+    assert_eq!(cnt.big_endian.get(), 1);
 
     let hasher = match dev._internal_state.hasher {
         Some(ref mut h) => h,
@@ -89,7 +93,14 @@ iodevice!(ShaDevice, {
     internal_state: ShaDeviceState;
     regs: {
         0x000 => cnt: u32 { write_effect = reg_cnt_update; }
-        0x004 => blk_cnt: u32 { }
+        0x004 => blk_cnt: u32 {
+            read_effect = |_| {
+                panic!("Unimplemented read from SHA BLK_CNT register");
+            };
+            write_effect = |dev: &ShaDevice| {
+                warn!("STUBBED: Write to SHA BLK_CNT register: 0x{:X}", dev.blk_cnt.get());
+            };
+        }
     }
     ranges: {
         0x040;0x20 => {

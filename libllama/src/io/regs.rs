@@ -104,7 +104,7 @@ macro_rules! __iodevice__ {
                         self.$reg_name.mem_load(buf, reg_size);
                         if buf_size - reg_size > 0 {
                             // Keep going
-                            warn!("{} byte read from {}+{:X} greater than reg size {}; including next register.",
+                            trace!("{} byte read from {}+{:X} greater than reg size {}; including next register.",
                                 buf_size, stringify!($name), offset, reg_size);
                             self.read_reg(offset + reg_size, buf.offset(reg_size as isize), buf_size - reg_size);
                         }
@@ -131,7 +131,7 @@ macro_rules! __iodevice__ {
                         $reg_weff(&mut *self);
                         if buf_size - reg_size > 0 {
                             // Keep going
-                            warn!("{} byte write to {}+{:X} greater than reg size {}; including next register.",
+                            trace!("{} byte write to {}+{:X} greater than reg size {}; including next register.",
                                 buf_size, stringify!($name), offset, reg_size);
                             self.write_reg(offset + reg_size, buf.offset(reg_size as isize), buf_size - reg_size);
                         }
