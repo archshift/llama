@@ -63,7 +63,6 @@ impl Default for NdmaDeviceState {
         }
     }
 }
-unsafe impl Send for NdmaDeviceState { } // TODO: Bad!
 
 iodevice!(NdmaDevice, {
     internal_state: NdmaDeviceState;

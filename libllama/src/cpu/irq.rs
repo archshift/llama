@@ -79,8 +79,14 @@ pub struct IrqLine {
 }
 
 impl IrqLine {
+    pub fn is_high_sync(&self) -> bool {
+        self.sync.get()
+    }
+    pub fn is_high_async(&self) -> bool {
+        self.async.load(Ordering::Relaxed)
+    }
     pub fn is_high(&self) -> bool {
-        self.async.load(Ordering::SeqCst) || self.sync.get()
+        self.is_high_sync() || self.is_high_async()
     }
 }
 
@@ -157,12 +163,12 @@ impl IrqClient for IrqAsyncClient {
             return
         }
         self.irqs.send(index).unwrap();
-        self.line.store(true, Ordering::SeqCst);
+        self.line.store(true, Ordering::Relaxed);
     }
 
     fn is_enabled(&self, index: u32) -> bool {
         let which_word = (index / 32) as usize;
-        let enabled = self.enabled[which_word].load(Ordering::SeqCst) as u32;
+        let enabled = self.enabled[which_word].load(Ordering::Relaxed) as u32;
         enabled & (1 << (index % 32)) != 0
     }
 }
@@ -196,10 +202,10 @@ impl fmt::Debug for Aggregator {
 impl Aggregator {
     pub(crate) fn set_enabled(&self, new: u128) {
         self.sync_enabled.set(new);
-        self.async_enabled[0].store(new as u32 as usize, Ordering::SeqCst);
-        self.async_enabled[1].store((new >> 32) as u32 as usize, Ordering::SeqCst);
-        self.async_enabled[2].store((new >> 64) as u32 as usize, Ordering::SeqCst);
-        self.async_enabled[3].store((new >> 96) as u32 as usize, Ordering::SeqCst);
+        self.async_enabled[0].store(new as u32 as usize, Ordering::Relaxed);
+        self.async_enabled[1].store((new >> 32) as u32 as usize, Ordering::Relaxed);
+        self.async_enabled[2].store((new >> 64) as u32 as usize, Ordering::Relaxed);
+        self.async_enabled[3].store((new >> 96) as u32 as usize, Ordering::Relaxed);
     }
 
     pub(crate) fn drain_asserts(&mut self) -> u128 {
@@ -217,7 +223,7 @@ impl Aggregator {
     pub(crate) fn acknowledge(&mut self, which: u128) -> u128 {
         self.pending = self.drain_asserts() & !which;
         self.line.sync.set(self.pending != 0);
-        self.line.async.store(self.pending != 0, Ordering::SeqCst);
+        self.line.async.store(self.pending != 0, Ordering::Relaxed);
         self.pending
     }
 }

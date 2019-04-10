@@ -116,8 +116,6 @@ pub struct AesDeviceState {
     reg_ctr: [u8; 0x10],
 }
 
-unsafe impl Send for AesDeviceState {} // TODO: Not good!
-
 impl Default for AesDeviceState {
     fn default() -> AesDeviceState {
         AesDeviceState {

@@ -267,7 +267,7 @@ impl HwCore {
         let clk_rx = clk_tx.clone();
         let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
         // let clk11_rx = clk11_tx.clone();
-        
+
         let mut mem_regions = MemoryRegions::map(|pica_controller| {
             let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
             io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw)

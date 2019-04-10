@@ -1,9 +1,8 @@
 // TODO: How can we test this module?
 
+use std::cell::{RefCell, RefMut};
 use std::fmt;
-use std::sync::Arc;
-
-use parking_lot::{Mutex, MutexGuard};
+use std::rc::Rc;
 
 use cpu::irq::{self, IrqClient};
 use io::regs::IoReg;
@@ -91,8 +90,8 @@ fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
 
 
 enum Timer<'a> {
-    Joined { bitset: u8, lowstate: MutexGuard<'a, TimerState> },
-    Unit(u8, MutexGuard<'a, TimerState>)
+    Joined { bitset: u8, lowstate: RefMut<'a, TimerState> },
+    Unit(u8, RefMut<'a, TimerState>)
 }
 
 impl<'a> fmt::Debug for Timer<'a> {
@@ -208,14 +207,14 @@ impl<'a> Timer<'a> {
 
 struct TimerIter<'a> {
     next_timer: u8,
-    timer_states: Vec<MutexGuard<'a, TimerState>>,
+    timer_states: Vec<RefMut<'a, TimerState>>,
 }
 
 impl<'a> TimerIter<'a> {
     fn new<'b>(states: &'b TimerStates) -> TimerIter<'b> {
         TimerIter {
             next_timer: 3,
-            timer_states: states.0.iter().map(|x| x.lock()).collect(),
+            timer_states: states.0.iter().map(|x| x.borrow_mut()).collect(),
         }
     }
 }
@@ -280,12 +279,12 @@ fn irq(t_index: usize) -> irq::IrqType9 {
 
 
 #[derive(Clone)]
-pub struct TimerStates(Arc<[Mutex<TimerState>; 4]>);
+pub struct TimerStates(Rc<[RefCell<TimerState>; 4]>);
 impl TimerStates {
     pub fn new() -> TimerStates {
-        TimerStates(Arc::new([
-            Mutex::new(TimerState::new()), Mutex::new(TimerState::new()),
-            Mutex::new(TimerState::new()), Mutex::new(TimerState::new()),
+        TimerStates(Rc::new([
+            RefCell::new(TimerState::new()), RefCell::new(TimerState::new()),
+            RefCell::new(TimerState::new()), RefCell::new(TimerState::new()),
         ]))
     }
 }
@@ -316,6 +315,7 @@ impl TimerState {
 }
 
 pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx: &mut irq::IrqSyncClient) {
+    // TODO: This needs some optimization
     let iter_started = TimerIter::new(&timer_states).filter(|t| t.started());
 
     for mut timer in iter_started {

@@ -64,7 +64,6 @@ pub struct Cpu<V: Version> {
     pub mpu: caches::MemMgr,
 
     irq_line: irq::IrqLine,
-    cycles: usize,
     sys_clk: clock::SysClock,
 
     pub(crate) thumb_decode_cache: TinyCache<cpu::thumb::InstFn<V>, ()>,
@@ -85,7 +84,7 @@ pub enum BreakReason {
     WFI
 }
 
-const PAUSE_CYCLES: usize = 128;
+const ASYNC_IRQ_CYCLE_MASK: usize = 0xFFF;
 
 impl<V: Version> Cpu<V> {
     pub fn new(version: V, memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu<V> {
@@ -102,7 +101,6 @@ impl<V: Version> Cpu<V> {
             mpu: caches::MemMgr::new::<V>(memory),
 
             irq_line: irq_line,
-            cycles: PAUSE_CYCLES,
             sys_clk: clk,
  
             thumb_decode_cache: TinyCache::new(
@@ -180,7 +178,6 @@ impl<V: Version> Cpu<V> {
     }
 
     pub fn run(&mut self, num_instrs: u32) -> BreakReason {
-        let mut cycles = self.cycles;
         let mut irq_known_pending = false;
         let mut thumb_bit = self.cpsr.thumb_bit.get();
         self.check_alignment(thumb_bit);
@@ -188,13 +185,14 @@ impl<V: Version> Cpu<V> {
         for _ in 0..num_instrs {
             let addr = self.regs[15] - Self::pc_offset(thumb_bit);
 
-            cycles -= 1;
-            // Amortize the cost of checking for IRQs, updating clock
-            if cycles == 0 {
-                self.sys_clk.increment(PAUSE_CYCLES * 8); // Probably speeds up time but w/e
-                irq_known_pending = self.irq_line.is_high();
-                cycles = PAUSE_CYCLES;
+            self.sys_clk.increment(8); // Probably speeds up time but w/e
+
+            irq_known_pending |= self.irq_line.is_high_sync();
+            if self.sys_clk.get() & ASYNC_IRQ_CYCLE_MASK != 0 {
+                // Amortize the cost of checking for async IRQs
+                irq_known_pending |= self.irq_line.is_high_async();
             }
+
             if irq_known_pending && self.cpsr.disable_irq_bit.get() == 0 && self.irq_line.is_high() {
                 trace!("Entering exception for ARM{:?}!", self._version);
                 self.enter_exception(addr+4, Mode::Irq);
@@ -220,7 +218,6 @@ impl<V: Version> Cpu<V> {
             }
         }
 
-        self.cycles = cycles;
         BreakReason::LimitReached
     }
 

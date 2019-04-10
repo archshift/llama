@@ -24,7 +24,6 @@ impl fmt::Debug for ShaDeviceState {
         write!(f, "ShaDeviceState {{ }}")
     }
 }
-unsafe impl Send for ShaDeviceState {} // TODO: Not good!
 
 // TODO: The following implementation does not yet completely work, and still needs
 // more hardware testing to determine the source of errors.
