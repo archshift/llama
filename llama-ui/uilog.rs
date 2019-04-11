@@ -15,7 +15,7 @@ impl log::Log for UILogger {
     fn log(&self, record: &log::LogRecord) {
         if !self.enabled(record.metadata()) { return }
 
-        if record.level() > log::LogLevel::Debug && !TRACE_ENABLED.load(Ordering::SeqCst) { return }
+        if record.level() > log::LogLevel::Debug && !TRACE_ENABLED.load(Ordering::Relaxed) { return }
 
         let thread = ::std::thread::current();
         let thread_name: String = if let Some(name) = thread.name() {
@@ -37,5 +37,5 @@ pub fn init() -> Result<(), log::SetLoggerError> {
 }
 
 pub fn allow_trace(yes: bool) {
-    TRACE_ENABLED.store(yes, Ordering::SeqCst);
+    TRACE_ENABLED.store(yes, Ordering::Relaxed);
 }

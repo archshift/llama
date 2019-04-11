@@ -43,16 +43,20 @@ pub fn ldm_1<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm1::Bf) -> cpu::InstrSta
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     assert!( V::is::<cpu::v5>() || addr % 4 == 0 );
 
+    if data.w_bit.get() == 1 {
+        // TODO: needs more testing
+        assert!(register_list & (1 << data.rn.get()) == 0);
+        cpu.regs[data.rn.get() as usize] = writeback;
+    }
+
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[data.rn.get() as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }
     }
 
     if bit!(register_list, 15) == 1 {
-        cpu.regs[data.rn.get() as usize] = writeback;
         let val = cpu.mpu.dmem_read::<u32>(addr);
         cpu.cpsr.thumb_bit.set(bit!(val, 0));
         cpu.branch(val & 0xFFFFFFFE);
@@ -97,9 +101,14 @@ pub fn ldm_3<V: Version>(cpu: &mut Cpu<V>, data: arm::Ldm3::Bf) -> cpu::InstrSta
     // TODO: determine behavior based on CP15 r1 bit_U (22)
     assert!( V::is::<cpu::v5>() || addr % 4 == 0 );
 
+    if data.w_bit.get() == 1 {
+        // TODO: needs more testing
+        assert!(register_list & (1 << data.rn.get()) == 0);
+        cpu.regs[data.rn.get() as usize] = writeback;
+    }
+
     for i in 0..15 {
         if bit!(register_list, i) == 1 {
-            cpu.regs[data.rn.get() as usize] = writeback;
             cpu.regs[i] = cpu.mpu.dmem_read::<u32>(addr);
             addr += 4;
         }

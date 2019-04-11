@@ -94,7 +94,7 @@ iodevice!(ShaDevice, {
         0x000 => cnt: u32 { write_effect = reg_cnt_update; }
         0x004 => blk_cnt: u32 {
             read_effect = |_| {
-                panic!("Unimplemented read from SHA BLK_CNT register");
+                warn!("STUBBED: read from SHA BLK_CNT register");
             };
             write_effect = |dev: &ShaDevice| {
                 warn!("STUBBED: Write to SHA BLK_CNT register: 0x{:X}", dev.blk_cnt.get());
