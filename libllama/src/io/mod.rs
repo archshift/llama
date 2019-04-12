@@ -20,7 +20,6 @@ pub mod gpu;
 
 mod priv11;
 
-use std::ptr;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::default::Default;
@@ -105,19 +104,19 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
 
 macro_rules! impl_rw {
     ($($num:expr => $name:tt),*) => {
-        pub unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        pub fn read_reg(&self, offset: usize, buf: &mut [u8]) {
             match bits!(offset, 12:23) {
-                $($num => self.$name.borrow_mut().read_reg(offset & 0xFFF, buf, buf_size),)*
+                $($num => self.$name.borrow_mut().read_reg(offset & 0xFFF, buf),)*
                 _ => {
                     error!("Unimplemented IO register read at offset 0x{:X}", offset);
                     // If we can't find a register for it, just read zero bytes
-                    ptr::write_bytes(buf, 0, buf_size);
+                    buf.iter_mut().for_each(|x| *x = 0);
                 }
             }
         }
-        pub unsafe fn write_reg(&self, offset: usize, buf: *const u8, buf_size: usize) {
+        pub fn write_reg(&mut self, offset: usize, buf: &[u8]) {
             match bits!(offset, 12:23) {
-                $($num => self.$name.borrow_mut().write_reg(offset & 0xFFF, buf, buf_size),)*
+                $($num => self.$name.borrow_mut().write_reg(offset & 0xFFF, buf),)*
                 _ => error!("Unimplemented IO register write at offset 0x{:X}", offset),
             };
         }
@@ -126,19 +125,19 @@ macro_rules! impl_rw {
 
 macro_rules! impl_rw_locked {
     ($($num:expr => $name:tt),*) => {
-        pub unsafe fn read_reg(&self, offset: usize, buf: *mut u8, buf_size: usize) {
+        pub fn read_reg(&self, offset: usize, buf: &mut [u8]) {
             match bits!(offset, 12:23) {
-                $($num => self.$name.lock().read_reg(offset & 0xFFF, buf, buf_size),)*
+                $($num => self.$name.lock().read_reg(offset & 0xFFF, buf),)*
                 _ => {
                     error!("Unimplemented IO register read at offset 0x{:X}", offset);
                     // If we can't find a register for it, just read zero bytes
-                    ptr::write_bytes(buf, 0, buf_size);
+                    buf.iter_mut().for_each(|x| *x = 0);
                 }
             }
         }
-        pub unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+        pub fn write_reg(&mut self, offset: usize, buf: &[u8]) {
             match bits!(offset, 12:23) {
-                $($num => self.$name.lock().write_reg(offset & 0xFFF, buf, buf_size),)*
+                $($num => self.$name.lock().write_reg(offset & 0xFFF, buf),)*
                 _ => error!("Unimplemented IO register write at offset 0x{:X}", offset),
             };
         }
@@ -188,11 +187,11 @@ impl MemoryBlock for IoRegsArm9 {
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
+        self.read_reg(offset, buf)
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
+        self.write_reg(offset, buf)
     }
 }
 
@@ -235,11 +234,11 @@ impl MemoryBlock for IoRegsShared {
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
+        self.read_reg(offset, buf)
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
+        self.write_reg(offset, buf)
     }
 }
 
@@ -262,11 +261,11 @@ impl MemoryBlock for IoRegsArm11 {
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
+        self.read_reg(offset, buf)
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
+        self.write_reg(offset, buf)
     }
 }
 
@@ -289,10 +288,10 @@ impl MemoryBlock for IoRegsArm11Priv {
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        unsafe { self.read_reg(offset, buf.as_mut_ptr(), buf.len()) }
+        self.read_reg(offset, buf)
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        unsafe { self.write_reg(offset, buf.as_ptr(), buf.len()) }
+        self.write_reg(offset, buf)
     }
 }

@@ -80,12 +80,12 @@ iodevice!(NdmaDevice, {
             read_effect = |dev: &mut NdmaDevice, buf_pos: usize, dest: &mut [u8]| {
                 let channel = buf_pos / 0x1C;
                 let new_buf_pos = buf_pos % 0x1C + 4; // As if the pos was for channel 0
-                dev._internal_state.channels[channel].read_reg(new_buf_pos, dest.as_mut_ptr(), dest.len());
+                dev._internal_state.channels[channel].read_reg(new_buf_pos, dest);
             };
             write_effect = |dev: &mut NdmaDevice, buf_pos: usize, src: &[u8]| {
                 let channel = buf_pos / 0x1C;
                 let new_buf_pos = buf_pos % 0x1C + 4; // As if the pos was for channel 0
-                dev._internal_state.channels[channel].write_reg(new_buf_pos, src.as_ptr(), src.len());
+                dev._internal_state.channels[channel].write_reg(new_buf_pos, src);
             };
         }
     }

@@ -1,10 +1,9 @@
-use std::mem;
-use std::ptr;
-
 use std::ops::BitAnd;
 use std::ops::BitAndAssign;
 use std::ops::BitOrAssign;
 use std::ops::Not;
+
+use utils::bytes;
 
 #[derive(Debug)]
 pub struct IoReg<T>
@@ -40,20 +39,20 @@ impl<T> IoReg<T>
         &mut self.val
     }
 
-    pub unsafe fn mem_load<BUF: Copy>(&self, buf: *mut BUF, buf_size: usize) {
-        assert_eq!(mem::size_of::<T>(), buf_size);
-        ptr::write(mem::transmute(buf), self.get());
+    pub fn mem_load(&self, buf: &mut [u8]) {
+        let data = unsafe { bytes::from_val(&self.val) };
+        buf.copy_from_slice(data);
     }
 
-    pub unsafe fn mem_save<BUF: Copy>(&mut self, buf: *const BUF, buf_size: usize) {
-        assert_eq!(mem::size_of::<T>(), buf_size);
-        self.set(ptr::read(mem::transmute(buf)));
+    pub fn mem_save(&mut self, buf: &[u8]) {
+        let data = unsafe { bytes::from_mut_val(&mut self.val) };
+        data.copy_from_slice(buf);
     }
 }
 
 pub trait IoRegAccess {
-    unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize);
-    unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize);
+    fn read_reg(&mut self, offset: usize, buf: &mut [u8]);
+    fn write_reg(&mut self, offset: usize, buf: &[u8]);
 }
 
 
@@ -92,54 +91,56 @@ macro_rules! __iodevice__ {
         }
 
         impl $crate::io::regs::IoRegAccess for $name {
-            unsafe fn read_reg(&mut self, offset: usize, buf: *mut u8, buf_size: usize) {
+            fn read_reg(&mut self, offset: usize, buf: &mut [u8]) {
                 #![allow(unused_comparisons)]
                 trace!("Reading from {} at +0x{:X}", stringify!($name), offset);
+                let buf_size = buf.len();
                 match offset {
                     $( $reg_offs => {
                         let reg_size = ::std::mem::size_of::<$reg_ty>();
                         assert!(buf_size % reg_size == 0);
 
                         $reg_reff(&mut *self);
-                        self.$reg_name.mem_load(buf, reg_size);
+                        self.$reg_name.mem_load(&mut buf[..reg_size]);
                         if buf_size - reg_size > 0 {
                             // Keep going
                             trace!("{} byte read from {}+{:X} greater than reg size {}; including next register.",
                                 buf_size, stringify!($name), offset, reg_size);
-                            self.read_reg(offset + reg_size, buf.offset(reg_size as isize), buf_size - reg_size);
+                            self.read_reg(offset + reg_size, &mut buf[reg_size..]);
                         }
                     })*
 
                     $( _ if offset >= $range_offs && offset < $range_offs+$range_size => {
                         assert!(offset + buf_size <= $range_offs + $range_size);
-                        $range_reff(&mut *self, offset-$range_offs, ::std::slice::from_raw_parts_mut(buf, buf_size));
+                        $range_reff(&mut *self, offset-$range_offs, buf);
                     })*
 
                     o @ _ => panic!("Unhandled {} register read: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
                 }
             }
 
-            unsafe fn write_reg(&mut self, offset: usize, buf: *const u8, buf_size: usize) {
+            fn write_reg(&mut self, offset: usize, buf: &[u8]) {
                 #![allow(unused_comparisons)]
                 trace!("Writing to {} at +0x{:X}", stringify!($name), offset);
+                let buf_size = buf.len();
                 match offset {
                     $( $reg_offs => {
                         let reg_size = ::std::mem::size_of::<$reg_ty>();
                         assert!(buf_size % reg_size == 0);
 
-                        self.$reg_name.mem_save(buf, reg_size);
+                        self.$reg_name.mem_save(&buf[..reg_size]);
                         $reg_weff(&mut *self);
                         if buf_size - reg_size > 0 {
                             // Keep going
                             trace!("{} byte write to {}+{:X} greater than reg size {}; including next register.",
                                 buf_size, stringify!($name), offset, reg_size);
-                            self.write_reg(offset + reg_size, buf.offset(reg_size as isize), buf_size - reg_size);
+                            self.write_reg(offset + reg_size, &buf[reg_size..]);
                         }
                     })*
 
                     $( _ if offset >= $range_offs && offset < $range_offs+$range_size => {
                         assert!(offset + buf_size <= $range_offs + $range_size);
-                        $range_weff(&mut *self, offset-$range_offs, ::std::slice::from_raw_parts(buf, buf_size));
+                        $range_weff(&mut *self, offset-$range_offs, buf);
                     })*
 
                     o @ _ => panic!("Unhandled {} register write: {} bytes @ 0x{:X}", stringify!($name), buf_size, o)
