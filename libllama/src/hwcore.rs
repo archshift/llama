@@ -55,9 +55,10 @@ struct MemoryRegions {
 
 impl MemoryRegions {
     fn map<F>(io_creator: F) -> Self
-        where F: FnOnce(mem::MemController) -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11, io::IoRegsArm11Priv)
+        where F: FnOnce(mem::MemController, mem::MemController)
+            -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11, io::IoRegsArm11Priv)
     {
-        let arm9_itcm = mem::SharedMemoryBlock::new(0x20);
+        let arm9_itcm = mem::UniqueMemoryBlock::new(0x20);
         let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
         let arm9_dtcm = mem::UniqueMemoryBlock::new(0x10);
         let arm9_bootrom = mem::UniqueMemoryBlock::new(0x40);
@@ -69,6 +70,10 @@ impl MemoryRegions {
 
         let arm11_bootrom = mem::SharedMemoryBlock::new(0x40);
 
+        /////////////////////////////////////////////////////////////////
+        ////////////          PICA MEMORY MAPPINGS
+        /////////////////////////////////////////////////////////////////
+
         let make_pica = || {
             let mut controller_pica = mem::MemController::new();
             controller_pica.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
@@ -79,11 +84,30 @@ impl MemoryRegions {
         let controller_pica = make_pica();
         let controller_fbuf = make_pica();
 
-        let (arm9_io, shared_io, arm11_io, arm11_io_priv) = io_creator(controller_pica);
+        /////////////////////////////////////////////////////////////////
+        ////////////          ARM9 DMA CONTROLLER MEMORY MAPPINGS
+        /////////////////////////////////////////////////////////////////
+
+        let mut controller_dma9 = mem::MemController::new();
+        controller_dma9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram.clone()));
+        controller_dma9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
+        controller_dma9.map_region(0x1FF00000, mem::AddressBlock::SharedRam(dsp_ram.clone()));
+        controller_dma9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
+        controller_dma9.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
+
+
+
+
+        let (arm9_io, shared_io, arm11_io, arm11_io_priv)
+            = io_creator(controller_pica, controller_dma9);
+
+        /////////////////////////////////////////////////////////////////
+        ////////////          ARM9 MEMORY MAPPINGS
+        /////////////////////////////////////////////////////////////////
 
         let mut controller9 = mem::MemController::new();
         for i in 0..0x1000 {
-            controller9.map_region(i * 0x8000, mem::AddressBlock::SharedRam(arm9_itcm.clone()));
+            controller9.map_region(i * 0x8000, mem::AddressBlock::UniqueRam(arm9_itcm.clone()));
         }
         controller9.map_region(0x08000000, mem::AddressBlock::UniqueRam(arm9_ram));
         controller9.map_region(0x18000000, mem::AddressBlock::SharedRam(vram.clone()));
@@ -94,6 +118,10 @@ impl MemoryRegions {
         controller9.map_region(0xFFFF0000, mem::AddressBlock::UniqueRam(arm9_bootrom));
         let io9_hnd         = controller9.map_region(0x10000000, mem::AddressBlock::Io9(arm9_io));
         let io9_shared_hnd  = controller9.map_region(0x10100000, mem::AddressBlock::IoShared(shared_io.clone()));
+
+        /////////////////////////////////////////////////////////////////
+        ////////////          ARM11 MEMORY MAPPINGS
+        /////////////////////////////////////////////////////////////////
 
         let mut controller11 = mem::MemController::new();
         controller11.map_region(0x00000000, mem::AddressBlock::SharedRam(arm11_bootrom.clone()));
@@ -214,6 +242,16 @@ impl Hardware11 {
     }
 }
 
+pub struct HardwareDma9 {
+    pub(crate) mem: mem::MemController,
+}
+
+impl HardwareDma9 {
+    pub fn new(mem: mem::MemController) -> Self {
+        Self { mem }
+    }
+}
+
 pub struct HwCore {
     pub hardware9: Arc<Mutex<Hardware9>>,
     pub hardware11: Arc<Mutex<Hardware11>>,
@@ -268,10 +306,14 @@ impl HwCore {
         let clk11_tx = clock::make_channel(irq11_subsys.sync_tx.clone());
         // let clk11_rx = clk11_tx.clone();
 
-        let mut mem_regions = MemoryRegions::map(|pica_controller| {
-            let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
-            io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw)
-        });
+        let mut mem_regions = MemoryRegions::map(
+            |pica_controller, dma9_controller| {
+                let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
+                let dma9_hw = HardwareDma9::new(dma9_controller);
+
+                io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw, dma9_hw)
+            }
+        );
 
         loader.load9(&mut mem_regions.mem9);
         loader.load11(&mut mem_regions.mem11);
@@ -289,7 +331,6 @@ impl HwCore {
         cpu9.mpu.main_mem_mut().write(0x01FF8000, 0x01FF8008u32);
         cpu9.mpu.main_mem_mut().write(0x01FF8004, 0u32);
         cpu9.mpu.main_mem_mut().write_buf(0x01FF8008, b"sdmc:/boot.firm\0");
-        //write_fb_pointers(&mut cpu9);
 
         let hardware9 = Hardware9 {
             arm9: cpu9,
@@ -376,7 +417,7 @@ impl HwCore {
         };
 
         fbs.top_screen_size = (240, 400, pixel_depth(fb_state.color_fmt[0]));
-        fbs.bot_screen_size = (240, 320, pixel_depth(fb_state.color_fmt[0]));
+        fbs.bot_screen_size = (240, 320, pixel_depth(fb_state.color_fmt[1]));
 
         fbs.top_screen.resize({ let (w, h, d) = fbs.top_screen_size; w*h*d }, 0);
         fbs.bot_screen.resize({ let (w, h, d) = fbs.bot_screen_size; w*h*d }, 0);

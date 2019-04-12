@@ -2,6 +2,8 @@ use std;
 use std::cmp;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use parking_lot::RwLock;
 
@@ -17,26 +19,29 @@ pub(crate) trait MemoryBlock {
     fn write_buf(&mut self, offset: usize, buf: &[u8]);
 }
 
-pub struct UniqueMemoryBlock(Vec<u8>);
+#[derive(Clone)]
+pub struct UniqueMemoryBlock(Rc<RefCell<Vec<u8>>>);
 impl UniqueMemoryBlock {
     pub fn new(kbs: usize) -> UniqueMemoryBlock {
-        UniqueMemoryBlock(vec![0u8; kbs*KB_SIZE])
+        UniqueMemoryBlock(
+            Rc::new(RefCell::new(vec![0u8; kbs*KB_SIZE]))
+        )
     }
 }
 impl MemoryBlock for UniqueMemoryBlock {
     fn get_bytes(&self) -> u32 {
-        self.0.len() as u32
+        self.0.borrow().len() as u32
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        let vec = &self.0;
+        let vec = self.0.borrow();
         assert!(offset + buf.len() <= vec.len());
         let src = &vec[offset..offset + buf.len()];
         buf.copy_from_slice(src);
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        let vec = &mut self.0;
+        let mut vec = self.0.borrow_mut();
         assert!(offset + buf.len() <= vec.len());
         let dst = &mut vec[offset..offset + buf.len()];
         dst.copy_from_slice(buf);

@@ -6,7 +6,8 @@ use std::path::Path;
 fn main() {
     let decoders = [
         "src/cpu/arm.decoder",
-        "src/cpu/thumb.decoder"
+        "src/cpu/thumb.decoder",
+        "src/io/dmac.decoder"
     ];
 
     for decoder in decoders.iter() {

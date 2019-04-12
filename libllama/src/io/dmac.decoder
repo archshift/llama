@@ -1,0 +1,9 @@
+decoder u64 DmacInstruction {
+    category [ _:64 ]
+    {
+        end  = [ _:56; 0b00000000:8 ]
+        kill = [ _:56; 0b00000001:8 ]
+        go   = [ _:56; 0b00000:5; cn:2; 0b101000:6; ns:1; 0b0:1 ]
+        flushp = [ _:48; periph:5; 0b00000110101:11 ]
+    }
+}

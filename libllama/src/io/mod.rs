@@ -29,11 +29,13 @@ use parking_lot::Mutex;
 
 use clock;
 use cpu::irq::IrqSubsys;
+use hwcore::HardwareDma9;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
 pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
-                   clk: clock::SysClock, pica_hw: gpu::HardwarePica)
+                   clk: clock::SysClock, pica_hw: gpu::HardwarePica,
+                   dma9_hw: HardwareDma9)
     -> (IoRegsArm9, IoRegsShared, IoRegsArm11, IoRegsArm11Priv) {
     
     macro_rules! make_dev_uniq {
@@ -47,6 +49,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     }
 
     let pxi_shared = pxi::PxiShared::make_channel(irq_subsys9.async_tx, irq_subsys11.async_tx);
+    let dma9_shared = Rc::new(RefCell::new(dma9_hw));
 
     let cfg    = make_dev_uniq! { config::ConfigDevice };
     let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys9.agg };
@@ -58,7 +61,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let aes    = make_dev_uniq! { aes::AesDevice:     Default::default() };
     let sha    = make_dev_uniq! { sha::ShaDevice:     Default::default() };
     let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
-    let xdma   = make_dev_uniq! { xdma::XdmaDevice };
+    let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared) };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
 
     let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
