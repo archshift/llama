@@ -228,7 +228,7 @@ mod test {
     fn read_reg() {
         let mut mmc_regs = MMCRegs::new();
         let mut buf = vec![0xFFu8; 2];
-        unsafe { mmc_regs.read_reg(0x000, buf.as_mut_ptr(), buf.len()); }
+        mmc_regs.read_reg(0x000, buf.as_mut_slice());
         assert_eq!(buf, vec![0x00, 0x00]);
     }
 
@@ -238,7 +238,7 @@ mod test {
         assert_eq!(mmc_regs.reg0.get(), 0x0000);
 
         let buf = vec![0xFFu8; 2];
-        unsafe { mmc_regs.write_reg(0x000, buf.as_ptr(), buf.len()); }
+        mmc_regs.write_reg(0x000, buf.as_slice());
         assert_eq!(mmc_regs.reg0.get(), 0xFFFF);
     }
 
@@ -247,6 +247,6 @@ mod test {
     fn write_effect() {
         let mut mmc_regs = MMCRegs::new();
         let buf = vec![0xFFu8; 2];
-        unsafe { mmc_regs.write_reg(0x002, buf.as_ptr(), buf.len()); }
+        mmc_regs.write_reg(0x002, buf.as_slice());
     }
 }
