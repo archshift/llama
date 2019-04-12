@@ -44,7 +44,18 @@ impl XdmaDeviceState {
 #[derive(Default)]
 struct XdmaThreadState {
     pc: u32,
-    running: bool
+    running: bool,
+    src_addr: u32,
+    dst_addr: u32,
+    chan_ctrl: u32,
+    loop_ctr: [u32; 2],
+    loop_start_pc: [u32; 2],
+}
+
+fn replace_active_thread(dev: &mut XdmaDevice, new: Option<usize>) -> Option<usize> {
+    let res = dev._internal_state.active_thread.take();
+    dev._internal_state.active_thread = new;
+    res
 }
 
 fn active_thread(dev: &mut XdmaDevice) -> &mut XdmaThreadState {
@@ -56,9 +67,10 @@ fn active_thread(dev: &mut XdmaDevice) -> &mut XdmaThreadState {
     }
 }
 
-fn increment_pc(dev: &mut XdmaDevice, by: usize) {
+fn increment_pc(dev: &mut XdmaDevice, by: usize) -> u32 {
     let thread = active_thread(dev);
     thread.pc += by as u32;
+    thread.pc
 }
 
 mod interpreter {
@@ -73,9 +85,12 @@ mod interpreter {
         active_thread(xdma).running = false;
     }
 
-    pub fn go<V: Version>(xdma: &mut XdmaDevice, instr: u64, _: V) {
-        let start_addr = (instr >> 16) as u32;
-        warn!("STUBBED: XDMA starting at address {:08X}", start_addr);
+    pub fn go<V: Version>(xdma: &mut XdmaDevice, instr: Go::Bf, _: V) {
+        let start_addr = instr.addr.get() as u32;
+        let chan = instr.cn.get() as usize;
+        let old_thread = replace_active_thread(xdma, Some(chan));
+
+        warn!("STUBBED: XDMA starting at address {:08X} for channel {:?}", start_addr, chan);
 
         {
             let thread = active_thread(xdma);
@@ -95,6 +110,9 @@ mod interpreter {
             let inst = u64::from_le_bytes(inst);
             run_instruction(xdma, inst);
         }
+
+        replace_active_thread(xdma, old_thread);
+        increment_pc(xdma, 6);
     }
 
     pub fn kill<V: Version>(xdma: &mut XdmaDevice, _instr: u64, _: V) {
@@ -102,13 +120,69 @@ mod interpreter {
         active_thread(xdma).running = false;
     }
 
-    pub fn flushp<V: Version>(xdma: &mut XdmaDevice, instr: u64, _: V) {
-        warn!("STUBBED: Unimplemented XDMA instruction {}! {:08X}", disasm(instr), instr);
+    pub fn flushp<V: Version>(xdma: &mut XdmaDevice, instr: Flushp::Bf, _: V) {
+        warn!("STUBBED: Unimplemented XDMA instruction {:?}!", instr);
         increment_pc(xdma, 2);
     }
 
+    pub fn mov<V: Version>(xdma: &mut XdmaDevice, instr: Mov::Bf, _: V) {
+        let imm = instr.imm.get() as u32;
+        let reg = instr.rd.get();
+        {
+            let thread = active_thread(xdma);
+            match reg {
+                0 => thread.src_addr = imm,
+                1 => thread.chan_ctrl = imm,
+                2 => thread.dst_addr = imm,
+                _ => unreachable!()
+            }
+        }
+        increment_pc(xdma, 6);
+    }
+
+    pub fn lp<V: Version>(xdma: &mut XdmaDevice, instr: Lp::Bf, _: V) {
+        let which_reg = instr.lc.get() as usize;
+        let iterations = instr.iter.get() as u32;
+        active_thread(xdma).loop_ctr[which_reg] = iterations;
+
+        let next_pc = increment_pc(xdma, 2);
+        active_thread(xdma).loop_start_pc[which_reg] = next_pc;
+    }
+
+    pub fn wfp<V: Version>(xdma: &mut XdmaDevice, instr: Wfp::Bf, _: V) {
+        let periph = instr.periph.get();
+        let bs = instr.bs.get();
+        let p = instr.p.get();
+        #[derive(Debug)]
+        enum Mode {
+            Single, Peripheral, Burst
+        }
+        let mode = match (bs, p) {
+            (0, 0) => Mode::Single,
+            (1, 0) => Mode::Burst,
+            (0, 1) => Mode::Peripheral,
+            _ => unreachable!()
+        };
+
+        increment_pc(xdma, 2);
+
+        warn!("STUBBED: XDMA WFP with periph={}, mode={:?}", periph, mode);
+    }
+
+    pub fn ldp<V: Version>(_xdma: &mut XdmaDevice, instr: Ldp::Bf, _: V) {
+        let periph = instr.periph.get();
+        let bs = instr.bs.get();
+
+        panic!("Unimplmented XDMA LDP{} from periph {}",
+               if bs == 1 {"B"} else {"S"}, periph);
+    }
+    
+    pub fn nop<V: Version>(xdma: &mut XdmaDevice, _instr: u64, _: V) {
+        increment_pc(xdma, 1);
+    }
+
     pub fn undef<V: Version>(_xdma: &mut XdmaDevice, instr: u64, _: V) {
-        panic!("Unimplemented XDMA instruction! {:08X}", instr)
+        panic!("Unimplemented XDMA instruction! {:012X}", instr & 0xFFFFFFFFFFFF);
     }
 }
 

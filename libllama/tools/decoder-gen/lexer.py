@@ -8,7 +8,7 @@ token_regex = re.compile(
     "|(?P<bracket>[[\\]{}])" +
     "|(?P<void>_)" +
     "|(?P<literal>(0b)?\\d+)" +
-    "|(?P<label>\\D\\w+)" +
+    "|(?P<label>\\D\\w*)" +
     "|(?P<garbage>.*)"
 )
 

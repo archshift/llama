@@ -46,7 +46,7 @@ def generate(file):
         nonlocal indentation
         indentation -= 2
 
-    pcode("#[allow(unused_parens)]")
+    pcode("#[allow(dead_code, unused_parens)]")
     pcode(f"pub fn disasm(enc: {decoder.ty}) -> String {{")
     indent()
     for category in decoder.categories:
