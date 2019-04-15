@@ -84,7 +84,7 @@ pub enum BreakReason {
     WFI
 }
 
-const ASYNC_IRQ_CYCLE_MASK: usize = 0xFFF;
+const ASYNC_IRQ_CYCLE_MASK: u64 = 0xFFF;
 
 impl<V: Version> Cpu<V> {
     pub fn new(version: V, memory: mem::MemController, irq_line: irq::IrqLine, clk: clock::SysClock) -> Cpu<V> {
