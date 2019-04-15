@@ -7,6 +7,8 @@ use std::rc::Rc;
 use cpu::irq::{self, IrqClient};
 use io::regs::IoReg;
 
+use smallvec::SmallVec;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Prescaler {
     Div1 = 0,
@@ -45,24 +47,24 @@ fn get_regs(dev: &mut TimerDevice, index: usize) -> (&mut IoReg<u16>, &mut IoReg
 }
 
 fn reg_val_update(dev: &mut TimerDevice, index: usize) {
-    let val = {
-        let (val, _) = get_regs(dev, index);
-        val.get()
-    };
-    let states = &dev._internal_state;
-    for mut t in TimerIter::new(states).filter(|t| t.has_index(index)) {
-        t.set_val_hword(index, val)
-    }
+   let val = {
+       let (val, _) = get_regs(dev, index);
+       val.get()
+   };
+   let states = &dev._internal_state;
+   for mut t in TimerIter::new(states).filter(|t| t.has_index(index)) {
+       t.set_val_hword(index, val)
+   }
 }
 
 fn reg_val_read(dev: &mut TimerDevice, index: usize) {
-    let new_val = {
-        let states = &dev._internal_state;
-        TimerIter::new(states).filter_map(|t| t.val_hword(index))
-                              .next().unwrap()
-    };
-    let (val, _) = get_regs(dev, index);
-    val.set_unchecked(new_val);
+   let new_val = {
+       let states = &dev._internal_state;
+       TimerIter::new(states).filter_map(|t| t.val_hword(index))
+                             .next().unwrap()
+   };
+   let (val, _) = get_regs(dev, index);
+   val.set_unchecked(new_val);
 }
 
 fn reg_cnt_update(dev: &mut TimerDevice, index: usize) {
@@ -207,11 +209,11 @@ impl<'a> Timer<'a> {
 
 struct TimerIter<'a> {
     next_timer: u8,
-    timer_states: Vec<RefMut<'a, TimerState>>,
+    timer_states: SmallVec<[RefMut<'a, TimerState>; 4]>,
 }
 
 impl<'a> TimerIter<'a> {
-    fn new<'b>(states: &'b TimerStates) -> TimerIter<'b> {
+    fn new(states: &'a TimerStates) -> TimerIter<'a> {
         TimerIter {
             next_timer: 3,
             timer_states: states.0.iter().map(|x| x.borrow_mut()).collect(),
@@ -316,7 +318,7 @@ impl TimerState {
 
 pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: usize, irq_tx: &mut irq::IrqSyncClient) {
     // TODO: This needs some optimization
-    let iter_started = TimerIter::new(&timer_states).filter(|t| t.started());
+    let iter_started = TimerIter::new(timer_states).filter(|t| t.started());
 
     for mut timer in iter_started {
         let overflows = timer.will_overflow_words(clock_diff as u64);
