@@ -103,7 +103,7 @@ struct KeyFifoState {
 pub struct AesDeviceState {
     active_keyslot: usize,
     active_process: Option<symm::Crypter>,
-    bytes_left: usize,
+    blocks_left: usize,
 
     key_slots: [Key; 0x40],
     keyx_slots: [Key; 0x40],
@@ -121,7 +121,7 @@ impl Default for AesDeviceState {
         AesDeviceState {
             active_keyslot: 0,
             active_process: None,
-            bytes_left: 0,
+            blocks_left: 0,
             key_slots: load_keys(),
             keyx_slots: [Default::default(); 0x40],
             keyfifo_state: Default::default(),
@@ -167,6 +167,8 @@ impl fmt::Debug for AesDeviceState {
 }
 
 fn reg_cnt_onread(dev: &mut AesDevice) {
+    try_drain_fifo(dev);
+
     let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     let in_count = cmp::min(16, dev._internal_state.fifo_in_buf.len());
     let out_count = cmp::min(16, dev._internal_state.fifo_out_buf.len());
@@ -176,7 +178,6 @@ fn reg_cnt_onread(dev: &mut AesDevice) {
 
 fn reg_cnt_update(dev: &mut AesDevice) {
     let cnt = RegCnt::new(dev.cnt.get());
-    warn!("STUBBED: Wrote 0x{:08X} to AES CNT register!", cnt.val);
 
     if cnt.update_keyslot.get() == 1 {
         dev._internal_state.active_keyslot = dev.key_sel.get() as usize;
@@ -196,7 +197,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         let mode = cnt.mode.get();
         let keyslot = dev._internal_state.active_keyslot;
         let key = dev._internal_state.key_slots[keyslot];
-        let bytes = dev.blk_cnt.get() << 4;
+        let blocks = dev.blk_cnt.get();
 
         let mut ctr = if cnt.in_normal_order.get() == 1 {
             // Reverse word order for CTR
@@ -225,7 +226,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         for b in ctr.iter() { iv_str.push_str(&format!("{:02X}", b)); }
 
         trace!("Attempted to start AES crypto! mode: {}, keyslot: 0x{:X}, bytes: 0x{:X}, key: {}, iv: {}",
-            mode, keyslot, bytes, key_str, iv_str);
+            mode, keyslot, blocks * 16, key_str, iv_str);
 
         let direction = if mode & 1 == 1 {
             symm::Mode::Encrypt
@@ -242,8 +243,10 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         crypter.pad(false);
         dev._internal_state.active_process = Some(crypter);
 
-        dev._internal_state.bytes_left = bytes as usize;
+        dev._internal_state.blocks_left = blocks as usize;
     }
+
+    try_drain_fifo(dev);
 }
 
 fn reg_key_cnt_update(dev: &mut AesDevice) {
@@ -266,53 +269,64 @@ fn reg_key_cnt_update(dev: &mut AesDevice) {
 }
 
 fn reg_fifo_in_update(dev: &mut AesDevice) {
-    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     {
-        let active_process = dev._internal_state.active_process.as_mut()
-            .expect(&format!("Attempted to write to AES FIFO-IN when not started! cnt={:08X}", cnt.val));
-
+        let cnt = RegCnt::new(dev.cnt.get());
         let word = dev.fifo_in.get();
         let word = if cnt.in_big_endian.get() == 1 { word }
                    else { word.swap_bytes() };
         dev._internal_state.fifo_in_buf.push_back(word);
 
-        if dev._internal_state.fifo_in_buf.len() == 4 {
-            let mut words = [
-                dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-                dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-                dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-                dev._internal_state.fifo_in_buf.pop_front().unwrap()
-            ];
+    }
+    try_drain_fifo(dev);
+}
 
-            // TODO: Test this
-            if cnt.in_normal_order.get() == 0 {
-                warn!("STUBBED: AES crypto with in_normal_order unset");
-                words.reverse();
-            }
+fn try_drain_fifo(dev: &mut AesDevice) {
+    let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
+    let active_process = &mut dev._internal_state.active_process;
 
-            let mut dec_words = [0u32; 8]; // Double size because of library silliness
-            unsafe {
-                active_process.update(
-                    bytes::from_val(&words),
-                    bytes::from_mut_val(&mut dec_words)
-                ).unwrap();
-            }
+    while active_process.is_some() && dev._internal_state.fifo_in_buf.len() >= 4 {
+        let mut words = [
+            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
+            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
+            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
+            dev._internal_state.fifo_in_buf.pop_front().unwrap()
+        ];
 
-            let dec_words_iter = dec_words[..4].iter();
+        // TODO: Test this
+        if cnt.in_normal_order.get() == 0 {
+            warn!("STUBBED: AES crypto with in_normal_order unset");
+            words.reverse();
+        }
 
-            if cnt.out_normal_order.get() == 1 {
-                dev._internal_state.fifo_out_buf.extend(dec_words_iter);
-            } else {
-                dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
-            }
+        let mut dec_words = [0u32; 8]; // Double size because of library silliness
+        unsafe {
+            let p = active_process.as_mut().unwrap();
+            p.update(
+                bytes::from_val(&words),
+                bytes::from_mut_val(&mut dec_words)
+            ).unwrap();
+        }
+
+        let dec_words_iter = dec_words[..4].iter();
+
+        if cnt.out_normal_order.get() == 1 {
+            dev._internal_state.fifo_out_buf.extend(dec_words_iter);
+        } else {
+            dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
+        }
+
+        dev._internal_state.blocks_left -= 1;
+        if dev._internal_state.blocks_left == 0 {
+            *active_process = None;
+            cnt.busy.set(0);
         }
     }
 
-    dev._internal_state.bytes_left -= 4;
-    if dev._internal_state.bytes_left == 0 {
-        dev._internal_state.active_process = None;
-        cnt.busy.set(0);
-    }
+    trace!("Attempted drain AES FIFO. fifo_in size: {:#X}, fifo_out size: {:#X}, blocks_left: {:#X}",
+          dev._internal_state.fifo_in_buf.len(),
+          dev._internal_state.fifo_out_buf.len(),
+          dev._internal_state.blocks_left);
+
 }
 
 fn reg_fifo_out_onread(dev: &mut AesDevice) {
