@@ -20,19 +20,38 @@ fn exe_dir() -> path::PathBuf {
 }
 
 fn to_lib_name(base_name: &str) -> String {
-    let target = env::var("TARGET").unwrap();
-    let (prefix, suffix) = if target.contains("apple") {
-        ("lib", ".dylib")
-    } else if target.contains("linux") {
-        ("lib", ".so")
-    } else {
-        unimplemented!()
-    };
+    let (prefix, suffix) =
+        if cfg!(target_os = "macos")
+        { ("lib", ".dylib") }
+        else if cfg!(target_os = "linux")
+        { ("lib", ".so") }
+        else if cfg!(target_os = "windows")
+        { ("", ".dll") }
+        else
+        { unimplemented!() }
+        ;
     format!("{}{}{}", prefix, base_name, suffix)
 }
 
 fn os_into(s: &path::Path) -> &str {
     s.as_os_str().to_str().unwrap()
+}
+
+fn make() -> &'static str {
+    if cfg!(target_os = "windows") { "nmake" }
+    else { "make" }
+}
+
+fn cmake_generator() -> &'static str {
+    if cfg!(target_os = "windows") { "-GNMake Makefiles" }
+    else { "-GUnix Makefiles" }
+}
+
+fn cmake_build_type() -> &'static str {
+    match env::var("PROFILE").unwrap().as_ref() {
+        "release" => "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+        _ => "-DCMAKE_BUILD_TYPE=Debug",
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -42,16 +61,18 @@ fn main() -> io::Result<()> {
 
     let qml_dir = base_dir.join("llama-ui/qml");
 
-    let status = process::Command::new("qmake")
+    let status = process::Command::new("cmake")
         .current_dir(&out_dir)
         .arg(&qml_dir)
+        .arg(cmake_generator())
+        .arg(cmake_build_type())
         .spawn()
-        .expect("failed to start qmake")
+        .expect("failed to start cmake")
         .wait()?;
 
-    assert!(status.success(), "failed to execute qmake");
+    assert!(status.success(), "failed to execute cmake");
 
-    let status = process::Command::new("make")
+    let status = process::Command::new(make())
         .current_dir(&out_dir)
         .spawn()
         .expect("failed to start make")
