@@ -4,5 +4,6 @@ mod strutils;
 
 pub mod bytes;
 pub mod cache;
+pub mod fifo;
 
 pub use self::strutils::*;

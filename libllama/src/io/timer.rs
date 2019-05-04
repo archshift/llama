@@ -251,7 +251,7 @@ pub fn handle_clock_update(timer_states: &TimerStates, clock_diff: u64, irq_tx: 
     timer_states.global_counter.set(new_ctr);
 
     // Check if we have any work to do
-    if !past_deadline(timer_states, clock_diff) {
+    if !past_deadline(timer_states) {
         return
     }
 
@@ -298,7 +298,8 @@ fn update_deadlines(timer_states: &TimerStates) {
     timer_states.deadline.set(min_deadline.map(|m| m + ctr));
 }
 
-fn past_deadline(timer_states: &TimerStates, clock_diff: u64) -> bool {
+fn past_deadline(timer_states: &TimerStates) -> bool {
+    let ctr = timer_states.global_counter.get();
     if let Some(deadline) = timer_states.deadline.get() {
         ctr > deadline
     } else {

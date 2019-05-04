@@ -1,6 +1,9 @@
 use std::fmt;
+use std::cell::RefCell;
 
 use openssl::hash::{Hasher, MessageDigest};
+
+use io::xdma::DmaBus;
 
 bf!(RegCnt[u32] {
     busy: 0:0,
@@ -33,6 +36,9 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
     let state = &mut dev._internal_state;
     trace!("Wrote 0x{:08X} to SHA CNT register!", cnt.val);
     trace!("SHA hasher state: {}", if state.hasher.is_some() { "active" } else { "inactive" });
+    if cnt.val & 0xFFFF00C0 != 0 {
+        warn!("Wrote UNIMPLEMENTED bits 0x{:08X} to SHA CNT register!", cnt.val);
+    }
 
     if cnt.final_round.get() == 1 {
         trace!("Reached end of SHA final round!");
@@ -107,8 +113,36 @@ iodevice!(ShaDevice, {
             write_effect = |_, _, _| unimplemented!();
         }
         0x080;0x40 => {
-            read_effect = |_, _, _| unimplemented!();
+            read_effect = |_, _, buf: &mut [u8]| {
+                // Boot9 XDMAs with this register as a source, into DSP memory.
+                // Might reading from this register be a way to clear the FIFO?
+                for b in buf {
+                    *b = 0;
+                }
+                warn!("STUBBED: read from SHA FIFO register");
+            };
             write_effect = reg_fifo_write;
         }
     }
 });
+
+
+
+impl DmaBus for RefCell<ShaDevice> {
+    fn read_ready(&self) -> bool {
+        let dev = self.borrow();
+        dev._internal_state.hasher.is_none()
+    }
+
+    fn write_ready(&self) -> bool {
+        let dev = self.borrow();
+        dev._internal_state.hasher.is_some()
+    }
+
+    fn read_addr(&self, addr: u32, buf: &mut [u8]) {
+        use io::regs::IoRegAccess;
+        assert!(addr >> 12 == 0x1000A);
+        let src = addr & ((1 << 12) - 1);
+        self.borrow_mut().read_reg(src as usize, buf);
+    }
+}

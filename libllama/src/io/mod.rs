@@ -39,8 +39,8 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     -> (IoRegsArm9, IoRegsShared, IoRegsArm11, IoRegsArm11Priv) {
     
     macro_rules! make_dev_uniq {
-        ($type:ty) => { RefCell::new( <$type>::new() ) };
-        ($type:ty: $($arg:expr),+) => {{ RefCell::new( <$type>::new($($arg),*) ) }};
+        ($type:ty) => { Rc::new(RefCell::new( <$type>::new() )) };
+        ($type:ty: $($arg:expr),+) => {{ Rc::new(RefCell::new( <$type>::new($($arg),*) )) }};
     }
 
     macro_rules! make_dev_shared {
@@ -61,8 +61,12 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let aes    = make_dev_uniq! { aes::AesDevice:     Default::default() };
     let sha    = make_dev_uniq! { sha::ShaDevice:     Default::default() };
     let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
-    let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared) };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
+
+    let xdma_buses = xdma::XdmaBuses {
+        sha: sha.clone()
+    };
+    let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared, xdma_buses) };
 
     let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
     let hid    = make_dev_shared! { hid::HidDevice };
@@ -148,22 +152,23 @@ macro_rules! impl_rw_locked {
 }
 
 
+#[derive(Clone)]
 pub struct IoRegsArm9 {
-    pub cfg:    RefCell< config::ConfigDevice >,
-    pub irq:    RefCell< irq::IrqDevice >,
-    pub ndma:   RefCell< ndma::NdmaDevice >,
-    pub timer:  RefCell< timer::TimerDevice >,
+    pub cfg:    Rc<RefCell< config::ConfigDevice >>,
+    pub irq:    Rc<RefCell< irq::IrqDevice >>,
+    pub ndma:   Rc<RefCell< ndma::NdmaDevice >>,
+    pub timer:  Rc<RefCell< timer::TimerDevice >>,
     // ctrcard,
-    pub emmc:   RefCell< emmc::EmmcDevice >,
-    pub pxi9:   RefCell< pxi::PxiDevice >,
-    pub aes:    RefCell< aes::AesDevice >,
-    pub sha:    RefCell< sha::ShaDevice >,
-    pub rsa:    RefCell< rsa::RsaDevice >,
-    pub xdma:   RefCell< xdma::XdmaDevice >,
+    pub emmc:   Rc<RefCell< emmc::EmmcDevice >>,
+    pub pxi9:   Rc<RefCell< pxi::PxiDevice >>,
+    pub aes:    Rc<RefCell< aes::AesDevice >>,
+    pub sha:    Rc<RefCell< sha::ShaDevice >>,
+    pub rsa:    Rc<RefCell< rsa::RsaDevice >>,
+    pub xdma:   Rc<RefCell< xdma::XdmaDevice >>,
     // spicard,
-    pub cfgext: RefCell< config::ConfigExtDevice >,
+    pub cfgext: Rc<RefCell< config::ConfigExtDevice >>,
     // prng,
-    pub otp:    RefCell< otp::OtpDevice >,
+    pub otp:    Rc<RefCell< otp::OtpDevice >>,
     // arm7,
 }
 
@@ -246,9 +251,10 @@ impl MemoryBlock for IoRegsShared {
 }
 
 
+#[derive(Clone)]
 pub struct IoRegsArm11 {
-    pub lcd:  RefCell< gpu::LcdDevice >,
-    pub gpu:  RefCell< gpu::GpuDevice >,
+    pub lcd:  Rc<RefCell< gpu::LcdDevice >>,
+    pub gpu:  Rc<RefCell< gpu::GpuDevice >>,
 }
 
 impl IoRegsArm11 {
@@ -273,9 +279,10 @@ impl MemoryBlock for IoRegsArm11 {
 }
 
 
+#[derive(Clone)]
 pub struct IoRegsArm11Priv {
-    pub priv11: RefCell< priv11::Priv11Device >,
-    pub gid:    RefCell< priv11::GidDevice >,
+    pub priv11: Rc<RefCell< priv11::Priv11Device >>,
+    pub gid:    Rc<RefCell< priv11::GidDevice >>,
 }
 
 impl IoRegsArm11Priv {

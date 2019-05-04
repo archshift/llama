@@ -1,11 +1,11 @@
 extern crate lgl;
 extern crate log;
 
-use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 struct UILogger;
 
-static TRACE_ENABLED: AtomicBool = ATOMIC_BOOL_INIT;
+static TRACE_ENABLED: AtomicBool = AtomicBool::new(false);
 
 impl log::Log for UILogger {
     fn enabled(&self, _: &log::LogMetadata) -> bool {
