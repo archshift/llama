@@ -292,7 +292,7 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
     match (transfer_type, is_32bit) {
         (TransferType::Read, false) => {
             // TODO: Fail gracefully if read size < requested? Needs more testing
-            get_active_card(dev).read(&mut buf16).unwrap();
+            get_active_card(dev).read_exact(&mut buf16).unwrap();
             dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
             // Setting these flags: hack to keep the client reading even after acknowledging
@@ -306,7 +306,7 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         }
         (TransferType::Read, true) => {
             // TODO: Fail gracefully if read size < requested? Needs more testing
-            get_active_card(dev).read(&mut buf32).unwrap();
+            get_active_card(dev).read_exact(&mut buf32).unwrap();
             dev.data32_fifo.set_unchecked(unsafe { mem::transmute(buf32) });
 
             trigger_status(dev, Status32::RxReady);

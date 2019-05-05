@@ -1,8 +1,9 @@
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Seek, Read, Write};
 
 use io::emmc::TransferType;
 use utils::bytes;
+use utils::cache::TinyCache;
 use fs;
 
 #[derive(Clone, Copy)]
@@ -57,6 +58,8 @@ pub struct ActiveTransfer {
     seek_pos: u64
 }
 
+const CACHE_LINE_SIZE: usize = 512;
+
 pub struct Card {
     pub ty: CardType,
     pub csr: CardStatusReg::Bf,
@@ -65,11 +68,23 @@ pub struct Card {
     pub rca: u16,
 
     storage: File,
+    cache: TinyCache<[u8; CACHE_LINE_SIZE], File>,
     transfer: Option<ActiveTransfer>,
 }
 
 impl Card {
     pub fn new(ty: CardType, storage: File, cid: CardIdentReg::Bf) -> Card {
+        let fill_cacheline = |f: &mut File, pos: u32| {
+            let mut out = [0u8; CACHE_LINE_SIZE];
+            f.seek(io::SeekFrom::Start(CACHE_LINE_SIZE as u64 * pos as u64)).unwrap();
+            f.read(&mut out).unwrap();
+            out
+        };
+        let wb_cacheline = |f: &mut File, pos: u32, data: &[u8; 512]| {
+            f.seek(io::SeekFrom::Start(CACHE_LINE_SIZE as u64 * pos as u64)).unwrap();
+            f.write(data).unwrap();
+        };
+
         Card {
             ty: ty,
             csr: CardStatusReg::new(0),
@@ -77,6 +92,7 @@ impl Card {
             csd: CardSpecificData::new(0),
             rca: 1,
             storage: storage,
+            cache: TinyCache::new(fill_cacheline, wb_cacheline),
             transfer: None
         }
     }
@@ -115,7 +131,18 @@ impl io::Read for Card {
         let xfer = self.transfer.as_mut()
             .ok_or(io::Error::new(io::ErrorKind::NotConnected, "No active transfer found"))?;
         let to_advance = match xfer.loc {
-            TransferLoc::Storage => self.storage.read(buf),
+            TransferLoc::Storage => {
+                let pos = xfer.seek_pos as u32;
+                let read = self.cache.get_or(pos / CACHE_LINE_SIZE as u32, &mut self.storage);
+
+                let read_start = (pos as usize) % CACHE_LINE_SIZE;
+                let read_end = (read_start + buf.len()).min(CACHE_LINE_SIZE);
+                let read_amount = read_end - read_start;
+
+                buf[..read_amount].copy_from_slice(&read[read_start..read_end]);
+
+                Ok(read_amount)
+            },
             TransferLoc::RegScr => {
                 warn!("STUBBED: Read from SD card SCR register");
                 for b in buf.iter_mut() { *b = 0; }
@@ -139,7 +166,20 @@ impl io::Write for Card {
         let xfer = self.transfer.as_mut()
             .ok_or(io::Error::new(io::ErrorKind::NotConnected, "No active transfer found"))?;
         let to_advance = match xfer.loc {
-            TransferLoc::Storage => self.storage.write(buf),
+            TransferLoc::Storage => {
+                let pos = xfer.seek_pos as u32;
+
+                let write_start = (pos as usize) % CACHE_LINE_SIZE;
+                let write_end = (write_start + buf.len()).min(CACHE_LINE_SIZE);
+                let write_amount = write_end - write_start;
+
+                let updater = |_: u32, line: &mut [u8; CACHE_LINE_SIZE]| {
+                    line[write_start..write_end].copy_from_slice(&buf[..write_amount]);
+                };
+
+                self.cache.update_or(pos / CACHE_LINE_SIZE as u32, updater, &mut self.storage);
+                Ok(write_amount)
+            }
             TransferLoc::RegScr => {
                 Err(io::Error::new(io::ErrorKind::PermissionDenied, "Cannot write to SCR register"))
             }
@@ -157,7 +197,7 @@ impl io::Write for Card {
         let xfer = self.transfer.as_mut()
             .ok_or(io::Error::new(io::ErrorKind::NotConnected, "No active transfer found"))?;
         match xfer.loc {
-            TransferLoc::Storage => self.storage.flush(),
+            TransferLoc::Storage => Ok(self.cache.invalidate(&mut self.storage)),
             TransferLoc::RegScr => Ok(()),
             TransferLoc::RegSsr => Ok(()),
         }
@@ -168,18 +208,19 @@ impl io::Seek for Card {
     fn seek(&mut self, seek_from: io::SeekFrom) -> Result<u64, io::Error> {
         let xfer = self.transfer.as_mut()
             .ok_or(io::Error::new(io::ErrorKind::NotConnected, "No active transfer found"))?;
-        let new_pos = match xfer.loc {
-            TransferLoc::Storage => self.storage.seek(seek_from),
-            _ => Ok(match seek_from {
-                io::SeekFrom::Current(v) => ((xfer.seek_pos as i64) + v as i64) as u64,
-                io::SeekFrom::End(_v) => unimplemented!(),
-                io::SeekFrom::Start(v) => v as u64,
-            })
+        let new_pos = match seek_from {
+            io::SeekFrom::Current(v) => ((xfer.seek_pos as i64) + v as i64) as u64,
+            io::SeekFrom::End(_v) => unimplemented!(),
+            io::SeekFrom::Start(v) => v as u64,
         };
-        if let Ok(new_pos) = new_pos {
-            xfer.seek_pos = new_pos;
-        }
-        new_pos
+        xfer.seek_pos = new_pos;
+        Ok(new_pos)
+    }
+}
+
+impl Drop for Card {
+    fn drop(&mut self) {
+        self.cache.invalidate(&mut self.storage);
     }
 }
 
