@@ -1,5 +1,9 @@
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::rc::Rc;
+use std::fmt;
+
+use hwcore::HardwareDma9;
+use io::DmaBuses;
 
 bf!(RegGlobalCnt[u32] {
     enabled: 0:0,
@@ -8,28 +12,125 @@ bf!(RegGlobalCnt[u32] {
 });
 
 bf!(RegChannelCnt[u32] {
-    _dst_addr_writeback_mode: 10:11,
+    dst_addr_writeback_mode: 10:11,
     _dst_addr_reload: 12:12,
-    _src_addr_writeback_mode: 13:14,
+    src_addr_writeback_mode: 13:14,
     _src_addr_reload: 15:15,
-    _xfer_size: 16:19,
+    xfer_size: 16:19,
     _startup_mode: 24:27,
-    _immed_mode: 28:28,
-    _repeat_mode: 29:29,
+    immed_mode: 28:28,
+    repeat_mode: 29:29,
     _enable_irq: 30:30,
     enabled: 31:31
 });
 
-fn reg_chan_cnt_write(dev: &mut NdmaChannel) {
+fn should_xfer(dev: &mut NdmaChannel) -> bool {
     let chan_cnt = RegChannelCnt::new(dev.chan_cnt.get());
-    if chan_cnt.enabled.get() == 1 {
-        unimplemented!()
+    if chan_cnt.enabled.get() == 0 {
+        return false;
     }
-    warn!("STUBBED: NDMA chan_cnt write {:X?}", chan_cnt);
+
+    let mode = (chan_cnt.immed_mode.get(), chan_cnt.repeat_mode.get());
+    match mode {
+        (0, 0) => {
+            unimplemented!()
+        }
+        (1, 0) => {
+            // Immediate mode
+            true
+        }
+        (0, 1) => {
+            unimplemented!()
+        }
+        _ => panic!("Attempted to use impossible channel mode immed+repeat")
+    }
+}
+
+fn process_channel(dev: &mut NdmaChannel) {
+    if !should_xfer(dev) {
+        let chan_cnt = RegChannelCnt::alias_mut(dev.chan_cnt.ref_mut());
+        chan_cnt.enabled.set(0);
+        return;
+    }
+
+    let xns = &mut dev._internal_state;
+    let mut hw = xns.hw.borrow_mut();
+
+    let chan_cnt = RegChannelCnt::new(dev.chan_cnt.get());
+
+    let line_size = 1u32 << chan_cnt.xfer_size.get();
+    let mut src_addr = dev.src_addr.get();
+    let mut dst_addr = dev.dst_addr.get();
+    let total_words = dev.write_cnt.get() & 0xFFFFFF;
+
+    let mut tmp_buf = vec![0u8; 4 * line_size as usize];
+    let word_fill = dev.fill_data.get().to_le_bytes();
+
+    assert!(src_addr % 4 == 0);
+    assert!(dst_addr % 4 == 0);
+    assert!(total_words % line_size == 0);
+
+    let src_wb_mode = chan_cnt.src_addr_writeback_mode.get();
+    let dst_wb_mode = chan_cnt.dst_addr_writeback_mode.get();
+
+    for _burst in 0..(total_words / line_size) {
+
+        info!("Processing NDMA 0x{:X}-word burst to address {:08X}!", line_size, dst_addr);
+
+        if src_wb_mode == 3 {
+            info!("NDMA using fill source {:08X}", dev.fill_data.get());
+
+            // Constant data fill
+            for word in tmp_buf.chunks_exact_mut(4) {
+                word.copy_from_slice(&word_fill);
+            }
+        } else {
+            info!("NDMA using address source {:08X}", dev.fill_data.get());
+
+            hw.mem.read_buf(src_addr, &mut tmp_buf[..]);
+
+            src_addr = match src_wb_mode {
+                0 => src_addr + 4 * line_size,
+                1 => src_addr - 4 * line_size,
+                2 => src_addr,
+                _ => unreachable!()
+            };
+        }
+
+        hw.mem.write_buf(dst_addr, &mut tmp_buf[..]);
+
+        dst_addr = match dst_wb_mode {
+            0 => dst_addr + 4 * line_size,
+            1 => dst_addr - 4 * line_size,
+            2 => dst_addr,
+            _ => unreachable!()
+        };
+    }
+
+    let chan_cnt = RegChannelCnt::alias_mut(dev.chan_cnt.ref_mut());
+    let mode = (chan_cnt.immed_mode.get(), chan_cnt.repeat_mode.get());
+    match mode {
+        (0, 0) => {
+            unimplemented!()
+        }
+        (1, 0) => {
+            // Immediate mode
+            chan_cnt.enabled.set(0);
+        }
+        (0, 1) => {
+            unimplemented!()
+        }
+        _ => panic!("Attempted to use impossible channel mode immed+repeat")
+    }
+}
+
+
+fn reg_chan_cnt_write(dev: &mut NdmaChannel) {
+    process_channel(dev);
 }
 
 iodevice!(NdmaChannel, {
-    internal_state: Rc<Cell<RegGlobalCnt::Bf>>;
+    internal_state: NdmaConnections;
     regs: {
         0x004 => src_addr: u32 { }
         0x008 => dst_addr: u32 { }
@@ -43,22 +144,41 @@ iodevice!(NdmaChannel, {
     }
 });
 
-#[derive(Debug)]
+#[derive(Clone)]
+pub struct NdmaConnections {
+    hw: Rc<RefCell<HardwareDma9>>,
+    buses: DmaBuses,
+}
+
+impl fmt::Debug for NdmaConnections {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "NdmaConnections {{ }}")
+    }
+}
+
 pub struct NdmaDeviceState {
-    global_cnt: Rc<Cell<RegGlobalCnt::Bf>>,
+    _connections: NdmaConnections,
     channels: [NdmaChannel; 8],
 }
 
-impl Default for NdmaDeviceState {
-    fn default() -> NdmaDeviceState {
-        let global_cnt = Rc::new(Cell::new(RegGlobalCnt::new(0)));
-        NdmaDeviceState {
-            global_cnt: global_cnt.clone(),
+impl fmt::Debug for NdmaDeviceState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "NdmaConnections {{ }}")
+    }
+}
+
+impl NdmaDeviceState {
+    pub fn new(hw: Rc<RefCell<HardwareDma9>>, buses: DmaBuses) -> Self {
+        let connections = NdmaConnections {
+            hw, buses
+        };
+        Self {
+            _connections: connections.clone(),
             channels: [
-                NdmaChannel::new(global_cnt.clone()), NdmaChannel::new(global_cnt.clone()),
-                NdmaChannel::new(global_cnt.clone()), NdmaChannel::new(global_cnt.clone()),
-                NdmaChannel::new(global_cnt.clone()), NdmaChannel::new(global_cnt.clone()),
-                NdmaChannel::new(global_cnt.clone()), NdmaChannel::new(global_cnt.clone())
+                NdmaChannel::new(connections.clone()), NdmaChannel::new(connections.clone()),
+                NdmaChannel::new(connections.clone()), NdmaChannel::new(connections.clone()),
+                NdmaChannel::new(connections.clone()), NdmaChannel::new(connections.clone()),
+                NdmaChannel::new(connections.clone()), NdmaChannel::new(connections.clone()),
             ],
         }
     }
@@ -67,12 +187,7 @@ impl Default for NdmaDeviceState {
 iodevice!(NdmaDevice, {
     internal_state: NdmaDeviceState;
     regs: {
-        0x000 => global_cnt: u32 {
-            write_effect = |dev: &mut NdmaDevice| {
-                let new_val = RegGlobalCnt::new(dev.global_cnt.get());
-                dev._internal_state.global_cnt.set(new_val);
-            };
-        }
+        0x000 => global_cnt: u32 { }
     }
     ranges: {
         0x004;0xE0 => {

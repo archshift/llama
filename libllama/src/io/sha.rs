@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 use openssl::hash::{Hasher, MessageDigest};
 
-use io::xdma::DmaBus;
+use io::DmaBus;
 
 bf!(RegCnt[u32] {
     busy: 0:0,

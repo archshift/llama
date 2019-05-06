@@ -33,6 +33,22 @@ use hwcore::HardwareDma9;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
+
+
+pub trait DmaBus {
+    fn read_ready(&self) -> bool;
+    fn write_ready(&self) -> bool;
+
+    fn read_addr(&self, addr: u32, buf: &mut [u8]);
+}
+
+#[derive(Clone)]
+pub struct DmaBuses {
+    pub sha: Rc<dyn DmaBus>,
+}
+
+
+
 pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
                    clk: clock::SysClock, pica_hw: gpu::HardwarePica,
                    dma9_hw: HardwareDma9)
@@ -54,7 +70,6 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let cfg    = make_dev_uniq! { config::ConfigDevice };
     let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys9.agg };
     let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_subsys9.sync_tx) };
-    let ndma   = make_dev_uniq! { ndma::NdmaDevice:   Default::default() };
     let otp    = make_dev_uniq! { otp::OtpDevice:     Default::default() };
     let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
     let timer  = make_dev_uniq! { timer::TimerDevice: clk.timer_states };
@@ -63,10 +78,11 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
 
-    let xdma_buses = xdma::XdmaBuses {
+    let dma_buses = DmaBuses {
         sha: sha.clone()
     };
-    let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared, xdma_buses) };
+    let ndma   = make_dev_uniq! { ndma::NdmaDevice:   ndma::NdmaDeviceState::new(dma9_shared.clone(), dma_buses.clone()) };
+    let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared, dma_buses) };
 
     let pxi11  = make_dev_shared! { pxi::PxiDevice:   pxi_shared.1 };
     let hid    = make_dev_shared! { hid::HidDevice };

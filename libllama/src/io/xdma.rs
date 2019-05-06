@@ -6,6 +6,7 @@ use std::fmt;
 use utils::fifo::Fifo;
 
 use hwcore::HardwareDma9;
+use io::{DmaBus, DmaBuses};
 
 struct DmacVer;
 pub trait Version {}
@@ -13,21 +14,6 @@ impl Version for DmacVer {}
 
 pub type InstFn<V> = fn(&mut XdmaDevice, u64, V);
 include!(concat!(env!("OUT_DIR"), "/dmac.decoder.rs"));
-
-
-
-pub trait DmaBus {
-    fn read_ready(&self) -> bool;
-    fn write_ready(&self) -> bool;
-
-    fn read_addr(&self, addr: u32, buf: &mut [u8]);
-}
-
-
-
-pub struct XdmaBuses {
-    pub sha: Rc<dyn DmaBus>,
-}
 
 
 
@@ -46,7 +32,7 @@ impl fmt::Debug for XdmaDeviceState {
 }
 
 impl XdmaDeviceState {
-    pub fn new(hw: Rc<RefCell<HardwareDma9>>, buses: XdmaBuses) -> Self {
+    pub fn new(hw: Rc<RefCell<HardwareDma9>>, buses: DmaBuses) -> Self {
         let mut bus_map = HashMap::new();
         bus_map.insert(7, buses.sha);
 
