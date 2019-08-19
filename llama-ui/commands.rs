@@ -239,7 +239,6 @@ fn cmd_irq<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
 /// `args`: Iterator over &str items
 fn cmd_mem<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut args: It)
     where It: Iterator<Item=&'a str> {
-    use libllama::utils::from_hex;
 
     // Tuple: (u32: start, u32: num)
     let arg_res = match (args.next(), args.next()) {

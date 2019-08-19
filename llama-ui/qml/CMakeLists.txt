@@ -12,8 +12,8 @@ find_package(Qt5QuickCompiler)
 
 set(qtui_SRCS
     main.cpp
-	screens.cpp
-	qml.qrc
+	 screens.cpp
+	 qml.qrc
 )
 
 qtquick_compiler_add_resources(RESOURCES qml.qrc)

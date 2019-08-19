@@ -90,7 +90,7 @@ impl<'a> DbgContext<'a> {
         }
     }
 
-    pub fn hw<'b>(&'b mut self) -> Box<HwCtx + 'b> {
+    pub fn hw<'b>(&'b mut self) -> Box<dyn HwCtx + 'b> {
         match self.active_cpu {
             ActiveCpu::Arm9 => Box::new(self.hw9()),
             ActiveCpu::Arm11 => Box::new(self.hw11())

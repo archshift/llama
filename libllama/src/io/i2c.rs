@@ -113,7 +113,7 @@ trait Peripheral {
 }
 
 pub struct I2cPeripherals {
-    periphs: HashMap<u8, Box<Peripheral>>
+    periphs: HashMap<u8, Box<dyn Peripheral>>
 }
 
 impl fmt::Debug for I2cPeripherals {
@@ -142,7 +142,7 @@ impl I2cPeripherals {
 
 
 pub fn make_peripherals() -> I2cPeripherals {
-    let mut periphs: HashMap<u8, Box<Peripheral>> = HashMap::new();
+    let mut periphs: HashMap<u8, Box<dyn Peripheral>> = HashMap::new();
 
     periphs.insert(0x2c, Box::new(PeriphLCD::new()));
     periphs.insert(0x2e, Box::new(PeriphLCD::new()));

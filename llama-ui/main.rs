@@ -20,7 +20,7 @@ mod c {
 }
 
 struct Backend<'a> {
-    loader: &'a ldr::Loader,
+    loader: &'a dyn ldr::Loader,
     debugger: dbgcore::DbgCore,
     cmd_active_cpu: dbgcore::ActiveCpu,
     gdb: gdbstub::GdbStub,
@@ -185,7 +185,6 @@ mod cbs {
         };
 
         for cmd in input.split(';') {
-            use lgl;
             lgl::log("> ");
             lgl::log(cmd);
             lgl::log("\n");
@@ -222,7 +221,7 @@ mod cbs {
     }
 }
 
-fn load_game<'a>(loader: &'a ldr::Loader) -> Backend<'a> {
+fn load_game<'a>(loader: &'a dyn ldr::Loader) -> Backend<'a> {
     let fbs = hwcore::Framebuffers::default();
 
     let mut hwcore = hwcore::HwCore::new(loader);

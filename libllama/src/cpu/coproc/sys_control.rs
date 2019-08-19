@@ -198,17 +198,17 @@ impl SysControl {
 
     fn write_c7<V: Version>(&mut self, op2: usize, cpreg2: usize) -> CpEffect<V> {
         match (cpreg2, op2) {
-            (5, 0...2) => Box::new(move |cpu| cpu.mpu.icache_invalidate()),
-            (6, 0...2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
+            (5, 0..=2) => Box::new(move |cpu| cpu.mpu.icache_invalidate()),
+            (6, 0..=2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
             (7, 0) => Box::new(move |cpu| {
                 cpu.mpu.icache_invalidate();
                 cpu.mpu.dcache_invalidate();
             }),
-            (7, 1...2) => unimplemented!(),
-            (10, 0...2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
-            (11, 0...2) => unimplemented!(),
-            (14, 0...2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
-            (15, 0...2) => unimplemented!(),
+            (7, 1..=2) => unimplemented!(),
+            (10, 0..=2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
+            (11, 0..=2) => unimplemented!(),
+            (14, 0..=2) => Box::new(move |cpu| cpu.mpu.dcache_invalidate()),
+            (15, 0..=2) => unimplemented!(),
             _ => { warn!("STUBBED: Cache control register write; reg2={}, op2={}", cpreg2, op2); mknop() },
         }
     }

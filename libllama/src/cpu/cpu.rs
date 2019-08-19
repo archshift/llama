@@ -147,7 +147,7 @@ impl<V: Version> Cpu<V> {
         assert_eq!(self.regs[15] & (Self::instr_size(thumb_bit) - 1), 0);
     }
 
-    pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut coproc::Coprocessor<V> {
+    pub fn get_coprocessor(&mut self, cp_index: usize) -> &mut dyn coproc::Coprocessor<V> {
         match cp_index {
             15 => &mut self.coproc_syscnt,
             _ => panic!("Tried to access unknown CP{}", cp_index),

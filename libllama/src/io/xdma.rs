@@ -267,7 +267,7 @@ mod interpreter {
                 let mut dst_buf = [0u8; 16];
                 let state = &mut xdma._internal_state;
                 let thread_num = state.active_thread.unwrap();
-                let mut hw = state.hw.borrow_mut();
+                let hw = state.hw.borrow_mut();
                 let fifo = &mut state.channels[thread_num].data_fifo;
 
                 warn!("STUBBED: XDMA burst read {}x{} from addr {:08X}, incrementing?={}",

@@ -14,7 +14,7 @@ pub trait Loader {
 
 use std::path::Path;
 
-pub fn make_loader(path: &Path) -> Box<Loader> {
+pub fn make_loader(path: &Path) -> Box<dyn Loader> {
     match path.extension().and_then(|x| x.to_str()) {
         Some("ctr9") => Box::new(Ctr9Loader::from_folder(path).unwrap()),
         Some("firm") => Box::new(FirmLoader::from_file(path).unwrap()),

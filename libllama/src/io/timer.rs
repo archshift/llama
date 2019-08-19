@@ -58,7 +58,7 @@ fn reg_val_update(dev: &mut TimerDevice, index: usize) {
 
 fn reg_val_read(dev: &mut TimerDevice, index: usize) {
     let new_val = {
-        let mut state = dev._internal_state.all.borrow_mut();
+        let state = dev._internal_state.all.borrow_mut();
         state[index].val() as u16
     };
     let (val, _) = get_regs(dev, index);

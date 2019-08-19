@@ -212,7 +212,7 @@ fn handle_gdb_cmd(cmd: &str, ctx: &mut GdbCtx) -> Result<String> {
             let hw = ctx.dbg.hw();
             let reg = utils::from_hex(&params)? as usize;
             let regval = match reg {
-                0 ... 14 => hw.read_reg(reg),
+                0 ..= 14 => hw.read_reg(reg),
                 15 => hw.pause_addr(),
                 25 => hw.read_cpsr(),
                 n => {

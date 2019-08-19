@@ -277,7 +277,7 @@ pub enum Arm11State {
 }
 
 impl HwCore {
-    pub fn new(loader: &ldr::Loader) -> HwCore {
+    pub fn new(loader: &dyn ldr::Loader) -> HwCore {
         let mut msg_spec = msgs::MsgGraph::new(&[
             ("gdb", &[], &["quit", "arm9halted"]),
             ("user", &["quit", "hidupdate"], &["framebufstate"]),
