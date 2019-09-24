@@ -157,7 +157,7 @@ mod cbs {
 
     pub unsafe extern fn mod_button(backend: *mut c::Backend, button: i32, pressed: bool) {
         let backend = Backend::from_c(backend);
-        let button = match button as u32 {
+        let button = match button as i32 {
             c::Button_BUTTON_A => hid::Button::A,
             c::Button_BUTTON_B => hid::Button::B,
             c::Button_BUTTON_X => hid::Button::X,

@@ -19,39 +19,61 @@ fn exe_dir() -> path::PathBuf {
     exe_dir
 }
 
-fn to_lib_name(base_name: &str) -> String {
-    let (prefix, suffix) =
-        if cfg!(target_os = "macos")
-        { ("lib", ".dylib") }
-        else if cfg!(target_os = "linux")
-        { ("lib", ".so") }
-        else if cfg!(target_os = "windows")
-        { ("", ".dll") }
-        else
-        { unimplemented!() }
-        ;
-    format!("{}{}{}", prefix, base_name, suffix)
+fn lib_files(base_name: &str) -> Vec<String> {
+    if cfg!(target_os = "macos") {
+        vec![ format!("lib{}.dylib", base_name) ]
+    }
+    else if cfg!(target_os = "linux") {
+        vec![ format!("lib{}.so", base_name) ]
+    }
+    else if cfg!(target_os = "windows") {
+        vec![
+            format!("{}.dll", base_name),
+            format!("{}.lib", base_name)
+        ]
+    }
+    else {
+        unimplemented!()
+    }
+}
+
+fn copy_lib_files(base_name: &str, dst_dir: &path::Path) -> io::Result<()> {
+    let out_dir = path::PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_dir = if cfg!(target_os = "windows") {
+        out_dir.clone().join(cmake_build_type())
+    } else {
+        out_dir.clone()
+    };
+
+    for lib_name in lib_files(base_name) {
+        fs::copy(out_dir.join(&lib_name), dst_dir.join(lib_name))?;
+    }
+
+    Ok(())
 }
 
 fn os_into(s: &path::Path) -> &str {
     s.as_os_str().to_str().unwrap()
 }
 
-fn make() -> &'static str {
-    if cfg!(target_os = "windows") { "nmake" }
-    else { "make" }
+fn make() -> &'static [&'static str] {
+    if cfg!(target_os = "windows") { &["cmake", "--build", "."] }
+    else { &["make"] }
 }
 
 fn cmake_generator() -> &'static str {
-    if cfg!(target_os = "windows") { "-GNMake Makefiles" }
+    if cfg!(target_os = "windows") { "-GVisual Studio 16 2019" }
     else { "-GUnix Makefiles" }
 }
 
 fn cmake_build_type() -> &'static str {
     match env::var("PROFILE").unwrap().as_ref() {
-        "release" => "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
-        _ => "-DCMAKE_BUILD_TYPE=Debug",
+        "release" => "RelWithDebInfo",
+        _ => "Debug",
     }
+}
+fn cmake_build_type_arg() -> String {
+    "-DCMAKE_BUILD_TYPE=".to_owned() + cmake_build_type()
 }
 
 fn main() -> io::Result<()> {
@@ -65,23 +87,24 @@ fn main() -> io::Result<()> {
         .current_dir(&out_dir)
         .arg(&qml_dir)
         .arg(cmake_generator())
-        .arg(cmake_build_type())
+        .arg(cmake_build_type_arg())
         .spawn()
         .expect("failed to start cmake")
         .wait()?;
 
     assert!(status.success(), "failed to execute cmake");
 
-    let status = process::Command::new(make())
+    let make = make();
+    let status = process::Command::new(make[0])
         .current_dir(&out_dir)
+        .args(&make[1..])
         .spawn()
         .expect("failed to start make")
         .wait()?;
 
     assert!(status.success(), "failed to execute make");
 
-    let lib_name = to_lib_name("llamagui");
-    fs::copy(out_dir.join(&lib_name), exe_dir.join(lib_name))?;
+    copy_lib_files("llamagui", &exe_dir)?;
 
     println!("cargo:rustc-link-search=native={}", os_into(&exe_dir));
     println!("cargo:rustc-link-lib=dylib={}", "llamagui");

@@ -37,7 +37,7 @@ fn cmd_asm<'a, It>(active_cpu: ActiveCpu, debugger: &mut dbgcore::DbgCore, mut a
         .mode(cpu_mode)
         .build();
 
-    if let Ok(cs) = cs {
+    if let Ok(mut cs) = cs {
         let mut inst_bytes = [0u8; 4];
         if let Err(e) = hw.read_mem(pause_addr, &mut inst_bytes) {
             error!("{}", e);

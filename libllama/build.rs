@@ -3,6 +3,12 @@ use std::process::Command;
 use std::fs::File;
 use std::path::Path;
 
+#[cfg(target_os = "windows")]
+const PYTHON: &'static str = "python";
+
+#[cfg(not(target_os = "windows"))]
+const PYTHON: &'static str = "python3";
+
 fn main() {
     let decoders = [
         "src/cpu/arm.decoder",
@@ -15,7 +21,7 @@ fn main() {
         let filename = Path::new(decoder).file_name().unwrap();
         let out = format!("{}/{}.rs", out_dir, filename.to_os_string().to_str().unwrap());
 
-        let decoder_stat = Command::new("python3")
+        let decoder_stat = Command::new(PYTHON)
             .arg("tools/decoder-gen/decoder-gen.py")
             .arg(decoder)
             .stdout(File::create(&out).unwrap())

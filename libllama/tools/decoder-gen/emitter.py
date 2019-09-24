@@ -1,4 +1,4 @@
-import parser
+import _parser as parser
 
 def literal_to_int(lit):
     if lit.startswith("0b"):

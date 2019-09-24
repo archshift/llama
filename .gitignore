@@ -5,3 +5,6 @@ Cargo.lock
 .swp
 __pycache__
 .vscode
+obj/*
+*.log
+*.tlog/*

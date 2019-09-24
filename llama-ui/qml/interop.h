@@ -55,10 +55,16 @@ typedef struct FrontendCallbacks {
     size_t(*buffer_size)();
 } FrontendCallbacks;
 
+#ifdef _MSC_VER
+#define EXPORT __declspec(dllexport)
+#else
+#define EXPORT
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-    int llama_open_gui(int argc, char **argv, Backend *backend, const FrontendCallbacks *callbacks);
+    int EXPORT llama_open_gui(int argc, char **argv, Backend *backend, const FrontendCallbacks *callbacks);
 #ifdef __cplusplus
 }
 #endif

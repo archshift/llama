@@ -12,8 +12,14 @@ pub enum LlamaFile {
     Boot11,
 }
 
+#[cfg(not(target_os = "windows"))]
 fn make_filepath(filename: &str) -> String {
     format!("{}/.config/llama/{}", env::var("HOME").unwrap(), filename)
+}
+
+#[cfg(target_os = "windows")]
+fn make_filepath(filename: &str) -> String {
+    format!("{}/llama/{}", env::var("APPDATA").unwrap(), filename)
 }
 
 fn get_path(lf: LlamaFile) -> String {
