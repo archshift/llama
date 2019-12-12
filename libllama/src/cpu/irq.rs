@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::cell::Cell;
 use std::sync::mpsc;
 
@@ -68,7 +68,7 @@ type RcMut<T> = Rc<Cell<T>>;
 
 type AsyncLine = Arc<AtomicBool>;
 type SyncLine = RcMut<bool>;
-type AsyncEnabled = Arc<[AtomicUsize; 4]>;
+type AsyncEnabled = Arc<[AtomicU32; 4]>;
 type SyncEnabled = RcMut<u128>;
 
 /// CPU end of the IRQ subsystem, just a simple triggered/not triggered API
@@ -168,7 +168,7 @@ impl IrqClient for IrqAsyncClient {
 
     fn is_enabled(&self, index: u32) -> bool {
         let which_word = (index / 32) as usize;
-        let enabled = self.enabled[which_word].load(Ordering::Relaxed) as u32;
+        let enabled = self.enabled[which_word].load(Ordering::Relaxed);
         enabled & (1 << (index % 32)) != 0
     }
 }
@@ -202,19 +202,19 @@ impl fmt::Debug for Aggregator {
 impl Aggregator {
     pub(crate) fn set_enabled(&self, new: u128) {
         self.sync_enabled.set(new);
-        self.async_enabled[0].store(new as u32 as usize, Ordering::Relaxed);
-        self.async_enabled[1].store((new >> 32) as u32 as usize, Ordering::Relaxed);
-        self.async_enabled[2].store((new >> 64) as u32 as usize, Ordering::Relaxed);
-        self.async_enabled[3].store((new >> 96) as u32 as usize, Ordering::Relaxed);
+        self.async_enabled[0].store(new as u32, Ordering::Relaxed);
+        self.async_enabled[1].store((new >> 32) as u32, Ordering::Relaxed);
+        self.async_enabled[2].store((new >> 64) as u32, Ordering::Relaxed);
+        self.async_enabled[3].store((new >> 96) as u32, Ordering::Relaxed);
     }
 
     pub(crate) fn drain_asserts(&mut self) -> u128 {
         let mut pending = self.pending;
         while let Some(x) = self.sync_rx.pop() {
-            pending |= 1 << x;
+            pending |= 1u128 << (x as u128);
         }
         while let Some(x) = self.async_rx.pop() {
-            pending |= 1 << x;
+            pending |= 1u128 << (x as u128);
         }
         self.pending = pending;
         pending
@@ -242,7 +242,7 @@ impl IrqSubsys {
             async: Arc::new(AtomicBool::new(false))
         };
         let sync_enabled = Rc::new(Cell::new(0));
-        let async_enabled = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)]);
+        let async_enabled = Arc::new([AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)]);
         let sync_irqs = Rc::new(Cell::new(0));
         let (async_irqs_tx, async_irqs_rx) = mpsc::channel();
         Self {
