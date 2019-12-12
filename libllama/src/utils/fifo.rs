@@ -45,6 +45,14 @@ impl<T> Fifo<T> {
         }
         drain_amount
     }
+
+    pub fn full(&self) -> bool {
+        self.len() == self.max_len
+    }
+
+    pub fn empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<T: Clone> Fifo<T> {
@@ -52,7 +60,7 @@ impl<T: Clone> Fifo<T> {
         let space_left = self.max_len - self.len();
         let copy_amount = items.len().min(space_left);
 
-        self.inner.extend(items.iter().cloned());
+        self.inner.extend(items[..copy_amount].iter().cloned());
 
         copy_amount
     }
