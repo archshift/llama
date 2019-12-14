@@ -18,7 +18,7 @@ impl<T> Fifo<T> {
 
 
     pub fn push(&mut self, item: T) -> bool {
-        if self.len() > self.max_len {
+        if self.len() >= self.max_len {
             return false
         }
 
@@ -63,5 +63,74 @@ impl<T: Clone> Fifo<T> {
         self.inner.extend(items[..copy_amount].iter().cloned());
 
         copy_amount
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn fifo_bounds() {
+        let mut fifo = Fifo::<u32>::new(16);
+        assert!(fifo.empty());
+        assert!(fifo.pop().is_none());
+
+        for i in 0..16 {
+            let ok = fifo.push(i);
+            assert!(ok);
+        }
+        assert!(fifo.full());
+        assert!(!fifo.push(16));
+
+        for i in 0..16 {
+            let out = fifo.pop().unwrap();
+            assert_eq!(out, i);
+        }
+
+        assert!(fifo.empty());
+        assert!(fifo.pop().is_none());
+    }
+
+    #[test]
+    fn fifo_drain() {
+        let mut fifo = Fifo::<u32>::new(16);
+        for i in 0..16 {
+            fifo.push(i);
+        }
+
+        let mut drain_buf = [0; 16];
+        let amount = fifo.drain(&mut drain_buf[..4]);
+        assert_eq!(amount, 4);
+        assert_eq!(&drain_buf[..4], &(0..4).collect::<Vec<_>>()[..]);
+        assert_eq!(fifo.len(), 12);
+
+        let amount = fifo.drain(&mut drain_buf);
+        assert_eq!(amount, 12);
+        assert_eq!(&drain_buf[..12], &(4..16).collect::<Vec<_>>()[..]);
+        assert!(fifo.empty());
+    }
+
+    #[test]
+    fn fifo_extend() {
+        let mut fifo = Fifo::<u32>::new(16);
+        let in_buf: Vec<_> = (0..16).collect();
+
+        let amount = fifo.clone_extend(&in_buf[..4]);
+        assert_eq!(amount, 4);
+        assert_eq!(fifo.len(), 4);
+
+        let amount = fifo.clone_extend(&in_buf);
+        assert_eq!(amount, 12);
+        assert!(fifo.full());
+
+        let mut drain_buf = [0; 16];
+        let amount = fifo.drain(&mut drain_buf[..4]);
+        assert_eq!(amount, 4);
+        assert_eq!(&drain_buf[..4], &in_buf[..4]);
+
+        let amount = fifo.drain(&mut drain_buf);
+        assert_eq!(amount, 12);
+        assert_eq!(&drain_buf[..12], &in_buf[..12]);
     }
 }
