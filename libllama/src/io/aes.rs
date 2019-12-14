@@ -1,11 +1,10 @@
-use std::cmp;
-use std::collections::VecDeque;
 use std::fmt;
 use std::mem;
 
 use openssl::symm;
 
 use utils::bytes;
+use utils::fifo::Fifo;
 use fs;
 
 bf!(RegCnt[u32] {
@@ -111,8 +110,8 @@ pub struct AesDeviceState {
     keyxfifo_state: KeyFifoState,
     keyyfifo_state: KeyFifoState,
 
-    fifo_in_buf: VecDeque<u32>,
-    fifo_out_buf: VecDeque<u32>,
+    fifo_in_buf: Fifo<u32>,
+    fifo_out_buf: Fifo<u32>,
     reg_ctr: [u8; 0x10],
 }
 
@@ -127,9 +126,9 @@ impl Default for AesDeviceState {
             keyfifo_state: Default::default(),
             keyxfifo_state: Default::default(),
             keyyfifo_state: Default::default(),
-            fifo_in_buf: VecDeque::new(),
-            fifo_out_buf: VecDeque::new(),
-            reg_ctr: [0; 0x10]
+            fifo_in_buf: Fifo::new(16),
+            fifo_out_buf: Fifo::new(16),
+            reg_ctr: [0; 0x10],
         }
     }
 }
@@ -170,8 +169,8 @@ fn reg_cnt_onread(dev: &mut AesDevice) {
     try_drain_fifo(dev);
 
     let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
-    let in_count = cmp::min(16, dev._internal_state.fifo_in_buf.len());
-    let out_count = cmp::min(16, dev._internal_state.fifo_out_buf.len());
+    let in_count = dev._internal_state.fifo_in_buf.len();
+    let out_count = dev._internal_state.fifo_out_buf.len();
     cnt.fifo_in_count.set(in_count as u32);
     cnt.fifo_out_count.set(out_count as u32);
 }
@@ -273,8 +272,11 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
         let cnt = RegCnt::new(dev.cnt.get());
         let word = dev.fifo_in.get();
         let word = if cnt.in_big_endian.get() == 1 { word }
-                   else { word.swap_bytes() };
-        dev._internal_state.fifo_in_buf.push_back(word);
+                         else { word.swap_bytes() };
+        let ok = dev._internal_state.fifo_in_buf.push(word);
+        if !ok {
+            panic!("Tried to push to full AES fifo!");
+        }
 
     }
     try_drain_fifo(dev);
@@ -284,12 +286,15 @@ fn try_drain_fifo(dev: &mut AesDevice) {
     let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     let active_process = &mut dev._internal_state.active_process;
 
-    while active_process.is_some() && dev._internal_state.fifo_in_buf.len() >= 4 {
+    while active_process.is_some()
+        && dev._internal_state.fifo_in_buf.len() >= 4
+        && dev._internal_state.fifo_out_buf.len() <= 12 {
+
         let mut words = [
-            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-            dev._internal_state.fifo_in_buf.pop_front().unwrap(),
-            dev._internal_state.fifo_in_buf.pop_front().unwrap()
+            dev._internal_state.fifo_in_buf.pop().unwrap(),
+            dev._internal_state.fifo_in_buf.pop().unwrap(),
+            dev._internal_state.fifo_in_buf.pop().unwrap(),
+            dev._internal_state.fifo_in_buf.pop().unwrap()
         ];
 
         // TODO: Test this
@@ -307,13 +312,14 @@ fn try_drain_fifo(dev: &mut AesDevice) {
             ).unwrap();
         }
 
-        let dec_words_iter = dec_words[..4].iter();
+        let dec_words = &mut dec_words[..4];
 
-        if cnt.out_normal_order.get() == 1 {
-            dev._internal_state.fifo_out_buf.extend(dec_words_iter);
-        } else {
-            dev._internal_state.fifo_out_buf.extend(dec_words_iter.rev());
+        if cnt.out_normal_order.get() == 0 {
+            dec_words.reverse();
         }
+
+        let amount = dev._internal_state.fifo_out_buf.clone_extend(dec_words);
+        assert_eq!(amount, 4);
 
         dev._internal_state.blocks_left -= 1;
         if dev._internal_state.blocks_left == 0 {
@@ -331,11 +337,13 @@ fn try_drain_fifo(dev: &mut AesDevice) {
 
 fn reg_fifo_out_onread(dev: &mut AesDevice) {
     let cnt = RegCnt::new(dev.cnt.get());
-    if let Some(mut word) = dev._internal_state.fifo_out_buf.pop_front() {
+    if let Some(mut word) = dev._internal_state.fifo_out_buf.pop() {
         if cnt.out_big_endian.get() == 0 {
             word = word.swap_bytes();
         }
         dev.fifo_out.set_unchecked(word);
+    } else {
+        panic!("Tried to pop from empty AES fifo!");
     }
 }
 
