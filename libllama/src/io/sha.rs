@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 use openssl::hash::{Hasher, MessageDigest};
 
-use io::DmaBus;
+use io::{DmaBus, DmaXferType};
 
 bf!(RegCnt[u32] {
     busy: 0:0,
@@ -20,6 +20,7 @@ bf!(RegCnt[u32] {
 pub struct ShaDeviceState {
     hasher: Option<Hasher>,
     hash: [u8; 32],
+    dma_request: Option<DmaXferType>
 }
 
 impl fmt::Debug for ShaDeviceState {
@@ -49,6 +50,7 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
             state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }
 
+        state.dma_request = Some(DmaXferType::Burst);
         cnt.final_round.set(0);
     }
 
@@ -129,20 +131,25 @@ iodevice!(ShaDevice, {
 
 
 impl DmaBus for RefCell<ShaDevice> {
-    fn read_ready(&self) -> bool {
+    fn ready_xfer(&self) -> Option<DmaXferType> {
         let dev = self.borrow();
-        dev._internal_state.hasher.is_none()
+        dev._internal_state.dma_request
     }
 
-    fn write_ready(&self) -> bool {
-        let dev = self.borrow();
-        dev._internal_state.hasher.is_some()
+    fn ack_xfer(&self) {
+//        let dev = self.borrow_mut();
+        unimplemented!()
     }
 
-    fn read_addr(&self, addr: u32, buf: &mut [u8]) {
-        use io::regs::IoRegAccess;
-        assert!(addr >> 12 == 0x1000A);
-        let src = addr & ((1 << 12) - 1);
-        self.borrow_mut().read_reg(src as usize, buf);
+    fn clear_reqs(&self) {
+        let mut dev = self.borrow_mut();
+        dev._internal_state.dma_request = None;
     }
+
+//    fn read_addr(&self, addr: u32, buf: &mut [u8]) {
+//        use io::regs::IoRegAccess;
+//        assert!(addr >> 12 == 0x1000A);
+//        let src = addr & ((1 << 12) - 1);
+//        self.borrow_mut().read_reg(src as usize, buf);
+//    }
 }

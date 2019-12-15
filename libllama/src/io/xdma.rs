@@ -59,6 +59,13 @@ bf!(ChannelCtrl[u32] {
     dst_burst_len: 18:21
 });
 
+bf!(ChannelStatus[u32] {
+    stat: 0:4,
+    wakeup_num: 4:8,
+    dmawfp_b_ns: 14:14,
+    dmawfp_periph: 15:15,
+});
+
 #[derive(Copy, Clone, Debug)]
 enum RequestType {
     Single, Peripheral, Burst
@@ -67,6 +74,7 @@ enum RequestType {
 struct XdmaThreadState {
     pc: u32,
     running: bool,
+    waiting: bool,
     src_addr: u32,
     dst_addr: u32,
     chan_ctrl: ChannelCtrl::Bf,
@@ -80,6 +88,7 @@ impl Default for XdmaThreadState {
         Self {
             pc: 0,
             running: false,
+            waiting: false,
             src_addr: 0,
             dst_addr: 0,
             chan_ctrl: ChannelCtrl::new(0),
@@ -113,9 +122,33 @@ fn increment_pc(dev: &mut XdmaDevice, by: usize) -> u32 {
 
 mod interpreter {
     use super::*;
+    use io::DmaXferType;
+
     pub fn run_instruction(dev: &mut XdmaDevice, inst: u64) {
         let inst_fn: InstFn<DmacVer> = decode(inst);
         inst_fn(dev, inst, DmacVer);
+    }
+
+    pub fn run_active_thread(xdma: &mut XdmaDevice) {
+        active_thread(xdma).running = true;
+        loop {
+            let mut inst = [0u8; 8];
+            let pc = active_thread(xdma).pc;
+            {
+                let hw = xdma._internal_state.hw.borrow();
+                let mem = &hw.mem;
+                mem.read_buf(pc, &mut inst);
+            };
+
+            let inst = u64::from_le_bytes(inst);
+            trace!("Running XDMA instruction at {:08X}: {}", pc, disasm(inst));
+            run_instruction(xdma, inst);
+
+            let t = active_thread(xdma);
+            if t.waiting || !t.running {
+                break;
+            }
+        }
     }
 
     pub fn end<V: Version>(xdma: &mut XdmaDevice, _instr: u64, _: V) {
@@ -134,20 +167,7 @@ mod interpreter {
             let thread = active_thread(xdma);
             thread.pc = start_addr;
             thread.running = true;
-        }
-
-        while active_thread(xdma).running {
-            let mut inst = [0u8; 8];
-            let pc = active_thread(xdma).pc;
-            {
-                let hw = xdma._internal_state.hw.borrow();
-                let mem = &hw.mem;
-                mem.read_buf(pc, &mut inst);
-            };
-
-            let inst = u64::from_le_bytes(inst);
-            warn!("Running XDMA instruction at {:08X}: {}", pc, disasm(inst));
-            run_instruction(xdma, inst);
+            thread.waiting = false;
         }
 
         replace_active_thread(xdma, old_thread);
@@ -159,8 +179,12 @@ mod interpreter {
         active_thread(xdma).running = false;
     }
 
-    pub fn flushp<V: Version>(xdma: &mut XdmaDevice, _instr: Flushp::Bf, _: V) {
+    pub fn flushp<V: Version>(xdma: &mut XdmaDevice, instr: Flushp::Bf, _: V) {
         warn!("STUBBED: Unimplemented XDMA FLUSHP!");
+        let periph = instr.periph.get();
+        if let Some(bus) = &xdma._internal_state.buses.get(&(periph as u32)) {
+            bus.clear_reqs();
+        }
         increment_pc(xdma, 2);
     }
 
@@ -219,24 +243,55 @@ mod interpreter {
         let bs = instr.bs.get();
         let p = instr.p.get();
 
+        {
+            let which = xdma._internal_state.active_thread.unwrap();
+            let csr = csr_alias(xdma, which);
+            csr.dmawfp_b_ns.set(!bs as u32);
+            csr.dmawfp_periph.set(p as u32);
+            csr.wakeup_num.set(periph as u32);
+        }
+
         let mode = match (bs, p) {
             (0, 0) => RequestType::Single,
             (1, 0) => RequestType::Burst,
             (0, 1) => RequestType::Peripheral,
             _ => unreachable!()
         };
-        active_thread(xdma).request_type = mode;
 
-        {
+        let may_handle = {
             let bus = &xdma._internal_state.buses[&(periph as u32)];
-            if !bus.read_ready() && !bus.write_ready() {
-                panic!("XDMA waiting for unready peripheral {}!", periph);
+            match (mode, bus.ready_xfer()) {
+                | (RequestType::Single, Some(DmaXferType::Single))
+                | (RequestType::Burst, Some(DmaXferType::Burst))
+                => {
+                    let t = active_thread(xdma);
+                    t.request_type = mode;
+                    true
+                }
+
+                | (RequestType::Peripheral, Some(DmaXferType::Single))
+                => {
+                    let t = active_thread(xdma);
+                    t.request_type = RequestType::Single;
+                    true
+                }
+
+                | (RequestType::Peripheral, Some(DmaXferType::Burst))
+                => {
+                    let t = active_thread(xdma);
+                    t.request_type = RequestType::Burst;
+                    true
+                }
+
+                | (_, _) => false
             }
+        };
+        if may_handle {
+            increment_pc(xdma, 2);
+        } else {
+            active_thread(xdma).waiting = true;
         }
-        increment_pc(xdma, 2);
-
-
-        warn!("STUBBED: XDMA WFP with periph={}, mode={:?}", periph, mode);
+        trace!("XDMA WFP with periph={}, mode={:?}", periph, mode);
     }
 
     pub fn ld<V: Version>(xdma: &mut XdmaDevice, instr: Ld::Bf, _: V) {
@@ -258,11 +313,11 @@ mod interpreter {
         }
 
         match (req_type, bs, x) {
-            (RequestType::Single, 0, 1) | (RequestType::Peripheral, 0, 1) => {
+            (RequestType::Single, 0, 1) => {
                 // do single transfer
                 unimplemented!()
             }
-            (_, 0, 0) | (RequestType::Burst, 1, 1) | (RequestType::Peripheral, 1, 1) => {
+            (_, 0, 0) | (RequestType::Burst, 1, 1) => {
                 // do burst transfer
                 let mut dst_buf = [0u8; 16];
                 let state = &mut xdma._internal_state;
@@ -309,16 +364,17 @@ mod interpreter {
         }
 
         match (req_type, bs) {
-            (RequestType::Single, 0) | (RequestType::Peripheral, 0) => {
+            (RequestType::Single, 0) => {
                 // do single transfer
                 unimplemented!()
             }
-            (RequestType::Burst, 1) | (RequestType::Peripheral, 1) => {
+            (RequestType::Burst, 1) => {
                 // do burst transfer
                 let mut dst_buf = [0u8; 16];
                 let state = &mut xdma._internal_state;
                 let peripheral = &state.buses[&periph];
                 let thread_num = state.active_thread.unwrap();
+                let hw = state.hw.borrow_mut();
                 let fifo = &mut state.channels[thread_num].data_fifo;
 
                 warn!("STUBBED: XDMA burst read {}x{} from addr {:08X}, incrementing?={}",
@@ -327,13 +383,17 @@ mod interpreter {
                 for _ in 0..src_burst_len {
                     let buf = &mut dst_buf[..(src_burst_size as usize)];
 
-                    peripheral.read_addr(src_addr, buf);
+                    hw.mem.read_buf(src_addr, buf);
                     fifo.clone_extend(buf);
                     warn!("XDMA reading {:X?} from peripheral at address {:08X}", buf, src_addr);
                     src_addr += src_inc;
                 }
+
+                peripheral.ack_xfer();
             }
-            _ => {}
+            _ => {
+                unimplemented!()
+            }
         }
 
         active_thread(xdma).src_addr = src_addr;
@@ -359,11 +419,11 @@ mod interpreter {
         }
 
         match (req_type, bs, x) {
-            (RequestType::Single, 0, 1) | (RequestType::Peripheral, 0, 1) => {
+            (RequestType::Single, 0, 1) => {
                 // do single transfer
                 unimplemented!()
             }
-            (_, 0, 0) | (RequestType::Burst, 1, 1) | (RequestType::Peripheral, 1, 1) => {
+            (_, 0, 0) | (RequestType::Burst, 1, 1) => {
                 // do burst transfer
                 let mut src_buf = [0u8; 16];
                 let state = &mut xdma._internal_state;
@@ -384,7 +444,9 @@ mod interpreter {
                     dst_addr += dst_inc;
                 }
             }
-            _ => {}
+            _ => {
+                unimplemented!()
+            }
         }
 
         active_thread(xdma).dst_addr = dst_addr;
@@ -410,6 +472,53 @@ mod interpreter {
     }
 }
 
+pub fn schedule(xdma: &mut XdmaDevice) {
+    if xdma._internal_state.manager.running {
+        replace_active_thread(xdma, None);
+        if active_thread(xdma).running {
+            interpreter::run_active_thread(xdma);
+        }
+    }
+    for thread in 0..8 {
+        replace_active_thread(xdma, Some(thread));
+        if active_thread(xdma).running {
+            interpreter::run_active_thread(xdma);
+        }
+    }
+}
+
+fn csr_alias(dev: &mut XdmaDevice, which: usize) -> &mut ChannelStatus::Bf {
+    let ref_mut = match which {
+        0 => dev.csr0.ref_mut(),
+        1 => dev.csr1.ref_mut(),
+        2 => dev.csr2.ref_mut(),
+        3 => dev.csr3.ref_mut(),
+        4 => dev.csr4.ref_mut(),
+        5 => dev.csr5.ref_mut(),
+        6 => dev.csr6.ref_mut(),
+        7 => dev.csr7.ref_mut(),
+        _ => unreachable!()
+    };
+    ChannelStatus::alias_mut(ref_mut)
+}
+
+fn reg_csr_read(dev: &mut XdmaDevice, which: usize) {
+    replace_active_thread(dev, Some(which));
+
+    let (running, waiting) = {
+        let t = active_thread(dev);
+        (t.running, t.waiting)
+    };
+
+    let csr = csr_alias(dev, which);
+    let status = match (running, waiting) {
+        (true, true) => 0b111, // Waiting for peripheral
+        (true, false) => 1,
+        (false, _) => 0
+    };
+    csr.stat.set(status);
+}
+
 iodevice!(XdmaDevice, {
     internal_state: XdmaDeviceState;
     regs: {
@@ -417,7 +526,30 @@ iodevice!(XdmaDevice, {
         0x020 => int_enable: u32 { }
         0x02C => int_clr: u32 { }
         0x040 => fault_type0: u32 { }
-        0x100 => csr0: u32 { }
+        0x100 => csr0: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 0);
+        }
+        0x108 => csr1: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 1);
+        }
+        0x110 => csr2: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 2);
+        }
+        0x118 => csr3: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 3);
+        }
+        0x120 => csr4: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 4);
+        }
+        0x128 => csr5: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 5);
+        }
+        0x130 => csr6: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 6);
+        }
+        0x138 => csr7: u32 {
+            read_effect = |dev: &mut XdmaDevice| reg_csr_read(dev, 7);
+        }
         0xD00 => dbg_status: u32 { }
         0xD04 => dbg_cmd: u32 {
             write_effect = |dev: &mut XdmaDevice| {

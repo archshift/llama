@@ -34,12 +34,16 @@ use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
 
+#[derive(Copy, Clone)]
+pub enum DmaXferType {
+    Single,
+    Burst,
+}
 
 pub trait DmaBus {
-    fn read_ready(&self) -> bool;
-    fn write_ready(&self) -> bool;
-
-    fn read_addr(&self, addr: u32, buf: &mut [u8]);
+    fn ready_xfer(&self) -> Option<DmaXferType>;
+    fn ack_xfer(&self);
+    fn clear_reqs(&self);
 }
 
 #[derive(Clone)]
@@ -211,11 +215,17 @@ impl MemoryBlock for IoRegsArm9 {
     }
 
     fn read_buf(&self, offset: usize, buf: &mut [u8]) {
-        self.read_reg(offset, buf)
+        self.read_reg(offset, buf);
+
+        let mut xdma = self.xdma.borrow_mut();
+        xdma::schedule(&mut *xdma);
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
-        self.write_reg(offset, buf)
+        self.write_reg(offset, buf);
+
+        let mut xdma = self.xdma.borrow_mut();
+        xdma::schedule(&mut *xdma);
     }
 }
 
