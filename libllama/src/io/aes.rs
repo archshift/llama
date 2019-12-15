@@ -93,12 +93,6 @@ mod test {
     }
 }
 
-#[derive(Default)]
-struct KeyFifoState {
-    pos: usize,
-    buf: [u32; 4]
-}
-
 pub struct AesDeviceState {
     active_keyslot: usize,
     active_process: Option<symm::Crypter>,
@@ -106,9 +100,9 @@ pub struct AesDeviceState {
 
     key_slots: [Key; 0x40],
     keyx_slots: [Key; 0x40],
-    keyfifo_state: KeyFifoState,
-    keyxfifo_state: KeyFifoState,
-    keyyfifo_state: KeyFifoState,
+    keyfifo_state: Fifo<u32>,
+    keyxfifo_state: Fifo<u32>,
+    keyyfifo_state: Fifo<u32>,
 
     fifo_in_buf: Fifo<u32>,
     fifo_out_buf: Fifo<u32>,
@@ -123,9 +117,9 @@ impl Default for AesDeviceState {
             blocks_left: 0,
             key_slots: load_keys(),
             keyx_slots: [Default::default(); 0x40],
-            keyfifo_state: Default::default(),
-            keyxfifo_state: Default::default(),
-            keyyfifo_state: Default::default(),
+            keyfifo_state: Fifo::new(4),
+            keyxfifo_state: Fifo::new(4),
+            keyyfifo_state: Fifo::new(4),
             fifo_in_buf: Fifo::new(16),
             fifo_out_buf: Fifo::new(16),
             reg_ctr: [0; 0x10],
@@ -259,11 +253,9 @@ fn reg_key_cnt_update(dev: &mut AesDevice) {
     );
 
     if flush_fifo {
-        warn!("STUBBED: Flushing AES key FIFOs");
-        // TODO: verify?
-        dev._internal_state.keyfifo_state.pos = 0;
-        dev._internal_state.keyxfifo_state.pos = 0;
-        dev._internal_state.keyyfifo_state.pos = 0;
+        dev._internal_state.keyfifo_state.clear();
+        dev._internal_state.keyxfifo_state.clear();
+        dev._internal_state.keyyfifo_state.clear();
     }
 }
 
@@ -356,7 +348,7 @@ enum KeyType {
 
 fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
     let cnt = RegCnt::new(dev.cnt.get());
-    let (word, state) = match key_ty {
+    let (word, fifo) = match key_ty {
         KeyType::CommonKey => (dev.key_fifo.get(), &mut dev._internal_state.keyfifo_state),
         KeyType::KeyX => (dev.keyx_fifo.get(), &mut dev._internal_state.keyxfifo_state),
         KeyType::KeyY => (dev.keyy_fifo.get(), &mut dev._internal_state.keyyfifo_state),
@@ -370,9 +362,11 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
 
     let word = if cnt.in_big_endian.get() == 1 { word }
                else { word.swap_bytes() };
-    state.buf[state.pos / 4] = word;
-    state.pos += 4;
-    if state.pos >= 0x10 {
+
+    let pushed = fifo.push(word);
+    assert!(pushed);
+
+    if fifo.full() {
         // Done updating the key
         let key_cnt = RegKeyCnt::new(dev.key_cnt.get());
         let keygen_mode = if key_cnt.force_dsi_keygen.get() == 1 {
@@ -382,8 +376,11 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
         };
 
         let keyslot = key_cnt.keyslot.get() as usize;
+        let mut key_buf = [0; 4];
+        fifo.drain(&mut key_buf);
+
         let key = Key {
-            data: unsafe { mem::transmute(state.buf) }
+            data: unsafe { mem::transmute(key_buf) }
         };
         match key_ty {
             KeyType::CommonKey => dev._internal_state.key_slots[keyslot] = key,
