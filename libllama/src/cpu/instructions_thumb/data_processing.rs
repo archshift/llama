@@ -72,10 +72,13 @@ pub fn add_4<V: Version>(cpu: &mut Cpu<V>, data: thumb::Add4::Bf) -> cpu::InstrS
 }
 
 pub fn add_5<V: Version>(cpu: &mut Cpu<V>, data: thumb::Add5::Bf) -> cpu::InstrStatus {
-    let arminst: u32 = 0b1110001010001111_0000_1111_00000000
-                                          | ((data.rd.get() as u32) << 12)
-                                                    | ((data.immed_8.get() as u32) << 0);
-    cpu::instructions_arm::add(cpu, arm::Add::new(arminst))
+    let base_val = cpu.regs[15] & !0b11;
+    let immed = data.immed_8.get() as u32;
+
+    let val = base_val + (immed << 2);
+    cpu.regs[data.rd.get() as usize] = val;
+
+    cpu::InstrStatus::InBlock
 }
 
 pub fn add_6<V: Version>(cpu: &mut Cpu<V>, data: thumb::Add6::Bf) -> cpu::InstrStatus {
