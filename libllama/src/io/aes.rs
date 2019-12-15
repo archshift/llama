@@ -192,14 +192,11 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         let key = dev._internal_state.key_slots[keyslot];
         let blocks = dev.blk_cnt.get();
 
-        let mut ctr = if cnt.in_normal_order.get() == 1 {
+        let mut ctr =
             // Reverse word order for CTR
             dev._internal_state.reg_ctr.chunks(4).rev()
                                        .flat_map(|x| x.iter().map(|b| *b))
-                                       .collect::<Vec<_>>()
-        } else {
-            dev._internal_state.reg_ctr.to_vec()
-        };
+                                       .collect::<Vec<_>>();
 
         if cnt.in_big_endian.get() == 0 {
             // Reverse CTR byte order
@@ -209,9 +206,6 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         }
 
         assert!(dev.mac_blk_cnt.get() == 0);
-        if cnt.in_normal_order.get() == 0 {
-            warn!("Setting up AES for untested in_normal_order value (0)");
-        }
 
         let mut key_str = String::new();
         let mut iv_str = String::new();
@@ -282,12 +276,9 @@ fn try_drain_fifo(dev: &mut AesDevice) {
         && dev._internal_state.fifo_in_buf.len() >= 4
         && dev._internal_state.fifo_out_buf.len() <= 12 {
 
-        let mut words = [
-            dev._internal_state.fifo_in_buf.pop().unwrap(),
-            dev._internal_state.fifo_in_buf.pop().unwrap(),
-            dev._internal_state.fifo_in_buf.pop().unwrap(),
-            dev._internal_state.fifo_in_buf.pop().unwrap()
-        ];
+        let mut words = [0; 4];
+        let amount = dev._internal_state.fifo_in_buf.drain(&mut words);
+        assert!(amount == 4);
 
         // TODO: Test this
         if cnt.in_normal_order.get() == 0 {
@@ -378,6 +369,10 @@ fn reg_key_fifo_update(dev: &mut AesDevice, key_ty: KeyType) {
         let keyslot = key_cnt.keyslot.get() as usize;
         let mut key_buf = [0; 4];
         fifo.drain(&mut key_buf);
+
+        if cnt.in_normal_order.get() == 0 {
+            key_buf.reverse();
+        }
 
         let key = Key {
             data: unsafe { mem::transmute(key_buf) }
