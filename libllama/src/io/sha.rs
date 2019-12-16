@@ -1,9 +1,8 @@
 use std::fmt;
-use std::cell::RefCell;
 
 use openssl::hash::{Hasher, MessageDigest};
 
-use io::{DmaBus, DmaXferType};
+use io::DmaTrigger;
 
 bf!(RegCnt[u32] {
     busy: 0:0,
@@ -16,11 +15,22 @@ bf!(RegCnt[u32] {
     _enable_irq1: 10:10
 });
 
-#[derive(Default)]
 pub struct ShaDeviceState {
     hasher: Option<Hasher>,
     hash: [u8; 32],
-    dma_request: Option<DmaXferType>
+    _dma_in: DmaTrigger,
+    dma_out: DmaTrigger,
+}
+
+impl ShaDeviceState {
+    pub fn new(dma_in: DmaTrigger, dma_out: DmaTrigger) -> Self {
+        Self {
+            hasher: None,
+            hash: Default::default(),
+            _dma_in: dma_in,
+            dma_out
+        }
+    }
 }
 
 impl fmt::Debug for ShaDeviceState {
@@ -50,7 +60,7 @@ fn reg_cnt_update(dev: &mut ShaDevice) {
             state.hash[0..hash_slice.len()].copy_from_slice(hash_slice);
         }
 
-        state.dma_request = Some(DmaXferType::Burst);
+        state.dma_out.trigger();
         cnt.final_round.set(0);
     }
 
@@ -128,28 +138,3 @@ iodevice!(ShaDevice, {
     }
 });
 
-
-
-impl DmaBus for RefCell<ShaDevice> {
-    fn ready_xfer(&self) -> Option<DmaXferType> {
-        let dev = self.borrow();
-        dev._internal_state.dma_request
-    }
-
-    fn ack_xfer(&self) {
-//        let dev = self.borrow_mut();
-        unimplemented!()
-    }
-
-    fn clear_reqs(&self) {
-        let mut dev = self.borrow_mut();
-        dev._internal_state.dma_request = None;
-    }
-
-//    fn read_addr(&self, addr: u32, buf: &mut [u8]) {
-//        use io::regs::IoRegAccess;
-//        assert!(addr >> 12 == 0x1000A);
-//        let src = addr & ((1 << 12) - 1);
-//        self.borrow_mut().read_reg(src as usize, buf);
-//    }
-}

@@ -22,7 +22,7 @@ pub struct XdmaDeviceState {
     active_thread: Option<usize>,
     manager: XdmaThreadState,
     channels: [XdmaThreadState; 8],
-    buses: HashMap<u32, Rc<dyn DmaBus>>
+    buses: HashMap<u32, (DmaBus, DmaBus)>
 }
 
 impl fmt::Debug for XdmaDeviceState {
@@ -34,7 +34,7 @@ impl fmt::Debug for XdmaDeviceState {
 impl XdmaDeviceState {
     pub fn new(hw: Rc<RefCell<HardwareDma9>>, buses: DmaBuses) -> Self {
         let mut bus_map = HashMap::new();
-        bus_map.insert(7, buses.sha);
+        bus_map.insert(7, (buses.null, buses.sha_out));
 
         Self {
             hw,
@@ -122,7 +122,6 @@ fn increment_pc(dev: &mut XdmaDevice, by: usize) -> u32 {
 
 mod interpreter {
     use super::*;
-    use io::DmaXferType;
 
     pub fn run_instruction(dev: &mut XdmaDevice, inst: u64) {
         let inst_fn: InstFn<DmacVer> = decode(inst);
@@ -182,8 +181,9 @@ mod interpreter {
     pub fn flushp<V: Version>(xdma: &mut XdmaDevice, instr: Flushp::Bf, _: V) {
         warn!("STUBBED: Unimplemented XDMA FLUSHP!");
         let periph = instr.periph.get();
-        if let Some(bus) = &xdma._internal_state.buses.get(&(periph as u32)) {
-            bus.clear_reqs();
+        if let Some((bus_s, bus_b)) = xdma._internal_state.buses.get_mut(&(periph as u32)) {
+            bus_s.flush();
+            bus_b.flush();
         }
         increment_pc(xdma, 2);
     }
@@ -259,31 +259,34 @@ mod interpreter {
         };
 
         let may_handle = {
-            let bus = &xdma._internal_state.buses[&(periph as u32)];
-            match (mode, bus.ready_xfer()) {
-                | (RequestType::Single, Some(DmaXferType::Single))
-                | (RequestType::Burst, Some(DmaXferType::Burst))
+            let (single_bus, burst_bus) = &xdma._internal_state.buses[&(periph as u32)];
+            let single_rdy = single_bus.observe();
+            let burst_rdy = burst_bus.observe();
+
+            match (mode, single_rdy, burst_rdy) {
+                | (RequestType::Single, true, _)
+                | (RequestType::Burst, _, true)
                 => {
                     let t = active_thread(xdma);
                     t.request_type = mode;
                     true
                 }
 
-                | (RequestType::Peripheral, Some(DmaXferType::Single))
+                | (RequestType::Peripheral, true, _)
                 => {
                     let t = active_thread(xdma);
                     t.request_type = RequestType::Single;
                     true
                 }
 
-                | (RequestType::Peripheral, Some(DmaXferType::Burst))
+                | (RequestType::Peripheral, _, false)
                 => {
                     let t = active_thread(xdma);
                     t.request_type = RequestType::Burst;
                     true
                 }
 
-                | (_, _) => false
+                | _ => false
             }
         };
         if may_handle {
@@ -372,7 +375,7 @@ mod interpreter {
                 // do burst transfer
                 let mut dst_buf = [0u8; 16];
                 let state = &mut xdma._internal_state;
-                let peripheral = &state.buses[&periph];
+                let (_, burst_bus) = state.buses.get_mut(&periph).unwrap();
                 let thread_num = state.active_thread.unwrap();
                 let hw = state.hw.borrow_mut();
                 let fifo = &mut state.channels[thread_num].data_fifo;
@@ -389,7 +392,7 @@ mod interpreter {
                     src_addr += src_inc;
                 }
 
-                peripheral.ack_xfer();
+                burst_bus.flush();
             }
             _ => {
                 unimplemented!()

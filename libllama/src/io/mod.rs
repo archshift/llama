@@ -21,7 +21,7 @@ pub mod gpu;
 mod priv11;
 
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::default::Default;
 use std::rc::Rc;
 
@@ -33,22 +33,40 @@ use hwcore::HardwareDma9;
 use io::regs::IoRegAccess;
 use mem::MemoryBlock;
 
+pub struct DmaTrigger {
+    val: Arc<AtomicBool>
+}
+impl DmaTrigger {
+    fn new() -> (Self, DmaBus) {
+        let val = Arc::new(AtomicBool::new(false));
+        (Self {val: val.clone()}, DmaBus {val})
+    }
 
-#[derive(Copy, Clone)]
-pub enum DmaXferType {
-    Single,
-    Burst,
+    fn trigger(&mut self) {
+        self.val.store(true, Ordering::SeqCst)
+    }
 }
 
-pub trait DmaBus {
-    fn ready_xfer(&self) -> Option<DmaXferType>;
-    fn ack_xfer(&self);
-    fn clear_reqs(&self);
+#[derive(Clone)]
+pub struct DmaBus {
+    val: Arc<AtomicBool>
+}
+
+impl DmaBus {
+    fn observe(&self) -> bool {
+        self.val.load(Ordering::SeqCst)
+    }
+
+    fn flush(&mut self) {
+        self.val.store(false, Ordering::SeqCst)
+    }
 }
 
 #[derive(Clone)]
 pub struct DmaBuses {
-    pub sha: Rc<dyn DmaBus>,
+    pub null: DmaBus,
+    pub sha_in: DmaBus,
+    pub sha_out: DmaBus,
 }
 
 
@@ -71,6 +89,16 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let pxi_shared = pxi::PxiShared::make_channel(irq_subsys9.async_tx, irq_subsys11.async_tx);
     let dma9_shared = Rc::new(RefCell::new(dma9_hw));
 
+    let (_, dmabus_null) = DmaTrigger::new();
+    let (dmatrg_sha_in, dmabus_sha_in) = DmaTrigger::new();
+    let (dmatrg_sha_out, dmabus_sha_out) = DmaTrigger::new();
+
+    let dma_buses = DmaBuses {
+        null: dmabus_null,
+        sha_in: dmabus_sha_in,
+        sha_out: dmabus_sha_out,
+    };
+
     let cfg    = make_dev_uniq! { config::ConfigDevice };
     let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys9.agg };
     let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_subsys9.sync_tx) };
@@ -78,13 +106,10 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
     let timer  = make_dev_uniq! { timer::TimerDevice: clk.timer_states };
     let aes    = make_dev_uniq! { aes::AesDevice:     Default::default() };
-    let sha    = make_dev_uniq! { sha::ShaDevice:     Default::default() };
+    let sha    = make_dev_uniq! { sha::ShaDevice:     sha::ShaDeviceState::new(dmatrg_sha_in, dmatrg_sha_out) };
     let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
 
-    let dma_buses = DmaBuses {
-        sha: sha.clone()
-    };
     let ndma   = make_dev_uniq! { ndma::NdmaDevice:   ndma::NdmaDeviceState::new(dma9_shared.clone(), dma_buses.clone()) };
     let xdma   = make_dev_uniq! { xdma::XdmaDevice:   xdma::XdmaDeviceState::new(dma9_shared, dma_buses) };
 
@@ -219,6 +244,8 @@ impl MemoryBlock for IoRegsArm9 {
 
         let mut xdma = self.xdma.borrow_mut();
         xdma::schedule(&mut *xdma);
+        let mut ndma = self.ndma.borrow_mut();
+        ndma::schedule(&mut *ndma);
     }
 
     fn write_buf(&mut self, offset: usize, buf: &[u8]) {
@@ -226,6 +253,8 @@ impl MemoryBlock for IoRegsArm9 {
 
         let mut xdma = self.xdma.borrow_mut();
         xdma::schedule(&mut *xdma);
+        let mut ndma = self.ndma.borrow_mut();
+        ndma::schedule(&mut *ndma);
     }
 }
 
