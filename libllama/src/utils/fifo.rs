@@ -34,6 +34,10 @@ impl<T> Fifo<T> {
         self.inner.len()
     }
 
+    pub fn free_space(&self) -> usize {
+        self.max_len - self.len()
+    }
+
     pub fn clear(&mut self) {
         self.inner.clear();
     }

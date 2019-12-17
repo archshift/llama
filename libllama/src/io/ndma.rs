@@ -13,6 +13,7 @@ bf!(RegGlobalCnt[u32] {
 });
 
 bf!(RegChannelCnt[u32] {
+    startup_mode_ext: 0:4,
     dst_addr_writeback_mode: 10:11,
     _dst_addr_reload: 12:12,
     src_addr_writeback_mode: 13:14,
@@ -34,19 +35,23 @@ pub struct NdmaChannelState {
     xfer_total: u32,
 }
 
+fn startup_mode(cnt: &RegChannelCnt::Bf) -> u32 {
+    cnt.startup_mode.get() | (cnt.startup_mode_ext.get() << 4)
+}
+
 fn should_xfer(dev: &mut NdmaChannel) -> bool {
     let chan_cnt = RegChannelCnt::new(dev.chan_cnt.get());
     if chan_cnt.enabled.get() == 0 {
         return false;
     }
-    let startup_dev = chan_cnt.startup_mode.get();
+    let startup_dev = startup_mode(&chan_cnt);
     let mut xns = dev._internal_state.connections.borrow_mut();
 
     let mode = (chan_cnt.immed_mode.get(), chan_cnt.repeat_mode.get());
     match mode {
         (0, 0) => {
             let bus = xns.buses.get_mut(&startup_dev)
-                .expect(&format!("Could not find NDMA bus for device {}", startup_dev));
+                .expect(&format!("Could not find NDMA bus for device 0x{:X}", startup_dev));
             bus.observe()
         }
         (1, 0) => {
@@ -200,8 +205,13 @@ pub struct NdmaDeviceState {
 impl NdmaDeviceState {
     pub fn new(hw: Rc<RefCell<HardwareDma9>>, buses: DmaBuses) -> Self {
         let mut bus_map = HashMap::new();
-        bus_map.insert(10, buses.sha_in.clone());
-        bus_map.insert(11, buses.sha_out.clone());
+        bus_map.insert(0x8, buses.aes_in.clone());
+        bus_map.insert(0x9, buses.aes_out.clone());
+        bus_map.insert(0xA, buses.sha_in.clone());
+        bus_map.insert(0xB, buses.sha_out.clone());
+
+        let aes_to_sha = buses.aes_out.clone().union_with(buses.sha_in.clone());
+        bus_map.insert(0x10F, aes_to_sha);
 
         let chan_state = NdmaChannelState {
             connections: Rc::new(RefCell::new(

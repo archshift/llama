@@ -6,6 +6,7 @@ use openssl::symm;
 use utils::bytes;
 use utils::fifo::Fifo;
 use fs;
+use io::DmaTrigger;
 
 bf!(RegCnt[u32] {
     fifo_in_count: 0:4,
@@ -107,10 +108,13 @@ pub struct AesDeviceState {
     fifo_in_buf: Fifo<u32>,
     fifo_out_buf: Fifo<u32>,
     reg_ctr: [u8; 0x10],
+
+    dma_in: DmaTrigger,
+    dma_out: DmaTrigger
 }
 
-impl Default for AesDeviceState {
-    fn default() -> AesDeviceState {
+impl AesDeviceState {
+    pub fn new(dma_in: DmaTrigger, dma_out: DmaTrigger) -> AesDeviceState {
         AesDeviceState {
             active_keyslot: 0,
             active_process: None,
@@ -123,6 +127,9 @@ impl Default for AesDeviceState {
             fifo_in_buf: Fifo::new(16),
             fifo_out_buf: Fifo::new(16),
             reg_ctr: [0; 0x10],
+
+            dma_in,
+            dma_out
         }
     }
 }
@@ -186,7 +193,7 @@ fn reg_cnt_update(dev: &mut AesDevice) {
         dev.cnt.set_unchecked(without_keyslot.val);
     }
 
-    if cnt.busy.get() == 1 {
+    if cnt.busy.get() == 1 && dev._internal_state.active_process.is_none() {
         let mode = cnt.mode.get();
         let keyslot = dev._internal_state.active_keyslot;
         let key = dev._internal_state.key_slots[keyslot];
@@ -268,21 +275,33 @@ fn reg_fifo_in_update(dev: &mut AesDevice) {
     try_drain_fifo(dev);
 }
 
+fn dma_read_words(cnt: &RegCnt::Bf) -> usize {
+    4*(cnt.fifo_out_dma_size.get() + 1) as usize
+}
+
+fn dma_write_words(cnt: &RegCnt::Bf) -> usize {
+    4*(4 - cnt.fifo_in_dma_size.get()) as usize
+}
+
 fn try_drain_fifo(dev: &mut AesDevice) {
     let cnt = RegCnt::alias_mut(dev.cnt.ref_mut());
     let active_process = &mut dev._internal_state.active_process;
+    let fifo_in = &mut dev._internal_state.fifo_in_buf;
+    let fifo_out = &mut dev._internal_state.fifo_out_buf;
+
+    if active_process.is_none() {
+        return
+    }
 
     while active_process.is_some()
-        && dev._internal_state.fifo_in_buf.len() >= 4
-        && dev._internal_state.fifo_out_buf.len() <= 12 {
+        && fifo_in.len() >= 4
+        && fifo_out.len() <= 12 {
 
         let mut words = [0; 4];
-        let amount = dev._internal_state.fifo_in_buf.drain(&mut words);
+        let amount = fifo_in.drain(&mut words);
         assert!(amount == 4);
 
-        // TODO: Test this
         if cnt.in_normal_order.get() == 0 {
-            warn!("STUBBED: AES crypto with in_normal_order unset");
             words.reverse();
         }
 
@@ -301,7 +320,7 @@ fn try_drain_fifo(dev: &mut AesDevice) {
             dec_words.reverse();
         }
 
-        let amount = dev._internal_state.fifo_out_buf.clone_extend(dec_words);
+        let amount = fifo_out.clone_extend(dec_words);
         assert_eq!(amount, 4);
 
         dev._internal_state.blocks_left -= 1;
@@ -311,9 +330,17 @@ fn try_drain_fifo(dev: &mut AesDevice) {
         }
     }
 
+    if fifo_out.len() >= dma_write_words(cnt) {
+        dev._internal_state.dma_out.trigger();
+    }
+
+    if fifo_in.free_space() >= dma_read_words(cnt) {
+        dev._internal_state.dma_in.trigger();
+    }
+
     trace!("Attempted drain AES FIFO. fifo_in size: {:#X}, fifo_out size: {:#X}, blocks_left: {:#X}",
-          dev._internal_state.fifo_in_buf.len(),
-          dev._internal_state.fifo_out_buf.len(),
+          fifo_in.len(),
+          fifo_out.len(),
           dev._internal_state.blocks_left);
 
 }
@@ -410,7 +437,10 @@ iodevice!(AesDevice, {
         0x004 => mac_blk_cnt: u16 { }
         0x006 => blk_cnt: u16 { }
         0x008 => fifo_in: u32 { write_effect = reg_fifo_in_update; }
-        0x00C => fifo_out: u32 { read_effect = reg_fifo_out_onread; }
+        0x00C => fifo_out: u32 {
+            write_bits = 0;
+            read_effect = reg_fifo_out_onread;
+        }
         0x010 => key_sel: u8 { }
         0x011 => key_cnt: u8 { write_effect = reg_key_cnt_update; }
         0x100 => key_fifo: u32 {

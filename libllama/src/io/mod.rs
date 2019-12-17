@@ -39,7 +39,7 @@ pub struct DmaTrigger {
 impl DmaTrigger {
     fn new() -> (Self, DmaBus) {
         let val = Arc::new(AtomicBool::new(false));
-        (Self {val: val.clone()}, DmaBus {val})
+        (Self { val: val.clone() }, DmaBus { val, union: None })
     }
 
     fn trigger(&mut self) {
@@ -49,22 +49,40 @@ impl DmaTrigger {
 
 #[derive(Clone)]
 pub struct DmaBus {
-    val: Arc<AtomicBool>
+    val: Arc<AtomicBool>,
+    union: Option<Box<DmaBus>>
 }
 
 impl DmaBus {
     fn observe(&self) -> bool {
-        self.val.load(Ordering::SeqCst)
+        let val = self.val.load(Ordering::SeqCst);
+        if let Some(ref other) = self.union {
+            val && other.observe()
+        } else {
+            val
+        }
     }
 
     fn flush(&mut self) {
-        self.val.store(false, Ordering::SeqCst)
+        self.val.store(false, Ordering::SeqCst);
+        if let Some(ref mut other) = self.union {
+            other.flush();
+        }
+    }
+
+    fn union_with(self, other: DmaBus) -> Self {
+        Self {
+            union: Some(Box::new(other)),
+            ..self
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct DmaBuses {
     pub null: DmaBus,
+    pub aes_in: DmaBus,
+    pub aes_out: DmaBus,
     pub sha_in: DmaBus,
     pub sha_out: DmaBus,
 }
@@ -90,11 +108,15 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let dma9_shared = Rc::new(RefCell::new(dma9_hw));
 
     let (_, dmabus_null) = DmaTrigger::new();
+    let (dmatrg_aes_in, dmabus_aes_in) = DmaTrigger::new();
+    let (dmatrg_aes_out, dmabus_aes_out) = DmaTrigger::new();
     let (dmatrg_sha_in, dmabus_sha_in) = DmaTrigger::new();
     let (dmatrg_sha_out, dmabus_sha_out) = DmaTrigger::new();
 
     let dma_buses = DmaBuses {
         null: dmabus_null,
+        aes_in: dmabus_aes_in,
+        aes_out: dmabus_aes_out,
         sha_in: dmabus_sha_in,
         sha_out: dmabus_sha_out,
     };
@@ -105,7 +127,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let otp    = make_dev_uniq! { otp::OtpDevice:     Default::default() };
     let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
     let timer  = make_dev_uniq! { timer::TimerDevice: clk.timer_states };
-    let aes    = make_dev_uniq! { aes::AesDevice:     Default::default() };
+    let aes    = make_dev_uniq! { aes::AesDevice:     aes::AesDeviceState::new(dmatrg_aes_in, dmatrg_aes_out) };
     let sha    = make_dev_uniq! { sha::ShaDevice:     sha::ShaDeviceState::new(dmatrg_sha_in, dmatrg_sha_out) };
     let rsa    = make_dev_uniq! { rsa::RsaDevice:     Default::default() };
     let cfgext = make_dev_uniq! { config::ConfigExtDevice };
