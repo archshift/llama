@@ -6,6 +6,7 @@ use std::fmt;
 use std::io::{Read, Write};
 use std::mem;
 
+use io::DmaTrigger;
 use io::emmc::card::Card;
 use cpu::irq::{self, IrqClient};
 use fs;
@@ -106,10 +107,12 @@ pub struct EmmcDeviceState {
     irq_reqs: irq::IrqSyncClient,
     irq_statuses: [u16; 2],
     cards: [Card; 2],
+
+    dma_out: DmaTrigger,
 }
 
 impl EmmcDeviceState {
-    pub fn new(irq_reqs: irq::IrqSyncClient) -> EmmcDeviceState {
+    pub fn new(dma_out: DmaTrigger, irq_reqs: irq::IrqSyncClient) -> EmmcDeviceState {
         let sd_storage = fs::open_file(fs::LlamaFile::SdCardImg).unwrap();        
         let nand_storage = fs::open_file(fs::LlamaFile::NandImg).unwrap();
 
@@ -123,7 +126,9 @@ impl EmmcDeviceState {
             cards: [
                 Card::new(card::CardType::Sd, sd_storage, card::sd_cid()),
                 Card::new(card::CardType::Mmc, nand_storage, card::nand_cid())
-            ]
+            ],
+
+            dma_out
         }
     }
 }
@@ -222,7 +227,10 @@ fn clear_status<S: Into<Status>>(dev: &mut EmmcDevice, status: S) {
             let s1 = s1 as u16;
             dev._internal_state.irq_statuses[1] &= !s1;
         }
-        Status::B32(_) => unimplemented!()
+        Status::B32(s32) => {
+            let s32 = s32 as u16;
+            warn!("STUBBED: clearing IRQ for 32-bit SDMMC status {:X}", s32);
+        }
     };
 }
 
@@ -275,7 +283,10 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         assert_eq!(transfer.ty, transfer_type);
 
         trace!("{} SD FIFO! blocks left: {}, fifo pos: {}",
-               match transfer_type { TransferType::Read => "Reading from", TransferType::Write => "Writing to"},
+               match transfer_type {
+                   TransferType::Read => "Reading from",
+                   TransferType::Write => "Writing to"
+               },
                transfer.blocks_left, transfer.fifo_pos);
 
         transfer.fifo_pos += if is_32bit { 4 } else { 2 };
@@ -287,6 +298,8 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
         transfer.blocks_left == 0
     };
 
+    let ready_status: Status;
+
     let mut buf16 = [0u8; 2];
     let mut buf32 = [0u8; 4];
     match (transfer_type, is_32bit) {
@@ -296,36 +309,42 @@ fn reg_fifo_mod(dev: &mut EmmcDevice, transfer_type: TransferType, is_32bit: boo
             dev.data16_fifo.set_unchecked(unsafe { mem::transmute(buf16) });
 
             // Setting these flags: hack to keep the client reading even after acknowledging
-            trigger_status(dev, Status1::RxReady);
+            ready_status = Status1::RxReady.into();
         }
         (TransferType::Write, false) => {
             buf16 = unsafe { mem::transmute(dev.data16_fifo.get()) };
             get_active_card(dev).write_all(&buf16).unwrap();
 
-            trigger_status(dev, Status1::TxRq);
+            ready_status = Status1::TxRq.into();
         }
         (TransferType::Read, true) => {
             // TODO: Fail gracefully if read size < requested? Needs more testing
             get_active_card(dev).read_exact(&mut buf32).unwrap();
             dev.data32_fifo.set_unchecked(unsafe { mem::transmute(buf32) });
 
-            trigger_status(dev, Status32::RxReady);
+            ready_status = Status32::RxReady.into();
         }
         (TransferType::Write, true) => {
             buf32 = unsafe { mem::transmute(dev.data32_fifo.get()) };
             get_active_card(dev).write_all(&buf32).unwrap();
 
-            // Don't set flags. TODO: Why is this?
+            ready_status = Status32::_TxRq.into();
         }
     };
 
     if should_stop {
         trigger_status(dev, Status0::DataEnd);
-        
+
         let stop = RegStopInternal::new(dev.stop.get());
         let auto_stop = stop.should_auto_stop.get() == 1;
         if auto_stop {
             mode_sd::handle_cmd(dev, 12); // STOP_TRANSMISSION
+        }
+    } else {
+        trigger_status(dev, ready_status);
+
+        if let (TransferType::Read, true) = (transfer_type, is_32bit) {
+            dev._internal_state.dma_out.trigger();
         }
     }
 }

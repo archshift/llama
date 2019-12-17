@@ -61,6 +61,8 @@ pub fn stop_transmission(dev: &mut EmmcDevice) {
     emmc::get_active_card(dev).kill_transfer();
     emmc::clear_status(dev, Status1::RxReady);
     emmc::clear_status(dev, Status1::TxRq);
+    emmc::clear_status(dev, Status32::RxReady);
+    emmc::clear_status(dev, Status32::_TxRq);
     warn!("STUBBED: SDMMC CMD12 STOP_TRANSMISSION!");
 }
 
@@ -74,7 +76,10 @@ pub fn prepare_multi_transfer(dev: &mut EmmcDevice, ttype: TransferType) {
     let block_count = if emmc::use_32bit(dev) {
         match ttype {
             TransferType::Read => emmc::trigger_status(dev, Status32::RxReady),
-            TransferType::Write => {} // TODO: Why is this?
+            TransferType::Write => {
+                // TODO: no trigger_status?
+                dev._internal_state.dma_out.trigger();
+            }
         }
         dev.data32_blk_cnt.get()
     } else {

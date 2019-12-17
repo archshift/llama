@@ -85,6 +85,7 @@ pub struct DmaBuses {
     pub aes_out: DmaBus,
     pub sha_in: DmaBus,
     pub sha_out: DmaBus,
+    pub sdmmc_out: DmaBus,
 }
 
 
@@ -112,6 +113,7 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     let (dmatrg_aes_out, dmabus_aes_out) = DmaTrigger::new();
     let (dmatrg_sha_in, dmabus_sha_in) = DmaTrigger::new();
     let (dmatrg_sha_out, dmabus_sha_out) = DmaTrigger::new();
+    let (dmatrg_sdmmc_out, dmabus_sdmmc_out) = DmaTrigger::new();
 
     let dma_buses = DmaBuses {
         null: dmabus_null,
@@ -119,11 +121,12 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
         aes_out: dmabus_aes_out,
         sha_in: dmabus_sha_in,
         sha_out: dmabus_sha_out,
+        sdmmc_out: dmabus_sdmmc_out,
     };
 
     let cfg    = make_dev_uniq! { config::ConfigDevice };
     let irq    = make_dev_uniq! { irq::IrqDevice:     irq_subsys9.agg };
-    let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(irq_subsys9.sync_tx) };
+    let emmc   = make_dev_uniq! { emmc::EmmcDevice:   emmc::EmmcDeviceState::new(dmatrg_sdmmc_out, irq_subsys9.sync_tx) };
     let otp    = make_dev_uniq! { otp::OtpDevice:     Default::default() };
     let pxi9   = make_dev_uniq! { pxi::PxiDevice:     pxi_shared.0 };
     let timer  = make_dev_uniq! { timer::TimerDevice: clk.timer_states };

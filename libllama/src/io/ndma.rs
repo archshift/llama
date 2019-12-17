@@ -210,7 +210,9 @@ impl NdmaDeviceState {
         bus_map.insert(0xA, buses.sha_in.clone());
         bus_map.insert(0xB, buses.sha_out.clone());
 
+        let sdmmc_to_aes= buses.sdmmc_out.clone().union_with(buses.aes_in.clone());
         let aes_to_sha = buses.aes_out.clone().union_with(buses.sha_in.clone());
+        bus_map.insert(0x8F, sdmmc_to_aes);
         bus_map.insert(0x10F, aes_to_sha);
 
         let chan_state = NdmaChannelState {
