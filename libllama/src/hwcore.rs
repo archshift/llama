@@ -1,4 +1,6 @@
 use std::sync::{self, Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::thread;
 
 use clock;
@@ -55,8 +57,9 @@ struct MemoryRegions {
 
 impl MemoryRegions {
     fn map<F>(io_creator: F) -> Self
-        where F: FnOnce(mem::MemController, mem::MemController)
-            -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11, io::IoRegsArm11Priv)
+        where F: 
+            FnOnce(mem::MemController, Rc<RefCell<HardwareDma9>>)
+                -> (io::IoRegsArm9, io::IoRegsShared, io::IoRegsArm11, io::IoRegsArm11Priv)
     {
         let arm9_itcm = mem::UniqueMemoryBlock::new(0x20);
         let arm9_ram = mem::UniqueMemoryBlock::new(0x400);
@@ -95,11 +98,13 @@ impl MemoryRegions {
         controller_dma9.map_region(0x1FF80000, mem::AddressBlock::SharedRam(axi_wram.clone()));
         controller_dma9.map_region(0x20000000, mem::AddressBlock::SharedRam(fcram.clone()));
 
-
-
-
+        let dma9_hw = HardwareDma9::new(controller_dma9);
+        let dma9_shared = Rc::new(RefCell::new(dma9_hw));
         let (arm9_io, shared_io, arm11_io, arm11_io_priv)
-            = io_creator(controller_pica, controller_dma9);
+            = io_creator(controller_pica, dma9_shared.clone());
+
+        dma9_shared.borrow_mut()
+            .mem.map_region(0x10000000, mem::AddressBlock::Io9(arm9_io.clone()));
 
         /////////////////////////////////////////////////////////////////
         ////////////          ARM9 MEMORY MAPPINGS
@@ -307,9 +312,8 @@ impl HwCore {
         // let clk11_rx = clk11_tx.clone();
 
         let mut mem_regions = MemoryRegions::map(
-            |pica_controller, dma9_controller| {
+            |pica_controller, dma9_hw| {
                 let pica_hw = io::gpu::HardwarePica::new(client_pica, pica_controller);
-                let dma9_hw = HardwareDma9::new(dma9_controller);
 
                 io::new_devices(irq_subsys, irq11_subsys, clk_rx, pica_hw, dma9_hw)
             }

@@ -92,7 +92,7 @@ pub struct DmaBuses {
 
 pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
                    clk: clock::SysClock, pica_hw: gpu::HardwarePica,
-                   dma9_hw: HardwareDma9)
+                   dma9_shared: Rc<RefCell<HardwareDma9>>)
     -> (IoRegsArm9, IoRegsShared, IoRegsArm11, IoRegsArm11Priv) {
     
     macro_rules! make_dev_uniq {
@@ -106,7 +106,6 @@ pub fn new_devices(irq_subsys9: IrqSubsys, irq_subsys11: IrqSubsys,
     }
 
     let pxi_shared = pxi::PxiShared::make_channel(irq_subsys9.async_tx, irq_subsys11.async_tx);
-    let dma9_shared = Rc::new(RefCell::new(dma9_hw));
 
     let (_, dmabus_null) = DmaTrigger::new();
     let (dmatrg_aes_in, dmabus_aes_in) = DmaTrigger::new();
