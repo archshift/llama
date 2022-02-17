@@ -95,7 +95,7 @@ impl IrqLine {
 
 pub trait IrqClient: Clone {
     fn assert<IRQ: IrqType>(&mut self, irq: IRQ);
-    fn is_enabled(&self, u32) -> bool;
+    fn is_enabled(&self, _: u32) -> bool;
 }
 
 pub trait IrqServer {

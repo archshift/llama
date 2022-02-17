@@ -177,7 +177,7 @@ mod cbs {
         backend.msg_client.send(Message::HidUpdate(state));
     }
 
-    pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const i8, str_len: usize) {
+    pub unsafe extern fn run_command(backend: *mut c::Backend, str_buf: *const libc::c_char, str_len: usize) {
         let backend = Backend::from_c(backend);
         let input = {
             let slice = slice::from_raw_parts(str_buf as *const u8, str_len);
@@ -213,7 +213,7 @@ mod cbs {
 
     pub unsafe extern fn buffer(buf: c::LogBufferMutView) -> c::LogBufferView {
         let new_slice = lgl::buffer(slice::from_raw_parts_mut(buf.buf_ptr as *mut u8, buf.buf_size));
-        c::LogBufferView { buf_ptr: new_slice.as_ptr() as *const i8, buf_size: new_slice.len() }
+        c::LogBufferView { buf_ptr: new_slice.as_ptr() as *const libc::c_char, buf_size: new_slice.len() }
     }
 
     pub extern fn buffer_size() -> usize {
@@ -288,7 +288,7 @@ fn main() {
     unsafe {
         c::llama_open_gui(
             c_args.len() as i32,
-            c_args.as_mut_ptr() as *mut *mut i8,
+            c_args.as_mut_ptr() as *mut *mut libc::c_char,
             backend.to_c(),
             &callbacks)
     };
